@@ -5,6 +5,7 @@ import MenuSection from "./components/MenuSection";
 import ReservationSection from "./components/ReservationSection";
 import Footer from "./components/Footer";
 import { categories, menuItems } from "./data/menuData";
+import styles from "./App.module.css";
 
 function App() {
   const [activeCategory, setActiveCategory] = useState(categories[0].id);
@@ -19,10 +20,10 @@ function App() {
     "Menu";
 
   return (
-    <div className="app-shell">
+    <div className={styles.appShell}>
       <Header />
 
-      <main className="app-main">
+      <main className={styles.appMain}>
         <CategoryTabs
           categories={categories}
           activeCategory={activeCategory}

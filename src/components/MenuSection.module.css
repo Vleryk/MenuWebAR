@@ -1,0 +1,36 @@
+.menuSection {
+  margin-top: 2.2rem;
+  border: 1px solid rgba(212, 170, 99, 0.2);
+  border-radius: 18px;
+  background: rgba(13, 25, 45, 0.65);
+  padding: 2rem;
+  width: 100%;
+  max-width: 1050px;
+  margin-left: auto;
+  margin-right: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.title {
+  margin: 0 0 1.5rem;
+  color: var(--r66-gold);
+  font-size: 1.6rem;
+  text-align: center;
+  width: 100%;
+}
+
+.menuGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+  width: 100%;
+  max-width: 900px;
+}
+
+@media (max-width: 900px) {
+  .menuGrid {
+    grid-template-columns: 1fr;
+  }
+}

@@ -1,3 +1,5 @@
+import styles from "./Footer.module.css";
+
 function Footer() {
   const socialLinks = [
     {
@@ -21,41 +23,41 @@ function Footer() {
   ];
 
   return (
-    <footer className="site-footer">
-      <div className="footer-brand-col">
+    <footer className={styles.siteFooter}>
+      <div className={styles.footerBrandCol}>
         <img
-          className="footer-logo"
+          className={styles.footerLogo}
           src="/assets/references/logo-contraste.7ddc12ebe66a8491be1140703728458f.svg"
           alt="Logo Route 66"
         />
-        <p className="footer-tagline">
+        <p className={styles.footerTagline}>
           La mejor onda y una experiencia de menu digital pensada para sorprender.
         </p>
       </div>
 
-      <div className="footer-info-col">
-        <section className="footer-block">
+      <div className={styles.footerInfoCol}>
+        <section className={styles.footerBlock}>
           <h5>Contacto</h5>
-          <ul className="footer-contact-list">
+          <ul className={styles.footerContactList}>
             <li>Isidora Goyenechea 2960, Las Condes</li>
             <li>+56 2 3266 9954</li>
             <li>contacto@route66.cl</li>
           </ul>
         </section>
 
-        <section className="footer-block">
-          <h5 className="footer-subtitle">Horarios</h5>
-          <ul className="footer-hours-list">
+        <section className={styles.footerBlock}>
+          <h5 className={styles.footerSubtitle}>Horarios</h5>
+          <ul className={styles.footerHoursList}>
             <li>Dom - Mie: 12:30 a 00:00</li>
             <li>Jue - Sab: 12:30 a 01:00</li>
           </ul>
         </section>
       </div>
 
-      <div className="footer-links-col">
-        <section className="footer-block">
+      <div className={styles.footerLinksCol}>
+        <section className={styles.footerBlock}>
           <h5>Enlaces</h5>
-          <ul className="footer-links-list">
+          <ul className={styles.footerLinksList}>
             <li>
               <a href="#">Nuestra carta</a>
             </li>
@@ -70,13 +72,13 @@ function Footer() {
           </ul>
         </section>
 
-        <section className="footer-block">
-          <h5 className="footer-subtitle">Redes</h5>
-          <ul className="social-list" aria-label="Redes sociales">
+        <section className={styles.footerBlock}>
+          <h5 className={styles.footerSubtitle}>Redes</h5>
+          <ul className={styles.socialList} aria-label="Redes sociales">
             {socialLinks.map((social) => (
               <li key={social.name}>
-                <a href={social.url} target="_blank" rel="noreferrer" className="social-item">
-                  <span className="social-icon" aria-hidden="true">{social.icon}</span>
+                <a href={social.url} target="_blank" rel="noreferrer" className={styles.socialItem}>
+                  <span className={styles.socialIcon} aria-hidden="true">{social.icon}</span>
                   <span>{social.name}</span>
                 </a>
               </li>
@@ -85,9 +87,9 @@ function Footer() {
         </section>
       </div>
 
-      <div className="footer-map-col">
+      <div className={styles.footerMapCol}>
         <h5>Ubicacion</h5>
-        <div className="footer-map-frame">
+        <div className={styles.footerMapFrame}>
           <iframe
             title="Mapa Route 66"
             src="https://www.google.com/maps?q=Isidora+Goyenechea+2960,+Las+Condes&output=embed"
@@ -97,7 +99,7 @@ function Footer() {
         </div>
       </div>
 
-      <div className="footer-bottom">2026 Route 66 ©</div>
+      <div className={styles.footerBottom}>2026 Route 66 ©</div>
     </footer>
   );
 }

@@ -1,6 +1,8 @@
+import styles from "./CategoryTabs.module.css";
+
 function CategoryTabs({ categories, activeCategory, onChange }) {
   return (
-    <nav className="category-tabs" aria-label="Categorias del menu">
+    <nav className={styles.categoryTabs} aria-label="Categorias del menu">
       {categories.map((category) => {
         const isActive = activeCategory === category.id;
 
@@ -8,7 +10,7 @@ function CategoryTabs({ categories, activeCategory, onChange }) {
           <button
             key={category.id}
             type="button"
-            className={`category-btn ${isActive ? "active" : ""}`}
+            className={`${styles.categoryBtn} ${isActive ? styles.active : ""}`}
             onClick={() => onChange(category.id)}
           >
             {category.label}

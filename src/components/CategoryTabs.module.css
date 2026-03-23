@@ -1,0 +1,28 @@
+.categoryTabs {
+  display: flex;
+  gap: 0.5rem;
+  overflow-x: auto;
+  padding-bottom: 0.7rem;
+  margin-bottom: 0.2rem;
+}
+
+.categoryBtn {
+  border: 1px solid rgba(212, 170, 99, 0.2);
+  background: rgba(12, 20, 35, 0.7);
+  color: rgba(241, 233, 221, 0.7);
+  text-transform: uppercase;
+  font-weight: 700;
+  font-size: 0.74rem;
+  letter-spacing: 0.05em;
+  border-radius: 999px;
+  padding: 0.62rem 0.9rem;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: 0.2s ease;
+}
+
+.categoryBtn:hover,
+.active {
+  background: var(--r66-gold);
+  color: #111827;
+}

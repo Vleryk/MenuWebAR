@@ -1,10 +1,11 @@
 import MenuCard from "./MenuCard";
+import styles from "./MenuSection.module.css";
 
 function MenuSection({ title, items }) {
   return (
-    <section className="menu-section" id="menu">
-      <h2>{title}</h2>
-      <div className="menu-grid">
+    <section className={styles.menuSection} id="menu">
+      <h2 className={styles.title}>{title}</h2>
+      <div className={styles.menuGrid}>
         {items.map((item) => (
           <MenuCard key={item.id} item={item} />
         ))}

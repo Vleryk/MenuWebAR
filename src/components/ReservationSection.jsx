@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import styles from "./ReservationSection.module.css";
 
 function ReservationSection() {
   const peopleOptions = useMemo(() => Array.from({ length: 26 }, (_, i) => i + 1), []);
@@ -25,19 +26,19 @@ function ReservationSection() {
   ];
 
   return (
-    <section className="reservation-section" id="reservas">
-      <div className="reservation-header">
+    <section className={styles.reservationSection} id="reservas">
+      <div className={styles.reservationHeader}>
         <h2>Reservas</h2>
         <p>Elige fecha, hora y zona para asegurar tu mesa.</p>
       </div>
 
-      <form className="reservation-form" onSubmit={(e) => e.preventDefault()}>
-        <label className="reservation-field">
+      <form className={styles.reservationForm} onSubmit={(e) => e.preventDefault()}>
+        <label className={styles.reservationField}>
           <span>Fecha</span>
           <input type="date" required />
         </label>
 
-        <label className="reservation-field">
+        <label className={styles.reservationField}>
           <span>Personas</span>
           <select required defaultValue="2">
             {peopleOptions.map((count) => (
@@ -48,7 +49,7 @@ function ReservationSection() {
           </select>
         </label>
 
-        <label className="reservation-field">
+        <label className={styles.reservationField}>
           <span>Hora</span>
           <select required defaultValue="20:00">
             {timeSlots.map((slot) => (
@@ -59,7 +60,7 @@ function ReservationSection() {
           </select>
         </label>
 
-        <label className="reservation-field">
+        <label className={styles.reservationField}>
           <span>Zona</span>
           <select required defaultValue="salon">
             {zones.map((zone) => (
@@ -70,7 +71,7 @@ function ReservationSection() {
           </select>
         </label>
 
-        <button type="submit" className="reservation-submit">
+        <button type="submit" className={styles.reservationSubmit}>
           Reservar
         </button>
       </form>

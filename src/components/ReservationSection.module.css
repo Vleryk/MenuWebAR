@@ -1,0 +1,100 @@
+.reservationSection {
+  margin-top: 2.5rem;
+  border: 1px solid rgba(212, 170, 99, 0.2);
+  border-radius: 18px;
+  background: rgba(12, 20, 35, 0.75);
+  padding: 1.8rem;
+  width: 100%;
+  max-width: 1050px;
+  margin-left: auto;
+  margin-right: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 1.4rem;
+}
+
+.reservationHeader h2 {
+  margin: 0;
+  color: var(--r66-gold);
+  font-size: 1.55rem;
+}
+
+.reservationHeader p {
+  margin: 0.35rem 0 0;
+  color: rgba(247, 241, 232, 0.8);
+}
+
+.reservationForm {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1rem;
+  align-items: end;
+}
+
+.reservationField {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  color: rgba(247, 241, 232, 0.85);
+  font-size: 0.95rem;
+}
+
+.reservationField span {
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+.reservationField input,
+.reservationField select {
+  background: rgba(8, 14, 25, 0.9);
+  color: #f7f1e8;
+  border: 1px solid rgba(212, 170, 99, 0.3);
+  border-radius: 10px;
+  padding: 0.6rem 0.75rem;
+  font-size: 0.95rem;
+  outline: none;
+}
+
+.reservationField input:focus,
+.reservationField select:focus {
+  border-color: var(--r66-gold);
+  box-shadow: 0 0 0 2px rgba(212, 170, 99, 0.15);
+}
+
+.reservationSubmit {
+  align-self: stretch;
+  height: 100%;
+  min-height: 48px;
+  border: none;
+  border-radius: 12px;
+  background: linear-gradient(135deg, var(--r66-gold), #e0bf7f);
+  color: #0f1724;
+  font-weight: 800;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: transform 0.1s ease, box-shadow 0.2s ease;
+}
+
+.reservationSubmit:hover {
+  box-shadow: 0 8px 18px rgba(212, 170, 99, 0.35);
+}
+
+.reservationSubmit:active {
+  transform: translateY(1px);
+}
+
+@media (max-width: 900px) {
+  .reservationForm {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .reservationSection {
+    padding: 1.4rem;
+  }
+
+  .reservationForm {
+    grid-template-columns: 1fr;
+  }
+}

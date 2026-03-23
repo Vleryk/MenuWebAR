@@ -1,0 +1,162 @@
+.siteFooter {
+  margin-top: 2rem;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  align-items: start;
+  gap: 1.25rem;
+  border-top: 1px solid rgba(212, 170, 99, 0.24);
+  background: linear-gradient(160deg, rgba(20, 32, 52, 0.78), rgba(10, 18, 31, 0.88));
+  border-radius: 16px;
+  padding: 1.2rem;
+  color: rgba(247, 241, 232, 0.86);
+}
+
+.siteFooter h4,
+.siteFooter h5 {
+  margin: 0 0 0.45rem;
+  color: var(--r66-gold);
+}
+
+.siteFooter p {
+  margin: 0;
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+
+.footerBrandCol,
+.footerInfoCol,
+.footerLinksCol,
+.footerMapCol {
+  min-width: 0;
+}
+
+.footerInfoCol,
+.footerLinksCol {
+  display: grid;
+  align-content: start;
+  gap: 0.95rem;
+}
+
+.footerBlock {
+  display: grid;
+  align-content: start;
+}
+
+.footerTagline {
+  margin-top: 0.75rem;
+  color: rgba(247, 241, 232, 0.72);
+}
+
+.footerContactList,
+.footerLinksList,
+.footerHoursList {
+  list-style: disc;
+  margin: 0.35rem 0 0;
+  padding-left: 1.05rem;
+  display: grid;
+  gap: 0.35rem;
+}
+
+.footerContactList li {
+  color: rgba(247, 241, 232, 0.86);
+  font-size: 0.9rem;
+}
+
+.footerSubtitle {
+  margin-top: 0;
+}
+
+.footerHoursList li {
+  color: rgba(247, 241, 232, 0.78);
+}
+
+.footerLinksList a {
+  color: var(--r66-cream);
+  text-decoration: none;
+  border-bottom: 1px dashed transparent;
+  transition: border-color 0.2s ease;
+}
+
+.footerLinksList a:hover {
+  border-color: rgba(212, 170, 99, 0.6);
+}
+
+.socialList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.45rem;
+}
+
+.socialItem {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: fit-content;
+  padding: 0.1rem 0;
+  color: var(--r66-cream);
+  text-decoration: none;
+}
+
+.socialItem:hover {
+  color: var(--r66-gold);
+}
+
+.socialIcon {
+  width: 18px;
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: currentColor;
+}
+
+.socialIcon svg {
+  width: 100%;
+  height: 100%;
+  fill: currentColor;
+}
+
+.footerLogo {
+  width: min(150px, 45vw);
+  height: auto;
+  margin-top: 0.25rem;
+}
+
+.footerMapFrame {
+  width: 100%;
+  height: 150px;
+  border: 1px solid rgba(212, 170, 99, 0.3);
+  border-radius: 12px;
+  overflow: hidden;
+  margin-top: 0.35rem;
+}
+
+.footerMapFrame iframe {
+  width: 100%;
+  height: 100%;
+  border: 0;
+}
+
+.footerBottom {
+  grid-column: 1 / -1;
+  padding-top: 0.8rem;
+  margin-top: 0.2rem;
+  border-top: 1px solid rgba(212, 170, 99, 0.18);
+  color: rgba(247, 241, 232, 0.72);
+  font-size: 0.85rem;
+  text-align: center;
+}
+
+@media (max-width: 900px) {
+  .siteFooter {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .siteFooter {
+    grid-template-columns: 1fr;
+  }
+}

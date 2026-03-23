@@ -1,3 +1,5 @@
+import styles from "./Header.module.css";
+
 function Header() {
   const navLinks = [
     { label: "Carta", href: "#menu" },
@@ -19,22 +21,22 @@ function Header() {
   ];
 
   return (
-    <header className="header-navbar">
-      <div className="navbar-content">
+    <header className={styles.headerNavbar}>
+      <div className={styles.navbarContent}>
         <img
-          className="navbar-logo"
+          className={styles.navbarLogo}
           src="/assets/references/logo-contraste.7ddc12ebe66a8491be1140703728458f.svg"
           alt="Logo Route 66"
         />
 
-        <nav className="navbar-links">
+        <nav className={styles.navbarLinks}>
           {navLinks.map((link) => (
             <a key={link.label} href={link.href} target={link.href.startsWith("http") ? "_blank" : "_self"} rel="noreferrer">
               {link.label}
             </a>
           ))}
 
-          <div className="navbar-socials">
+          <div className={styles.navbarSocials}>
             {socialLinks.map((social) => (
               <a
                 key={social.name}
@@ -42,7 +44,7 @@ function Header() {
                 target="_blank"
                 rel="noreferrer"
                 title={social.name}
-                className="social-icon-link"
+                className={styles.socialIconLink}
               >
                 {social.name === "Instagram" ? (
                   <svg viewBox="0 0 24 24" aria-hidden="true">

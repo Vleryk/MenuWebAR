@@ -1,22 +1,50 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import styles from "./MenuCard.module.css";
 
 function MenuCard({ item }) {
   const [isArOpen, setIsArOpen] = useState(false);
 
+  useEffect(() => {
+    if (!isArOpen) return;
+
+    const handleKeyDown = (event) => {
+      if (event.key === "Escape") {
+        setIsArOpen(false);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isArOpen]);
+
+  useEffect(() => {
+    if (!isArOpen) return;
+
+    const previousBodyOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    return () => {
+      document.body.style.overflow = previousBodyOverflow;
+    };
+  }, [isArOpen]);
+
   return (
     <>
-      <article className="menu-card">
-        <img className="menu-thumb" src={item.image} alt={item.name} />
+      <article className={styles.menuCard}>
+        <img className={styles.menuThumb} src={item.image} alt={item.name} />
 
-        <div className="menu-content">
+        <div className={styles.menuContent}>
           <h3>{item.name}</h3>
           <p>{item.description}</p>
 
-          <div className="menu-footer">
+          <div className={styles.menuFooter}>
             <strong>{item.price}</strong>
             <button
               type="button"
-              className="btn-ar"
+              className={styles.btnAr}
               aria-label={`Ver ${item.name} en AR`}
               title="Ver Modelo AR"
               onClick={() => setIsArOpen(true)}
@@ -28,11 +56,11 @@ function MenuCard({ item }) {
       </article>
 
       {isArOpen ? (
-        <div className="ar-modal-overlay" onClick={() => setIsArOpen(false)}>
-          <div className="ar-modal" onClick={(event) => event.stopPropagation()}>
+        <div className={styles.arModalOverlay} onClick={() => setIsArOpen(false)}>
+          <div className={styles.arModal} onClick={(event) => event.stopPropagation()}>
             <button
               type="button"
-              className="ar-close-btn"
+              className={styles.arCloseBtn}
               onClick={() => setIsArOpen(false)}
               aria-label="Cerrar visor AR"
             >
@@ -46,7 +74,7 @@ function MenuCard({ item }) {
               camera-controls
               auto-rotate
               shadow-intensity="1"
-              class="ar-viewer"
+              class={styles.arViewer}
             />
           </div>
         </div>

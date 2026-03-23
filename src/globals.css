@@ -1,0 +1,26 @@
+:root {
+  --r66-night: #0f1724;
+  --r66-blue: #1d2f4f;
+  --r66-gold: #d4aa63;
+  --r66-cream: #f7f1e8;
+  --card-bg: rgba(255, 255, 255, 0.06);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  font-family: "Trebuchet MS", "Segoe UI", sans-serif;
+  color: white;
+  background:
+    radial-gradient(circle at 20% 20%, rgba(212, 170, 99, 0.18), transparent 40%),
+    radial-gradient(circle at 80% 0%, rgba(70, 117, 201, 0.18), transparent 45%),
+    linear-gradient(145deg, #0a101a, #131f32 55%, #1b2740);
+}
