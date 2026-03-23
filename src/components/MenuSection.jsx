@@ -5,7 +5,7 @@ function MenuSection({ title, items }) {
   return (
     <section className={styles.menuSection} id="menu">
       <h2 className={styles.title}>{title}</h2>
-      <div className={styles.menuGrid}>
+      <div key={title} className={`${styles.menuGrid} ${styles.fadeIn}`}>
         {items.map((item) => (
           <MenuCard key={item.id} item={item} />
         ))}

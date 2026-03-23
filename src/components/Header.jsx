@@ -3,8 +3,8 @@ import styles from "./Header.module.css";
 function Header() {
   const navLinks = [
     { label: "Carta", href: "#menu" },
-    { label: "Reservas", href: "#" },
-    { label: "Delivery", href: "#" },
+    { label: "Reservas", href: "#reservas" },
+    { label: "Delivery", href: "https://delivery.route66.cl/pedir" },
   ];
 
   const socialLinks = [

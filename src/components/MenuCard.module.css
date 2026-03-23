@@ -16,6 +16,12 @@
   border: 2px solid rgba(212, 170, 99, 0.4);
 }
 
+.menuContent {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+}
+
 .menuContent h3 {
   margin: 0;
   font-size: 1rem;
@@ -31,29 +37,57 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
+  margin-top: auto;
 }
 
 .menuFooter strong {
   color: var(--r66-gold);
 }
 
-.btnAr {
-  border: 0;
-  border-radius: 10px;
-  background: transparent;
-  padding: 0.2rem 0.45rem;
-  display: inline-flex;
+/* --- Testing de botones --- */
+.cardActions {
+  display: flex;
+  gap: 0.5rem;
   align-items: center;
-  gap: 0.35rem;
-  cursor: pointer;
 }
 
-.btnAr img {
-  width: 28px;
-  height: 28px;
-  object-fit: contain;
-  display: block;
+.btnAction {
+  border: 1px solid rgba(212, 170, 99, 0.4);
+  border-radius: 10px;
+  background: rgba(12, 20, 35, 0.6);
+  padding: 0.3rem 0.6rem;
+  min-width: 44px; 
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  color: var(--r66-gold);
+  font-weight: bold;
 }
+
+.btnAction:hover {
+  background: rgba(212, 170, 99, 0.15);
+}
+
+.cameraIcon {
+  width: 22px;
+  height: 22px;
+  display: block;
+  fill: currentColor;
+}
+
+.btnArPrimary {
+  background: var(--r66-gold);
+  border-color: var(--r66-gold);
+  color: #111827;
+}
+
+.btnArPrimary:hover {
+  background: #e0bf7f;
+}
+/* ------------------------------------------------ */
 
 .arModalOverlay {
   position: fixed;
@@ -94,4 +128,62 @@
 .arViewer {
   width: 100%;
   height: 100%;
+}
+
+.loaderWrapper {
+  position: absolute;
+  left: 1rem;
+  right: 1rem;
+  bottom: 1rem;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  padding: 0.62rem 0.75rem;
+  border: 1px solid rgba(212, 170, 99, 0.35);
+  border-radius: 12px;
+  background: linear-gradient(145deg, rgba(10, 16, 26, 0.92), rgba(17, 24, 39, 0.92));
+  backdrop-filter: blur(6px);
+}
+
+.loaderTrack {
+  flex: 1;
+  height: 10px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.12);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+}
+
+.loaderBar {
+  position: relative;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #bf8c3d, #d4aa63 45%, #f0cd8f);
+  box-shadow: 0 0 10px rgba(212, 170, 99, 0.45);
+  transition: width 0.18s ease-out;
+}
+
+.loaderBar::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(120deg, transparent 0%, rgba(255, 255, 255, 0.35) 50%, transparent 100%);
+  transform: translateX(-100%);
+  animation: loadingShimmer 1.2s linear infinite;
+}
+
+.loaderLabel {
+  min-width: 3ch;
+  text-align: right;
+  color: #f7f1e8;
+  font-weight: 700;
+  font-size: 0.82rem;
+  letter-spacing: 0.02em;
+}
+
+@keyframes loadingShimmer {
+  to {
+    transform: translateX(100%);
+  }
 }
