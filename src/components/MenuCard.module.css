@@ -44,7 +44,6 @@
   color: var(--r66-gold);
 }
 
-/* --- Testing de botones --- */
 .cardActions {
   display: flex;
   gap: 0.5rem;
@@ -87,7 +86,6 @@
 .btnArPrimary:hover {
   background: #e0bf7f;
 }
-/* ------------------------------------------------ */
 
 .arModalOverlay {
   position: fixed;

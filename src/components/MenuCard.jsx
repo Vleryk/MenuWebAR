@@ -94,7 +94,6 @@ function MenuCard({ item }) {
     };
   }, [isArOpen]);
 
-  // testing
   const open3DPreview = () => {
     setIsArOpen(true);
   };
@@ -107,7 +106,6 @@ function MenuCard({ item }) {
       }
     }, 50);
   };
-  //fin testing
 
   return (
     <>
@@ -121,7 +119,6 @@ function MenuCard({ item }) {
           <div className={styles.menuFooter}>
             <strong>{item.price}</strong>
             
-            {/*testing*/}
             <div className={styles.cardActions}>
               <button
                 type="button"
@@ -135,7 +132,6 @@ function MenuCard({ item }) {
 
               <button
                 type="button"
-                // Unimos la clase base del botón con la clase primaria (dorada)
                 className={`${styles.btnAction} ${styles.btnArPrimary}`}
                 aria-label={`Ver ${item.name} en AR`}
                 title="Proyectar en tu mesa"
@@ -144,7 +140,6 @@ function MenuCard({ item }) {
                 <CameraIcon />
               </button>
             </div>
-              {/*fin testing*/}
           </div>
         </div>
       </article>
@@ -177,11 +172,13 @@ function MenuCard({ item }) {
 
             <model-viewer
               ref={modelViewerRef}
-              src="/assets/modelosAR/Plato2.glb"
+              src="/assets/modelosAR/Plato3.glb"
               ar
               ar-modes="webxr scene-viewer quick-look"
               camera-controls
               auto-rotate
+              auto-rotate-delay="300"
+              rotation-per-second="30deg"
               shadow-intensity="1"
               class={styles.arViewer}
             />

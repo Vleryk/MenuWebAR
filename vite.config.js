@@ -6,9 +6,10 @@ export default defineConfig({
   plugins: [
     react()//,
     //basicSsl()
-  ]
+  ]//,
   //server: {
-  //  host: true // Esto es lo que permite que tu celular se conecte
+  //  host: true 
 })
 
-//sacar comentarios para usar, necesario para AR en celus.
+//sacar comentarios para usar host para el celular, obvio xd.
+// si no funciona, un npm install no hace daño
