@@ -68,7 +68,7 @@ function MenuCard({ item }) {
             </button>
 
             <model-viewer
-              src="/assets/modelosAR/plato%20nuevooo.glb"
+              src="/assets/modelosAR/Plato2.glb"
               ar
               ar-modes="webxr scene-viewer quick-look"
               camera-controls
