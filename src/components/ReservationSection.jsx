@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { FiCalendar, FiClock, FiMapPin, FiUsers } from "react-icons/fi";
 import styles from "./ReservationSection.module.css";
 
 const formatDateForInput = (date) => {
@@ -113,7 +114,10 @@ function ReservationSection() {
 
       <form className={styles.reservationForm} onSubmit={handleSubmit}>
         <label className={styles.reservationField}>
-          <span>Fecha</span>
+          <span className={styles.fieldLabel}>
+            <FiCalendar className={styles.fieldLabelIcon} aria-hidden="true" />
+            Fecha
+          </span>
           <input
             type="date"
             min={todayInputDate}
@@ -127,7 +131,10 @@ function ReservationSection() {
         </label>
 
         <label className={styles.reservationField}>
-          <span>Personas</span>
+          <span className={styles.fieldLabel}>
+            <FiUsers className={styles.fieldLabelIcon} aria-hidden="true" />
+            Personas
+          </span>
           <select
             required
             value={reservationPeople}
@@ -145,7 +152,10 @@ function ReservationSection() {
         </label>
 
         <label className={styles.reservationField}>
-          <span>Hora</span>
+          <span className={styles.fieldLabel}>
+            <FiClock className={styles.fieldLabelIcon} aria-hidden="true" />
+            Hora
+          </span>
           <select
             required
             value={reservationTime}
@@ -164,7 +174,10 @@ function ReservationSection() {
         </label>
 
         <label className={styles.reservationField}>
-          <span>Zona</span>
+          <span className={styles.fieldLabel}>
+            <FiMapPin className={styles.fieldLabelIcon} aria-hidden="true" />
+            Zona
+          </span>
           <select
             required
             value={reservationZone}
