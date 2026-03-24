@@ -2,8 +2,21 @@
   display: flex;
   gap: 0.5rem;
   overflow-x: auto;
+  overflow-y: hidden;
+  width: 100%;
+  min-width: 0;
+  padding-inline: 1rem;
   padding-bottom: 0.7rem;
   margin-bottom: 0.2rem;
+  justify-content: center;
+  -webkit-overflow-scrolling: touch;
+  scroll-padding-inline: 1rem;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.categoryTabs::-webkit-scrollbar {
+  display: none;
 }
 
 .categoryBtn {
@@ -17,6 +30,7 @@
   border-radius: 999px;
   padding: 0.62rem 0.9rem;
   white-space: nowrap;
+  flex: 0 0 auto;
   cursor: pointer;
   transition: 0.2s ease;
 }
@@ -25,4 +39,18 @@
 .active {
   background: var(--r66-gold);
   color: #111827;
+}
+
+@media (max-width: 640px) {
+  .categoryTabs {
+    justify-content: flex-start;
+    gap: 0.45rem;
+    padding-inline: 0.9rem;
+    margin-bottom: 0.35rem;
+  }
+
+  .categoryBtn {
+    font-size: 0.7rem;
+    padding: 0.58rem 0.82rem;
+  }
 }
