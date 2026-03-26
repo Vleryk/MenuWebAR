@@ -23,7 +23,7 @@ function Footer() {
   ];
 
   return (
-    <footer className={styles.siteFooter}>
+    <footer className={styles.siteFooter} id="footer">
       <div className={styles.footerBrandCol}>
         <img
           className={styles.footerLogo}
@@ -59,10 +59,13 @@ function Footer() {
           <h5>Enlaces</h5>
           <ul className={styles.footerLinksList}>
             <li>
-              <a href="#">Nuestra carta</a>
+              <a href="#menu">Nuestra carta</a>
             </li>
             <li>
-              <a href="#">Reservas</a>
+              <a href="#reservas">Reservas</a>
+            </li>
+            <li>
+              <a href="#footer">Sobre nosotros</a>
             </li>
             <li>
               <a href="https://delivery.route66.cl/pedir" target="_blank" rel="noreferrer">

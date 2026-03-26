@@ -30,7 +30,25 @@ function App() {
           onChange={setActiveCategory}
         />
 
-        <MenuSection title={activeLabel} items={filteredItems} />
+        <div className={styles.layoutColumns}>
+          <aside className={styles.adColumn} aria-label="Publicidad izquierda">
+            <div className={styles.adCard}>
+              <h3>Publicidad</h3>
+              <p>Espacio disponible para anuncios de marcas asociadas.</p>
+            </div>
+          </aside>
+
+          <div className={styles.mainColumn}>
+            <MenuSection title={activeLabel} items={filteredItems} />
+          </div>
+
+          <aside className={styles.adColumn} aria-label="Publicidad derecha">
+            <div className={styles.adCard}>
+              <h3>Publicidad</h3>
+              <p>Incluye promociones, eventos o convenios comerciales.</p>
+            </div>
+          </aside>
+        </div>
 
         <ReservationSection />
       </main>

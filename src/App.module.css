@@ -7,4 +7,75 @@
 .appMain {
   margin-top: 1.2rem;
   width: 100%;
+  padding: 0 1rem;
+}
+
+.layoutColumns {
+  width: min(1400px, 100%);
+  margin: 0 auto;
+  display: flex;
+  gap: 1.2rem;
+  align-items: flex-start;
+}
+
+.adColumn {
+  flex: 0 0 220px;
+  position: sticky;
+  top: 120px;
+  display: flex;
+  justify-content: center;
+}
+
+.adCard {
+  width: min(200px, 100%);
+  min-height: 320px;
+  border-radius: 14px;
+  padding: 1rem;
+  border: 1px dashed rgba(212, 170, 99, 0.6);
+  background: linear-gradient(180deg, rgba(21, 34, 54, 0.9), rgba(12, 20, 34, 0.9));
+}
+
+.adCard h3 {
+  margin: 0 0 0.65rem;
+  color: var(--r66-gold);
+  font-size: 1rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.adCard p {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.86);
+  line-height: 1.5;
+}
+
+.mainColumn {
+  flex: 1;
+  min-width: 0;
+}
+
+@media (max-width: 1100px) {
+  .layoutColumns {
+    gap: 1rem;
+  }
+
+  .adColumn {
+    flex-basis: 180px;
+  }
+}
+
+@media (max-width: 920px) {
+  .layoutColumns {
+    flex-direction: column;
+  }
+
+  .adColumn {
+    position: static;
+    width: 100%;
+    flex-basis: auto;
+  }
+
+  .adCard {
+    min-height: auto;
+  }
 }

@@ -5,6 +5,7 @@ function Header() {
     { label: "Carta", href: "#menu" },
     { label: "Reservas", href: "#reservas" },
     { label: "Delivery", href: "https://delivery.route66.cl/pedir" },
+    { label: "Sobre Nosotros", href: "#footer" },
   ];
 
   const socialLinks = [
