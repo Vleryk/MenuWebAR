@@ -1,18 +1,38 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Header from "./components/Header";
 import CategoryTabs from "./components/CategoryTabs";
 import MenuSection from "./components/MenuSection";
 import ReservationSection from "./components/ReservationSection";
 import Footer from "./components/Footer";
-import { categories, menuItems } from "./data/menuData";
+import {
+  categories as staticCategories,
+  menuItems as staticMenuItems,
+} from "./data/menuData";
 import styles from "./App.module.css";
 
 function App() {
-  const [activeCategory, setActiveCategory] = useState(categories[0].id);
+  const [categories, setCategories] = useState(staticCategories);
+  const [menuItems, setMenuItems] = useState(staticMenuItems);
+  const [activeCategory, setActiveCategory] = useState(staticCategories[0].id);
+
+  useEffect(() => {
+    fetch("http://localhost:3001/api/menu")
+      .then((res) => res.json())
+      .then((data) => {
+        setCategories(data.categories);
+        setMenuItems(data.menuItems);
+        if (data.categories.length > 0) {
+          setActiveCategory(data.categories[0].id);
+        }
+      })
+      .catch(() => {
+        // Fallback: usa datos estáticos si el servidor no está disponible
+      });
+  }, []);
 
   const filteredItems = useMemo(
     () => menuItems.filter((item) => item.category === activeCategory),
-    [activeCategory]
+    [activeCategory, menuItems]
   );
 
   const activeLabel =

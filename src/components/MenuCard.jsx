@@ -120,25 +120,29 @@ function MenuCard({ item }) {
             <strong>{item.price}</strong>
             
             <div className={styles.cardActions}>
-              <button
-                type="button"
-                className={styles.btnAction}
-                aria-label={`Ver ${item.name} en 3D`}
-                title="Ver Modelo 3D"
-                onClick={open3DPreview}
-             >
-              <EyeIcon />
-              </button>
+              {item.modelAR ? (
+                <>
+                  <button
+                    type="button"
+                    className={styles.btnAction}
+                    aria-label={`Ver ${item.name} en 3D`}
+                    title="Ver Modelo 3D"
+                    onClick={open3DPreview}
+                  >
+                    <EyeIcon />
+                  </button>
 
-              <button
-                type="button"
-                className={`${styles.btnAction} ${styles.btnArPrimary}`}
-                aria-label={`Ver ${item.name} en AR`}
-                title="Proyectar en tu mesa"
-                onClick={launchAr}
-              >
-                <CameraIcon />
-              </button>
+                  <button
+                    type="button"
+                    className={`${styles.btnAction} ${styles.btnArPrimary}`}
+                    aria-label={`Ver ${item.name} en AR`}
+                    title="Proyectar en tu mesa"
+                    onClick={launchAr}
+                  >
+                    <CameraIcon />
+                  </button>
+                </>
+              ) : null}
             </div>
           </div>
         </div>
@@ -172,7 +176,7 @@ function MenuCard({ item }) {
 
             <model-viewer
               ref={modelViewerRef}
-              src="/assets/modelosAR/Plato3.glb"
+              src={item.modelAR}
               ar
               ar-modes="webxr scene-viewer quick-look"
               camera-controls

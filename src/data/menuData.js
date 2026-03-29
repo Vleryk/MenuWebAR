@@ -20,6 +20,7 @@ export const menuItems = [
     description: "Empanaditas rellenas de mariscos frescos.",
     price: "$11.990",
     image: "/assets/IMG/comida.jfif",
+    modelAR: "/assets/modelosAR/Plato3.glb",
   },
   {
     id: "ap-2",
@@ -28,6 +29,7 @@ export const menuItems = [
     description: "Nachos con queso, guacamole, sour cream y jalapenos.",
     price: "$10.490",
     image: "/assets/IMG/comida.jfif",
+    modelAR: "/assets/modelosAR/Plato3.glb",
   },
   {
     id: "ap-3",
@@ -36,6 +38,7 @@ export const menuItems = [
     description: "Aros de cebolla crujientes con salsa de la casa.",
     price: "$8.990",
     image: "/assets/IMG/comida.jfif",
+    modelAR: "/assets/modelosAR/Plato3.glb",
   },
   {
     id: "ap-4",
@@ -44,6 +47,7 @@ export const menuItems = [
     description: "Bastones de mozzarella apanados con salsa pomodoro.",
     price: "$9.490",
     image: "/assets/IMG/comida.jfif",
+    modelAR: "/assets/modelosAR/Plato3.glb",
   },
   {
     id: "ap-5",
@@ -52,6 +56,7 @@ export const menuItems = [
     description: "Alitas de pollo en salsa BBQ o picante.",
     price: "$12.490",
     image: "/assets/IMG/comida.jfif",
+    modelAR: "/assets/modelosAR/Plato3.glb",
   },
   {
     id: "ap-6",
@@ -60,6 +65,7 @@ export const menuItems = [
     description: "Papas doradas con alioli de ajo tostado.",
     price: "$7.990",
     image: "/assets/IMG/comida.jfif",
+    modelAR: "/assets/modelosAR/Plato3.glb",
   },
   {
     id: "pa-1",
@@ -68,6 +74,7 @@ export const menuItems = [
     description: "Pasta fresca con salsa cremosa Alfredo y parmigiano.",
     price: "$12.990",
     image: "/assets/IMG/comida.jfif",
+    modelAR: "/assets/modelosAR/Plato3.glb",
   },
   {
     id: "pa-2",
@@ -76,6 +83,7 @@ export const menuItems = [
     description: "Capas de pasta, ragu, bechamel y queso gratinado.",
     price: "$14.490",
     image: "/assets/IMG/comida.jfif",
+    modelAR: "/assets/modelosAR/Plato3.glb",
   },
   {
     id: "pa-3",
@@ -84,6 +92,7 @@ export const menuItems = [
     description: "Tallarines con panceta, huevo y pecorino.",
     price: "$13.490",
     image: "/assets/IMG/comida.jfif",
+    modelAR: "/assets/modelosAR/Plato3.glb",
   },
   {
     id: "pa-4",
@@ -92,6 +101,7 @@ export const menuItems = [
     description: "Pasta con pesto de albahaca y pinones.",
     price: "$12.990",
     image: "/assets/IMG/comida.jfif",
+    modelAR: "/assets/modelosAR/Plato3.glb",
   },
   {
     id: "pa-5",
@@ -100,6 +110,7 @@ export const menuItems = [
     description: "Raviolis rellenos con ricotta y espinaca en mantequilla.",
     price: "$14.990",
     image: "/assets/IMG/comida.jfif",
+    modelAR: "/assets/modelosAR/Plato3.glb",
   },
   {
     id: "pa-6",
@@ -108,6 +119,7 @@ export const menuItems = [
     description: "Penne en salsa de tomate picante y parmesano.",
     price: "$12.490",
     image: "/assets/IMG/comida.jfif",
+    modelAR: "/assets/modelosAR/Plato3.glb",
   },
   {
     id: "bu-1",
@@ -116,6 +128,7 @@ export const menuItems = [
     description: "Doble carne angus, cheddar, tocino y salsa secreta.",
     price: "$14.990",
     image: "/assets/IMG/comida.jfif",
+    modelAR: "/assets/modelosAR/Plato3.glb",
   },
   {
     id: "bu-2",
@@ -124,6 +137,7 @@ export const menuItems = [
     description: "Tocino crocante, cheddar y salsa BBQ casera.",
     price: "$11.490",
     image: "/assets/IMG/comida.jfif",
+    modelAR: "/assets/modelosAR/Plato3.glb",
   },
   {
     id: "bu-3",
@@ -132,6 +146,7 @@ export const menuItems = [
     description: "Carne jugosa, cheddar, lechuga y tomate.",
     price: "$9.990",
     image: "/assets/IMG/comida.jfif",
+    modelAR: "/assets/modelosAR/Plato3.glb",
   },
   {
     id: "bu-4",
@@ -140,6 +155,7 @@ export const menuItems = [
     description: "Queso azul derretido con cebolla caramelizada.",
     price: "$12.490",
     image: "/assets/IMG/comida.jfif",
+    modelAR: "/assets/modelosAR/Plato3.glb",
   },
   {
     id: "bu-5",
@@ -148,6 +164,7 @@ export const menuItems = [
     description: "Champinones salteados y queso suizo.",
     price: "$11.990",
     image: "/assets/IMG/comida.jfif",
+    modelAR: "/assets/modelosAR/Plato3.glb",
   },
   {
     id: "bu-6",
@@ -156,6 +173,7 @@ export const menuItems = [
     description: "Jalapeno, pepper jack y salsa picante.",
     price: "$12.490",
     image: "/assets/IMG/comida.jfif",
+    modelAR: "/assets/modelosAR/Plato3.glb",
   },
   {
     id: "pi-1",
@@ -164,6 +182,7 @@ export const menuItems = [
     description: "Tomate, mozzarella fresca y albahaca.",
     price: "$10.990",
     image: "/assets/IMG/comida.jfif",
+    modelAR: "/assets/modelosAR/Plato3.glb",
   },
   {
     id: "pi-2",
@@ -172,6 +191,7 @@ export const menuItems = [
     description: "Mozzarella, gorgonzola, parmesano y pecorino.",
     price: "$13.490",
     image: "/assets/IMG/comida.jfif",
+    modelAR: "/assets/modelosAR/Plato3.glb",
   },
   {
     id: "pi-3",
@@ -180,6 +200,7 @@ export const menuItems = [
     description: "Salsa de tomate, queso y pepperoni crocante.",
     price: "$11.990",
     image: "/assets/IMG/comida.jfif",
+    modelAR: "/assets/modelosAR/Plato3.glb",
   },
   {
     id: "pi-4",
@@ -188,6 +209,7 @@ export const menuItems = [
     description: "Jamon, pina y extra queso mozzarella.",
     price: "$11.990",
     image: "/assets/IMG/comida.jfif",
+    modelAR: "/assets/modelosAR/Plato3.glb",
   },
   {
     id: "pi-5",
@@ -196,6 +218,7 @@ export const menuItems = [
     description: "Champinones, jamon, alcachofas y aceitunas.",
     price: "$12.490",
     image: "/assets/IMG/comida.jfif",
+    modelAR: "/assets/modelosAR/Plato3.glb",
   },
   {
     id: "pi-6",
@@ -204,6 +227,7 @@ export const menuItems = [
     description: "Pollo, salsa BBQ, cebolla morada y cilantro.",
     price: "$12.990",
     image: "/assets/IMG/comida.jfif",
+    modelAR: "/assets/modelosAR/Plato3.glb",
   },
   {
     id: "en-1",
@@ -212,6 +236,7 @@ export const menuItems = [
     description: "Lechuga romana, crutones y aderezo caesar.",
     price: "$7.990",
     image: "/assets/IMG/comida.jfif",
+    modelAR: "/assets/modelosAR/Plato3.glb",
   },
   {
     id: "en-2",
@@ -220,6 +245,7 @@ export const menuItems = [
     description: "Tomate, pepino, aceitunas y queso feta.",
     price: "$8.490",
     image: "/assets/IMG/comida.jfif",
+    modelAR: "/assets/modelosAR/Plato3.glb",
   },
   {
     id: "en-3",
@@ -228,6 +254,7 @@ export const menuItems = [
     description: "Mozzarella fresca, tomate y albahaca.",
     price: "$8.990",
     image: "/assets/IMG/comida.jfif",
+    modelAR: "/assets/modelosAR/Plato3.glb",
   },
   {
     id: "en-4",
@@ -236,6 +263,7 @@ export const menuItems = [
     description: "Quinoa, vegetales asados y aderezo citrico.",
     price: "$9.990",
     image: "/assets/IMG/comida.jfif",
+    modelAR: "/assets/modelosAR/Plato3.glb",
   },
   {
     id: "en-5",
@@ -244,6 +272,7 @@ export const menuItems = [
     description: "Lechuga, pollo, palta, huevo y bacon.",
     price: "$10.490",
     image: "/assets/IMG/comida.jfif",
+    modelAR: "/assets/modelosAR/Plato3.glb",
   },
   {
     id: "en-6",
@@ -252,6 +281,7 @@ export const menuItems = [
     description: "Atun, huevo, porotos verdes y aceitunas negras.",
     price: "$10.990",
     image: "/assets/IMG/comida.jfif",
+    modelAR: "/assets/modelosAR/Plato3.glb",
   },
   {
     id: "sp-1",
@@ -260,6 +290,7 @@ export const menuItems = [
     description: "Costillas ahumadas lentamente con salsa BBQ.",
     price: "$18.990",
     image: "/assets/IMG/comida.jfif",
+    modelAR: "/assets/modelosAR/Plato3.glb",
   },
   {
     id: "sp-2",
@@ -268,6 +299,7 @@ export const menuItems = [
     description: "Bife jugoso con papas fritas caseras.",
     price: "$19.990",
     image: "/assets/IMG/comida.jfif",
+    modelAR: "/assets/modelosAR/Plato3.glb",
   },
   {
     id: "sp-3",
@@ -276,6 +308,7 @@ export const menuItems = [
     description: "Salmon a la parrilla con verduras al vapor.",
     price: "$16.990",
     image: "/assets/IMG/comida.jfif",
+    modelAR: "/assets/modelosAR/Plato3.glb",
   },
   {
     id: "sp-4",
@@ -284,6 +317,7 @@ export const menuItems = [
     description: "Mac and cheese con trozos de langosta.",
     price: "$21.990",
     image: "/assets/IMG/comida.jfif",
+    modelAR: "/assets/modelosAR/Plato3.glb",
   },
   {
     id: "sp-5",
@@ -292,6 +326,7 @@ export const menuItems = [
     description: "Arroz con mariscos al estilo tradicional.",
     price: "$18.490",
     image: "/assets/IMG/comida.jfif",
+    modelAR: "/assets/modelosAR/Plato3.glb",
   },
   {
     id: "sp-6",
@@ -300,6 +335,7 @@ export const menuItems = [
     description: "Brisket ahumado servido con pure casero.",
     price: "$17.990",
     image: "/assets/IMG/comida.jfif",
+    modelAR: "/assets/modelosAR/Plato3.glb",
   },
   {
     id: "po-1",
@@ -308,6 +344,7 @@ export const menuItems = [
     description: "Tarta de queso con coulis de frutos rojos.",
     price: "$6.990",
     image: "/assets/IMG/comida.jfif",
+    modelAR: "/assets/modelosAR/Plato3.glb",
   },
   {
     id: "po-2",
@@ -316,6 +353,7 @@ export const menuItems = [
     description: "Bizcocho de chocolate con centro liquido.",
     price: "$6.490",
     image: "/assets/IMG/comida.jfif",
+    modelAR: "/assets/modelosAR/Plato3.glb",
   },
   {
     id: "po-3",
@@ -324,6 +362,7 @@ export const menuItems = [
     description: "Clasico italiano con cafe y mascarpone.",
     price: "$6.990",
     image: "/assets/IMG/comida.jfif",
+    modelAR: "/assets/modelosAR/Plato3.glb",
   },
   {
     id: "po-4",
@@ -332,6 +371,7 @@ export const menuItems = [
     description: "Tarta de manzana con masa casera.",
     price: "$5.990",
     image: "/assets/IMG/comida.jfif",
+    modelAR: "/assets/modelosAR/Plato3.glb",
   },
   {
     id: "po-5",
@@ -340,6 +380,7 @@ export const menuItems = [
     description: "Crema quemada con caramelo crocante.",
     price: "$6.490",
     image: "/assets/IMG/comida.jfif",
+    modelAR: "/assets/modelosAR/Plato3.glb",
   },
   {
     id: "po-6",
@@ -348,6 +389,7 @@ export const menuItems = [
     description: "Tres sabores a eleccion.",
     price: "$4.990",
     image: "/assets/IMG/comida.jfif",
+    modelAR: "/assets/modelosAR/Plato3.glb",
   },
   {
     id: "co-1",
@@ -356,6 +398,7 @@ export const menuItems = [
     description: "Ron, menta, lima y soda.",
     price: "$5.990",
     image: "/assets/IMG/comida.jfif",
+    modelAR: "/assets/modelosAR/Plato3.glb",
   },
   {
     id: "co-2",
@@ -364,6 +407,7 @@ export const menuItems = [
     description: "Whiskey, azucar y bitters.",
     price: "$6.490",
     image: "/assets/IMG/comida.jfif",
+    modelAR: "/assets/modelosAR/Plato3.glb",
   },
   {
     id: "co-3",
@@ -372,6 +416,7 @@ export const menuItems = [
     description: "Ginebra y vermut, servido frio.",
     price: "$6.990",
     image: "/assets/IMG/comida.jfif",
+    modelAR: "/assets/modelosAR/Plato3.glb",
   },
   {
     id: "co-4",
@@ -380,6 +425,7 @@ export const menuItems = [
     description: "Tequila, triple sec y jugo de lima.",
     price: "$6.490",
     image: "/assets/IMG/comida.jfif",
+    modelAR: "/assets/modelosAR/Plato3.glb",
   },
   {
     id: "co-5",
@@ -388,6 +434,7 @@ export const menuItems = [
     description: "Ginebra, Campari y vermut rojo.",
     price: "$6.990",
     image: "/assets/IMG/comida.jfif",
+    modelAR: "/assets/modelosAR/Plato3.glb",
   },
   {
     id: "co-6",
@@ -396,6 +443,7 @@ export const menuItems = [
     description: "Whiskey, limon y clara de huevo opcional.",
     price: "$6.490",
     image: "/assets/IMG/comida.jfif",
+    modelAR: "/assets/modelosAR/Plato3.glb",
   },
 ];
 
