@@ -81,6 +81,14 @@ app.get("/api/menu-items", (_req, res) => {
   res.json(data.menuItems);
 });
 
+app.get('*', (req, res) => {
+  res.sendFile(path.join(frontendPath, 'index.html'));
+});
+
+app.get('/(.*)', (req, res) => {
+  res.sendFile(path.join(frontendPath, 'index.html'));
+});
+
 // ========================
 // AUTH
 // ========================
