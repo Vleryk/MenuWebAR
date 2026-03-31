@@ -13,6 +13,15 @@ const DATA_FILE = path.join(__dirname, "data", "menu.json");
 // --- Admin credentials (hashed on first run) ---
 const ADMIN_FILE = path.join(__dirname, "data", "admin.json");
 
+// archivos estáticos compilados por Vite 
+const frontendPath = path.join(__dirname, '../dist');
+app.use(express.static(frontendPath));
+
+// rutas que no sean de la API que cargue la app de React
+app.get('*', (req, res) => {
+  res.sendFile(path.join(frontendPath, 'index.html'));
+});
+
 function initAdmin() {
   if (!fs.existsSync(ADMIN_FILE)) {
     const hash = bcrypt.hashSync("Hublab2026", 10);

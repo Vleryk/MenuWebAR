@@ -16,7 +16,7 @@ function App() {
   const [activeCategory, setActiveCategory] = useState(staticCategories[0].id);
 
   useEffect(() => {
-    fetch("http://localhost:3001/api/menu")
+    fetch("/api/menu")
       .then((res) => res.json())
       .then((data) => {
         setCategories(data.categories);
