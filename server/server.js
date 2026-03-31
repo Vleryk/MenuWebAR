@@ -18,7 +18,7 @@ const frontendPath = path.join(__dirname, '../dist');
 app.use(express.static(frontendPath));
 
 // rutas que no sean de la API que cargue la app de React
-app.get('*', (req, res) => {
+app.get('/{*splat}', (req, res) => {
   res.sendFile(path.join(frontendPath, 'index.html'));
 });
 
@@ -79,14 +79,6 @@ app.get("/api/categories", (_req, res) => {
 app.get("/api/menu-items", (_req, res) => {
   const data = readData();
   res.json(data.menuItems);
-});
-
-app.get('*', (req, res) => {
-  res.sendFile(path.join(frontendPath, 'index.html'));
-});
-
-app.get('/(.*)', (req, res) => {
-  res.sendFile(path.join(frontendPath, 'index.html'));
 });
 
 // ========================
