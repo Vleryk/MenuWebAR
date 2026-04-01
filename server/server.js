@@ -17,11 +17,6 @@ const ADMIN_FILE = path.join(__dirname, "data", "admin.json");
 const frontendPath = path.join(__dirname, '../dist');
 app.use(express.static(frontendPath));
 
-// rutas que no sean de la API que cargue la app de React
-app.get('/{*splat}', (req, res) => {
-  res.sendFile(path.join(frontendPath, 'index.html'));
-});
-
 function initAdmin() {
   if (!fs.existsSync(ADMIN_FILE)) {
     const hash = bcrypt.hashSync("Hublab2026", 10);
@@ -225,6 +220,11 @@ app.put("/api/admin/password", authMiddleware, (req, res) => {
   admin.password = bcrypt.hashSync(newPassword, 10);
   fs.writeFileSync(ADMIN_FILE, JSON.stringify(admin, null, 2));
   res.json({ message: "Contraseña actualizada" });
+});
+
+// rutas que no sean de la API que cargue la app de React
+app.get('/{*splat}', (req, res) => {
+  res.sendFile(path.join(frontendPath, '../dist/index.html'));
 });
 
 // --- Start ---

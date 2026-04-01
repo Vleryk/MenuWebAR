@@ -6,9 +6,15 @@ export default defineConfig({
   plugins: [
     react()//,
     //basicSsl()
-  ]//,
-  //server: {
-  //  host: true 
+  ],
+  server: {
+    '/api': {
+        target: 'http://127.0.0.1:3001',
+        changeOrigin: true, // Esto es clave para engañar a Node
+        secure: false
+      }
+  //  host: true
+  } 
 })
 
 //sacar comentarios para usar host para el celular, obvio xd.

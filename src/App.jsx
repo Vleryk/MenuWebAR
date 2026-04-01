@@ -4,29 +4,32 @@ import CategoryTabs from "./components/CategoryTabs";
 import MenuSection from "./components/MenuSection";
 import ReservationSection from "./components/ReservationSection";
 import Footer from "./components/Footer";
-import {
-  categories as staticCategories,
-  menuItems as staticMenuItems,
-} from "./data/menuData";
 import styles from "./App.module.css";
 
 function App() {
-  const [categories, setCategories] = useState(staticCategories);
-  const [menuItems, setMenuItems] = useState(staticMenuItems);
-  const [activeCategory, setActiveCategory] = useState(staticCategories[0].id);
-
-  useEffect(() => {
-    fetch("/api/menu")
-      .then((res) => res.json())
+  const [categories, setCategories] = useState([]);
+  const [menuItems, setMenuItems] = useState([]);
+  const [activeCategory, setActiveCategory] = useState("");
+ useEffect(() => {
+    // Ruta relativa fundamental para que funcione en Render
+    fetch("/api/menu") //"http://localhost:3001/api/menu" para trabajar en local, "/api/menu" para host
+      .then((res) => {
+        if (!res.ok) throw new Error("Error al conectar con el servidor");
+        return res.json();
+      })
       .then((data) => {
-        setCategories(data.categories);
-        setMenuItems(data.menuItems);
-        if (data.categories.length > 0) {
+        // Guardar los datos asegurando que sean arreglos
+        setCategories(data.categories || []);
+        setMenuItems(data.menuItems || []);
+        
+        // selecciona la primera categoría automáticamente para que no se vea en blanco
+        if (data.categories && data.categories.length > 0) {
           setActiveCategory(data.categories[0].id);
         }
       })
-      .catch(() => {
-        // Fallback: usa datos estáticos si el servidor no está disponible
+      .catch((err) => {
+        // Si algo falla, ahora se ve en rojo en la consola en lugar de fallar en silencio
+        console.error("Error cargando el menú principal:", err);
       });
   }, []);
 
