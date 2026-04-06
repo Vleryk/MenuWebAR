@@ -31,7 +31,8 @@ const SAFE_PATH_RE = /^\/assets\/(modelosAR|IMG)\//;
 function isSafePath(p) {
   if (!p) return true; // empty is allowed
   if (typeof p !== "string") return false;
-  if (p.includes("..") || p.startsWith("/") === false) return false;
+  if (p.includes("..")) return false;
+  if (!p.startsWith("/")) return false;
   return SAFE_PATH_RE.test(p);
 }
 
@@ -126,7 +127,11 @@ function authMiddleware(req, res, next) {
 // Centralized error handler (Express requires all 4 params for error middleware)
 // eslint-disable-next-line no-unused-vars
 function errorHandler(err, _req, res, _next) {
-  console.error("Unhandled error:", err.message);
+  if (process.env.NODE_ENV !== "production") {
+    console.error("Unhandled error:", err.stack || err.message);
+  } else {
+    console.error("Unhandled error:", err.message);
+  }
   res.status(500).json({ error: "Error interno del servidor", code: "INTERNAL_ERROR" });
 }
 
@@ -316,7 +321,7 @@ app.delete("/api/admin/items/:id", authMiddleware, (req, res) => {
 });
 
 // --- Change Password ---
-app.put("/api/admin/password", authMiddleware, (req, res) => {
+app.put("/api/admin/password", authMiddleware, loginLimiter, (req, res) => {
   const { currentPassword, newPassword } = req.body;
   if (!currentPassword || !newPassword) {
     return res.status(400).json({ error: "Contraseña actual y nueva requeridas" });
