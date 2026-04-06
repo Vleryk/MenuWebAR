@@ -110,7 +110,7 @@ function MenuCard({ item }) {
   return (
     <>
       <article className={styles.menuCard}>
-        <img className={styles.menuThumb} src={item.image} alt={item.name} />
+        <img className={styles.menuThumb} src={item.image} alt={item.name} loading="lazy" />
 
         <div className={styles.menuContent}>
           <h3>{item.name}</h3>

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { FiCalendar, FiClock, FiMapPin, FiUsers } from "react-icons/fi";
+import restaurantConfig from "../config/restaurant";
 import styles from "./ReservationSection.module.css";
 
 const formatDateForInput = (date) => {
@@ -24,7 +25,7 @@ const isSameCalendarDay = (leftDate, rightDate) => {
   );
 };
 
-const WHATSAPP_NUMBER = "56946405741";
+const WHATSAPP_NUMBER = restaurantConfig.contact.whatsappNumber;
 
 function ReservationSection() {
   const [reservationDate, setReservationDate] = useState(() => formatDateForInput(new Date()));
@@ -33,29 +34,30 @@ function ReservationSection() {
   const [reservationZone, setReservationZone] = useState("salon");
   const [confirmationMessage, setConfirmationMessage] = useState("");
 
-  const peopleOptions = useMemo(() => Array.from({ length: 26 }, (_, i) => i + 1), []);
+  const peopleOptions = useMemo(
+    () => Array.from({ length: restaurantConfig.reservations.maxPeople }, (_, i) => i + 1),
+    [],
+  );
   const todayInputDate = formatDateForInput(new Date());
 
   const timeSlots = useMemo(() => {
     const slots = [];
-    let minutes = 12 * 60 + 30;
-    const end = 22 * 60 + 30;
+    const [startH, startM] = restaurantConfig.reservations.startTime.split(":").map(Number);
+    const [endH, endM] = restaurantConfig.reservations.endTime.split(":").map(Number);
+    let minutes = startH * 60 + startM;
+    const end = endH * 60 + endM;
     while (minutes <= end) {
       const hours = Math.floor(minutes / 60)
         .toString()
         .padStart(2, "0");
       const mins = (minutes % 60).toString().padStart(2, "0");
       slots.push(`${hours}:${mins}`);
-      minutes += 15;
+      minutes += restaurantConfig.reservations.intervalMinutes;
     }
     return slots;
   }, []);
 
-  const zones = [
-    { label: "Salon", value: "salon" },
-    { label: "Barra", value: "barra" },
-    { label: "Terraza", value: "terraza" },
-  ];
+  const zones = restaurantConfig.reservations.zones;
 
   const availableTimeSlots = useMemo(() => {
     const selectedDate = new Date(`${reservationDate}T00:00:00`);
@@ -66,7 +68,9 @@ function ReservationSection() {
     }
 
     const currentMinutes = now.getHours() * 60 + now.getMinutes();
-    const minAllowedMinutes = roundUpToQuarter(currentMinutes + 60);
+    const minAllowedMinutes = roundUpToQuarter(
+      currentMinutes + restaurantConfig.reservations.minAdvanceMinutes,
+    );
 
     return timeSlots.filter((slot) => toMinutes(slot) >= minAllowedMinutes);
   }, [reservationDate, timeSlots]);

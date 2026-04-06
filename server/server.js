@@ -1,30 +1,76 @@
+require("dotenv").config({ path: require("path").join(__dirname, "..", ".env") });
+
 const express = require("express");
 const cors = require("cors");
 const fs = require("fs");
 const path = require("path");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
+const rateLimit = require("express-rate-limit");
 
 const app = express();
-const PORT = 3001;
-const JWT_SECRET = process.env.JWT_SECRET || "route66-admin-secret-change-in-production";
+const PORT = process.env.PORT || 3001;
+const JWT_SECRET = process.env.JWT_SECRET;
 const DATA_FILE = path.join(__dirname, "data", "menu.json");
-
-// --- Admin credentials (hashed on first run) ---
 const ADMIN_FILE = path.join(__dirname, "data", "admin.json");
 
-// archivos estáticos compilados por Vite 
-const frontendPath = path.join(__dirname, '../dist');
+// Fail-fast: require JWT_SECRET in production
+if (!JWT_SECRET) {
+  if (process.env.NODE_ENV === "production") {
+    console.error("FATAL: JWT_SECRET environment variable is required in production.");
+    process.exit(1);
+  }
+  console.warn("WARNING: JWT_SECRET not set. Using insecure default for development only.");
+}
+
+const jwtSecret = JWT_SECRET || "dev-only-insecure-secret";
+
+// --- Validation helpers ---
+const SAFE_PATH_RE = /^\/assets\/(modelosAR|IMG)\//;
+
+function isSafePath(p) {
+  if (!p) return true; // empty is allowed
+  if (typeof p !== "string") return false;
+  if (p.includes("..") || p.startsWith("/") === false) return false;
+  return SAFE_PATH_RE.test(p);
+}
+
+function isNonEmptyString(val) {
+  return typeof val === "string" && val.trim().length > 0;
+}
+
+function isValidId(val) {
+  return typeof val === "string" && /^[a-zA-Z0-9_-]+$/.test(val);
+}
+
+function isValidPrice(val) {
+  // Prices are stored as strings like "$12.990"
+  return typeof val === "string" && val.trim().length > 0;
+}
+
+// Static assets (compiled Vite output)
+const frontendPath = path.join(__dirname, "../dist");
 app.use(express.static(frontendPath));
 
 function initAdmin() {
   if (!fs.existsSync(ADMIN_FILE)) {
-    const hash = bcrypt.hashSync("Hublab2026", 10);
+    const defaultEmail = process.env.ADMIN_DEFAULT_EMAIL || "admin@example.com";
+    const defaultPassword = process.env.ADMIN_DEFAULT_PASSWORD;
+
+    if (!defaultPassword) {
+      console.error(
+        "ADMIN_DEFAULT_PASSWORD env var is required to create the initial admin account."
+      );
+      console.error("Set it in your .env file. See .env.example for reference.");
+      process.exit(1);
+    }
+
+    const hash = bcrypt.hashSync(defaultPassword, 10);
     fs.writeFileSync(
       ADMIN_FILE,
-      JSON.stringify({ username: "Administrador@Hublab.cl", password: hash }, null, 2)
+      JSON.stringify({ username: defaultEmail, password: hash }, null, 2)
     );
-    console.log("Admin creado: usuario=Administrador@Hublab.cl (cambiar en produccion)");
+    console.log(`Admin created: ${defaultEmail} (change password after first login)`);
   }
 }
 
@@ -42,6 +88,26 @@ function writeData(data) {
 app.use(cors());
 app.use(express.json());
 
+// Rate limiter for auth endpoints (15 attempts per 15-minute window)
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 15,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Demasiados intentos de login. Intenta de nuevo en 15 minutos." },
+});
+
+// General rate limiter for all API endpoints
+const apiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 200,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Demasiadas solicitudes. Intenta de nuevo más tarde." },
+});
+
+app.use("/api/", apiLimiter);
+
 function authMiddleware(req, res, next) {
   const header = req.headers.authorization;
   if (!header || !header.startsWith("Bearer ")) {
@@ -49,13 +115,27 @@ function authMiddleware(req, res, next) {
   }
   try {
     const token = header.split(" ")[1];
-    const decoded = jwt.verify(token, JWT_SECRET);
+    const decoded = jwt.verify(token, jwtSecret);
     req.user = decoded;
     next();
   } catch {
     return res.status(401).json({ error: "Token invalido o expirado" });
   }
 }
+
+// Centralized error handler
+function errorHandler(err, _req, res, _next) {
+  console.error("Unhandled error:", err.message);
+  res.status(500).json({ error: "Error interno del servidor", code: "INTERNAL_ERROR" });
+}
+
+// ========================
+// HEALTH CHECK
+// ========================
+
+app.get("/api/health", (_req, res) => {
+  res.json({ status: "ok", timestamp: new Date().toISOString() });
+});
 
 // ========================
 // PUBLIC ROUTES (no auth)
@@ -80,7 +160,7 @@ app.get("/api/menu-items", (_req, res) => {
 // AUTH
 // ========================
 
-app.post("/api/auth/login", (req, res) => {
+app.post("/api/auth/login", loginLimiter, (req, res) => {
   const { username, password } = req.body;
   if (!username || !password) {
     return res.status(400).json({ error: "Usuario y contraseña requeridos" });
@@ -91,7 +171,7 @@ app.post("/api/auth/login", (req, res) => {
     return res.status(401).json({ error: "Credenciales incorrectas" });
   }
 
-  const token = jwt.sign({ username }, JWT_SECRET, { expiresIn: "8h" });
+  const token = jwt.sign({ username }, jwtSecret, { expiresIn: "8h" });
   res.json({ token, username });
 });
 
@@ -111,24 +191,33 @@ app.get("/api/admin/categories", authMiddleware, (_req, res) => {
 
 app.post("/api/admin/categories", authMiddleware, (req, res) => {
   const { id, label } = req.body;
-  if (!id || !label) return res.status(400).json({ error: "id y label requeridos" });
+  if (!isValidId(id)) {
+    return res.status(400).json({ error: "id invalido (solo letras, numeros, guion y guion bajo)" });
+  }
+  if (!isNonEmptyString(label)) {
+    return res.status(400).json({ error: "label es requerido" });
+  }
 
   const data = readData();
   if (data.categories.find((c) => c.id === id)) {
     return res.status(409).json({ error: "Categoria ya existe" });
   }
-  data.categories.push({ id, label });
+  data.categories.push({ id, label: label.trim() });
   writeData(data);
-  res.status(201).json({ id, label });
+  res.status(201).json({ id, label: label.trim() });
 });
 
 app.put("/api/admin/categories/:id", authMiddleware, (req, res) => {
   const { label } = req.body;
+  if (label !== undefined && !isNonEmptyString(label)) {
+    return res.status(400).json({ error: "label no puede estar vacio" });
+  }
+
   const data = readData();
   const cat = data.categories.find((c) => c.id === req.params.id);
   if (!cat) return res.status(404).json({ error: "Categoria no encontrada" });
 
-  cat.label = label || cat.label;
+  cat.label = label ? label.trim() : cat.label;
   writeData(data);
   res.json(cat);
 });
@@ -152,8 +241,23 @@ app.get("/api/admin/items", authMiddleware, (_req, res) => {
 
 app.post("/api/admin/items", authMiddleware, (req, res) => {
   const { id, category, name, description, price, image, modelAR } = req.body;
-  if (!id || !category || !name || !price) {
-    return res.status(400).json({ error: "id, category, name y price son requeridos" });
+  if (!isValidId(id)) {
+    return res.status(400).json({ error: "id invalido (solo letras, numeros, guion y guion bajo)" });
+  }
+  if (!isNonEmptyString(category)) {
+    return res.status(400).json({ error: "category es requerido" });
+  }
+  if (!isNonEmptyString(name)) {
+    return res.status(400).json({ error: "name es requerido" });
+  }
+  if (!isValidPrice(price)) {
+    return res.status(400).json({ error: "price es requerido" });
+  }
+  if (image && !isSafePath(image)) {
+    return res.status(400).json({ error: "Ruta de imagen no permitida" });
+  }
+  if (modelAR && !isSafePath(modelAR)) {
+    return res.status(400).json({ error: "Ruta de modelo AR no permitida" });
   }
 
   const data = readData();
@@ -163,10 +267,10 @@ app.post("/api/admin/items", authMiddleware, (req, res) => {
 
   const newItem = {
     id,
-    category,
-    name,
-    description: description || "",
-    price,
+    category: category.trim(),
+    name: name.trim(),
+    description: description ? description.trim() : "",
+    price: price.trim(),
     image: image || "/assets/IMG/comida.jfif",
     modelAR: modelAR || "",
   };
@@ -181,10 +285,18 @@ app.put("/api/admin/items/:id", authMiddleware, (req, res) => {
   if (!item) return res.status(404).json({ error: "Item no encontrado" });
 
   const { category, name, description, price, image, modelAR } = req.body;
-  if (category) item.category = category;
-  if (name) item.name = name;
-  if (description !== undefined) item.description = description;
-  if (price) item.price = price;
+
+  if (image !== undefined && image && !isSafePath(image)) {
+    return res.status(400).json({ error: "Ruta de imagen no permitida" });
+  }
+  if (modelAR !== undefined && modelAR && !isSafePath(modelAR)) {
+    return res.status(400).json({ error: "Ruta de modelo AR no permitida" });
+  }
+
+  if (category) item.category = category.trim();
+  if (name) item.name = name.trim();
+  if (description !== undefined) item.description = description.trim();
+  if (price) item.price = price.trim();
   if (image) item.image = image;
   if (modelAR !== undefined) item.modelAR = modelAR;
 
@@ -222,13 +334,22 @@ app.put("/api/admin/password", authMiddleware, (req, res) => {
   res.json({ message: "Contraseña actualizada" });
 });
 
-// rutas que no sean de la API que cargue la app de React
-app.get('/{*splat}', (req, res) => {
-  res.sendFile(path.join(frontendPath, '../dist/index.html'));
+// SPA fallback: serve React app for non-API routes
+app.get("/{*splat}", (_req, res) => {
+  res.sendFile(path.join(frontendPath, "index.html"));
 });
+
+// Centralized error handler (must be last)
+app.use(errorHandler);
 
 // --- Start ---
 initAdmin();
-app.listen(PORT, () => {
-  console.log(`API headless corriendo en http://localhost:${PORT}`);
-});
+
+// Export app for testing
+module.exports = app;
+
+if (require.main === module) {
+  app.listen(PORT, () => {
+    console.log(`Server running on http://localhost:${PORT}`);
+  });
+}
