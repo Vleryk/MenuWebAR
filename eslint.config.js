@@ -34,12 +34,44 @@ export default [
     },
   },
   {
+    files: ["src/test/**/*.{js,jsx}", "src/**/*.test.{js,jsx}"],
+    languageOptions: {
+      globals: {
+        ...globals.browser,
+        vi: "readonly",
+        describe: "readonly",
+        it: "readonly",
+        expect: "readonly",
+        beforeEach: "readonly",
+        afterEach: "readonly",
+        beforeAll: "readonly",
+        afterAll: "readonly",
+      },
+    },
+  },
+  {
     files: ["server/**/*.js"],
     languageOptions: {
       ecmaVersion: "latest",
       sourceType: "commonjs",
       globals: {
         ...globals.node,
+      },
+    },
+  },
+  {
+    files: ["server/__tests__/**/*.js"],
+    languageOptions: {
+      globals: {
+        ...globals.node,
+        vi: "readonly",
+        describe: "readonly",
+        it: "readonly",
+        expect: "readonly",
+        beforeEach: "readonly",
+        afterEach: "readonly",
+        beforeAll: "readonly",
+        afterAll: "readonly",
       },
     },
   },

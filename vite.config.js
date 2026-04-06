@@ -3,6 +3,15 @@ import react from "@vitejs/plugin-react";
 
 export default defineConfig({
   plugins: [react()],
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          "model-viewer": ["@google/model-viewer", "three"],
+        },
+      },
+    },
+  },
   server: {
     proxy: {
       "/api": {

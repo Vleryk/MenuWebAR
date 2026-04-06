@@ -123,7 +123,8 @@ function authMiddleware(req, res, next) {
   }
 }
 
-// Centralized error handler
+// Centralized error handler (Express requires all 4 params for error middleware)
+// eslint-disable-next-line no-unused-vars
 function errorHandler(err, _req, res, _next) {
   console.error("Unhandled error:", err.message);
   res.status(500).json({ error: "Error interno del servidor", code: "INTERNAL_ERROR" });

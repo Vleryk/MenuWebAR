@@ -23,12 +23,24 @@ function MenuCard({ item }) {
   const [isModelLoading, setIsModelLoading] = useState(false);
   const modelViewerRef = useRef(null);
 
+  const openModal = () => {
+    setLoadProgress(0);
+    setIsModelLoading(true);
+    setIsArOpen(true);
+  };
+
+  const closeModal = () => {
+    setIsArOpen(false);
+    setLoadProgress(0);
+    setIsModelLoading(false);
+  };
+
   useEffect(() => {
     if (!isArOpen) return;
 
     const handleKeyDown = (event) => {
       if (event.key === "Escape") {
-        setIsArOpen(false);
+        closeModal();
       }
     };
 
@@ -48,17 +60,6 @@ function MenuCard({ item }) {
     return () => {
       document.body.style.overflow = previousBodyOverflow;
     };
-  }, [isArOpen]);
-
-  useEffect(() => {
-    if (!isArOpen) {
-      setLoadProgress(0);
-      setIsModelLoading(false);
-      return;
-    }
-
-    setLoadProgress(0);
-    setIsModelLoading(true);
   }, [isArOpen]);
 
   useEffect(() => {
@@ -95,11 +96,11 @@ function MenuCard({ item }) {
   }, [isArOpen]);
 
   const open3DPreview = () => {
-    setIsArOpen(true);
+    openModal();
   };
 
   const launchAr = () => {
-    setIsArOpen(true);
+    openModal();
     setTimeout(() => {
       if (modelViewerRef.current) {
         modelViewerRef.current.activateAR();
@@ -149,12 +150,12 @@ function MenuCard({ item }) {
       </article>
 
       {isArOpen ? (
-        <div className={styles.arModalOverlay} onClick={() => setIsArOpen(false)}>
+        <div className={styles.arModalOverlay} onClick={closeModal}>
           <div className={styles.arModal} onClick={(event) => event.stopPropagation()}>
             <button
               type="button"
               className={styles.arCloseBtn}
-              onClick={() => setIsArOpen(false)}
+              onClick={closeModal}
               aria-label="Cerrar visor AR"
             >
               x
