@@ -30,6 +30,16 @@ export default function AdminDashboard() {
   const [editingCategory, setEditingCategory] = useState(null);
   const [filterCategory, setFilterCategory] = useState("");
 
+  const loadData = async () => {
+    try {
+      const [cats, itms] = await Promise.all([getCategories(), getItems()]);
+      setCategories(cats);
+      setItems(itms);
+    } catch {
+      setAuthenticated(false);
+    }
+  };
+
   useEffect(() => {
     verifyToken().then((valid) => {
       setAuthenticated(valid);
@@ -38,18 +48,21 @@ export default function AdminDashboard() {
   }, []);
 
   useEffect(() => {
-    if (authenticated) loadData();
+    if (!authenticated) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const [cats, itms] = await Promise.all([getCategories(), getItems()]);
+        if (!cancelled) {
+          setCategories(cats);
+          setItems(itms);
+        }
+      } catch {
+        if (!cancelled) setAuthenticated(false);
+      }
+    })();
+    return () => { cancelled = true; };
   }, [authenticated]);
-
-  async function loadData() {
-    try {
-      const [cats, itms] = await Promise.all([getCategories(), getItems()]);
-      setCategories(cats);
-      setItems(itms);
-    } catch {
-      setAuthenticated(false);
-    }
-  }
 
   function handleLogout() {
     logout();

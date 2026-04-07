@@ -1,21 +1,29 @@
-import { defineConfig } from 'vite'
-import react from '@vitejs/plugin-react'
-//import basicSsl from '@vitejs/plugin-basic-ssl'
+import { defineConfig } from "vite";
+import react from "@vitejs/plugin-react";
 
 export default defineConfig({
-  plugins: [
-    react()//,
-    //basicSsl()
-  ],
+  plugins: [react()],
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          "model-viewer": ["@google/model-viewer", "three"],
+        },
+      },
+    },
+  },
   server: {
-    '/api': {
-        target: 'http://127.0.0.1:3001',
-        changeOrigin: true, // Esto es clave para engañar a Node
-        secure: false
-      }
-  //  host: true
-  } 
-})
-
-//sacar comentarios para usar host para el celular, obvio xd.
-// si no funciona, un npm install no hace daño
+    proxy: {
+      "/api": {
+        target: "http://127.0.0.1:3001",
+        changeOrigin: true,
+        secure: false,
+      },
+    },
+  },
+  test: {
+    environment: "jsdom",
+    globals: true,
+    setupFiles: ["./src/test/setup.js"],
+  },
+});

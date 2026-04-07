@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { FiCalendar, FiClock, FiMapPin, FiUsers } from "react-icons/fi";
+import restaurantConfig from "../config/restaurant";
 import styles from "./ReservationSection.module.css";
 
 const formatDateForInput = (date) => {
@@ -24,7 +25,7 @@ const isSameCalendarDay = (leftDate, rightDate) => {
   );
 };
 
-const WHATSAPP_NUMBER = "56946405741";
+const WHATSAPP_NUMBER = restaurantConfig.contact.whatsappNumber;
 
 function ReservationSection() {
   const [reservationDate, setReservationDate] = useState(() => formatDateForInput(new Date()));
@@ -33,29 +34,30 @@ function ReservationSection() {
   const [reservationZone, setReservationZone] = useState("salon");
   const [confirmationMessage, setConfirmationMessage] = useState("");
 
-  const peopleOptions = useMemo(() => Array.from({ length: 26 }, (_, i) => i + 1), []);
+  const peopleOptions = useMemo(
+    () => Array.from({ length: restaurantConfig.reservations.maxPeople }, (_, i) => i + 1),
+    [],
+  );
   const todayInputDate = formatDateForInput(new Date());
 
   const timeSlots = useMemo(() => {
     const slots = [];
-    let minutes = 12 * 60 + 30;
-    const end = 22 * 60 + 30;
+    const [startH, startM] = restaurantConfig.reservations.startTime.split(":").map(Number);
+    const [endH, endM] = restaurantConfig.reservations.endTime.split(":").map(Number);
+    let minutes = startH * 60 + startM;
+    const end = endH * 60 + endM;
     while (minutes <= end) {
       const hours = Math.floor(minutes / 60)
         .toString()
         .padStart(2, "0");
       const mins = (minutes % 60).toString().padStart(2, "0");
       slots.push(`${hours}:${mins}`);
-      minutes += 15;
+      minutes += restaurantConfig.reservations.intervalMinutes;
     }
     return slots;
   }, []);
 
-  const zones = [
-    { label: "Salon", value: "salon" },
-    { label: "Barra", value: "barra" },
-    { label: "Terraza", value: "terraza" },
-  ];
+  const zones = restaurantConfig.reservations.zones;
 
   const availableTimeSlots = useMemo(() => {
     const selectedDate = new Date(`${reservationDate}T00:00:00`);
@@ -66,26 +68,31 @@ function ReservationSection() {
     }
 
     const currentMinutes = now.getHours() * 60 + now.getMinutes();
-    const minAllowedMinutes = roundUpToQuarter(currentMinutes + 60);
+    const minAllowedMinutes = roundUpToQuarter(
+      currentMinutes + restaurantConfig.reservations.minAdvanceMinutes,
+    );
 
     return timeSlots.filter((slot) => toMinutes(slot) >= minAllowedMinutes);
   }, [reservationDate, timeSlots]);
 
-  useEffect(() => {
-    if (!availableTimeSlots.length) {
-      setReservationTime("");
-      return;
-    }
-
-    if (!availableTimeSlots.includes(reservationTime)) {
-      setReservationTime(availableTimeSlots[0]);
-    }
+  // Derive a valid reservation time from available slots
+  const validReservationTime = useMemo(() => {
+    if (!availableTimeSlots.length) return "";
+    if (availableTimeSlots.includes(reservationTime)) return reservationTime;
+    return availableTimeSlots[0];
   }, [availableTimeSlots, reservationTime]);
+
+  // Update state when derived value differs (via user handler instead of effect)
+  const handleDateChange = (event) => {
+    setReservationDate(event.target.value);
+    setConfirmationMessage("");
+    // Time will be auto-corrected via validReservationTime on next render
+  };
 
   const handleSubmit = (event) => {
     event.preventDefault();
 
-    if (!availableTimeSlots.length || !reservationTime) {
+    if (!availableTimeSlots.length || !validReservationTime) {
       setConfirmationMessage("Ya no hay horarios disponibles para hoy. Selecciona otra fecha.");
       return;
     }
@@ -95,11 +102,11 @@ function ReservationSection() {
       dateStyle: "full",
     }).format(new Date(`${reservationDate}T00:00:00`));
 
-    const whatsappMessage = `Hola, me gustaria hacer una reserva para el ${reservationDate} a las ${reservationTime} en la zona ${selectedZoneLabel} para ${reservationPeople} personas.`;
+    const whatsappMessage = `Hola, me gustaria hacer una reserva para el ${reservationDate} a las ${validReservationTime} en la zona ${selectedZoneLabel} para ${reservationPeople} personas.`;
     const whatsappUrl = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(whatsappMessage)}`;
 
     setConfirmationMessage(
-      `Reserva enviada para ${reservationPeople} personas el ${formattedDate} a las ${reservationTime} en ${selectedZoneLabel}.`
+      `Reserva enviada para ${reservationPeople} personas el ${formattedDate} a las ${validReservationTime} en ${selectedZoneLabel}.`
     );
 
     window.open(whatsappUrl, "_blank", "noopener,noreferrer");
@@ -122,10 +129,7 @@ function ReservationSection() {
             type="date"
             min={todayInputDate}
             value={reservationDate}
-            onChange={(event) => {
-              setReservationDate(event.target.value);
-              setConfirmationMessage("");
-            }}
+            onChange={handleDateChange}
             required
           />
         </label>
@@ -158,7 +162,7 @@ function ReservationSection() {
           </span>
           <select
             required
-            value={reservationTime}
+            value={validReservationTime}
             onChange={(event) => {
               setReservationTime(event.target.value);
               setConfirmationMessage("");

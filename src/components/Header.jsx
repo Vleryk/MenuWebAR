@@ -1,22 +1,23 @@
+import restaurantConfig from "../config/restaurant";
 import styles from "./Header.module.css";
 
 function Header() {
   const navLinks = [
     { label: "Carta", href: "#menu" },
     { label: "Reservas", href: "#reservas" },
-    { label: "Delivery", href: "https://delivery.route66.cl/pedir" },
+    { label: "Delivery", href: restaurantConfig.links.delivery },
     { label: "Sobre Nosotros", href: "#footer" },
   ];
 
   const socialLinks = [
     {
       name: "Instagram",
-      url: "https://www.instagram.com/route66_chile/",
+      url: restaurantConfig.social.instagram,
       icon: "📷",
     },
     {
       name: "Facebook",
-      url: "https://www.facebook.com/route66chile",
+      url: restaurantConfig.social.facebook,
       icon: "f",
     },
   ];
@@ -26,7 +27,7 @@ function Header() {
       <div className={styles.navbarContent}>
         <img
           className={styles.navbarLogo}
-          src="/assets/references/logo-contraste.7ddc12ebe66a8491be1140703728458f.svg"
+          src={restaurantConfig.links.logo}
           alt="Logo Route 66"
         />
 
