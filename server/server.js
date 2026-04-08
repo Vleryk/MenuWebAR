@@ -54,8 +54,23 @@ const frontendPath = path.join(__dirname, "../dist");
 app.use(express.static(frontendPath));
 
 function initAdmin() {
+  let needsInit = false;
+
   if (!fs.existsSync(ADMIN_FILE)) {
-    const defaultEmail = process.env.ADMIN_DEFAULT_EMAIL || "admin@example.com";
+    needsInit = true;
+  } else {
+    try {
+      const existing = JSON.parse(fs.readFileSync(ADMIN_FILE, "utf-8"));
+      if (!existing.username || !existing.password) {
+        needsInit = true;
+      }
+    } catch {
+      needsInit = true;
+    }
+  }
+
+  if (needsInit) {
+    const defaultEmail = process.env.ADMIN_DEFAULT_EMAIL || "admin@hublab.com";
     const defaultPassword = process.env.ADMIN_DEFAULT_PASSWORD;
 
     if (!defaultPassword) {
