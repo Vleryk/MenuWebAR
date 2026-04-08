@@ -288,8 +288,7 @@ app.delete("/api/admin/categories/:id", authMiddleware, (req, res) => {
 app.post("/api/admin/upload-model", authMiddleware, (req, res) => {
   uploadModel.single("model")(req, res, (err) => {
     if (err) {
-      const status = err instanceof multer.MulterError ? 400 : 400;
-      return res.status(status).json({ error: err.message });
+      return res.status(400).json({ error: err.message });
     }
     if (!req.file) {
       return res.status(400).json({ error: "No se envió ningún archivo" });

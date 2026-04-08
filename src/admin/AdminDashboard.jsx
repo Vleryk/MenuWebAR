@@ -161,6 +161,7 @@ function ItemsPanel({
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
   const [selectedFile, setSelectedFile] = useState(null);
+  const [fileInputKey, setFileInputKey] = useState(0);
 
   useEffect(() => {
     if (editingItem) {
@@ -177,6 +178,7 @@ function ItemsPanel({
       });
     }
     setSelectedFile(null);
+    setFileInputKey((k) => k + 1);
   }, [editingItem, categories]);
 
   const handleChange = (e) => {
@@ -204,6 +206,7 @@ function ItemsPanel({
       }
       setEditingItem(null);
       setSelectedFile(null);
+      setFileInputKey((k) => k + 1);
       await onReload();
     } catch (err) {
       setError(err.message);
@@ -315,6 +318,7 @@ function ItemsPanel({
             className={styles.input}
             type="file"
             accept=".glb"
+            key={fileInputKey}
             onChange={(e) => setSelectedFile(e.target.files[0] || null)}
           />
           {editingItem && form.modelAR && (
