@@ -2,7 +2,7 @@ const request = require("supertest");
 const fs = require("fs");
 const path = require("path");
 
-// Set test environment variables before importing the app
+// Establecer variables de entorno de prueba antes de importar la app
 process.env.JWT_SECRET = "test-secret-for-testing-only";
 process.env.ADMIN_DEFAULT_EMAIL = "test@test.com";
 process.env.ADMIN_DEFAULT_PASSWORD = "TestPassword123";
@@ -10,7 +10,7 @@ process.env.ADMIN_DEFAULT_PASSWORD = "TestPassword123";
 const ADMIN_FILE = path.join(__dirname, "..", "data", "admin.json");
 const DATA_FILE = path.join(__dirname, "..", "data", "menu.json");
 
-// Save and restore original data
+// Guardar y restaurar datos originales
 let originalAdminData;
 let originalMenuData;
 
@@ -22,14 +22,14 @@ beforeAll(() => {
 });
 
 afterAll(() => {
-  // Restore original data
+  // Restaurar datos originales
   if (originalAdminData) {
     fs.writeFileSync(ADMIN_FILE, originalAdminData);
   }
   fs.writeFileSync(DATA_FILE, originalMenuData);
 });
 
-// Delete admin file so initAdmin() recreates it with test credentials
+// Eliminar archivo admin para que initAdmin() lo recree con credenciales de prueba
 if (fs.existsSync(ADMIN_FILE)) {
   fs.unlinkSync(ADMIN_FILE);
 }
@@ -146,7 +146,7 @@ describe("API Endpoints", () => {
             price: "$1000",
             modelAR: "/assets/modelosAR/Plato3.glb",
           });
-        // May be 201 or 409 if item already exists
+        // Puede ser 201 o 409 si el item ya existe
         expect([201, 409]).toContain(res.status);
       });
     });

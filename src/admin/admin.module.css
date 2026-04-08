@@ -1,8 +1,8 @@
 /* ===========================
-   Admin Panel Styles
+   Estilos del Panel de Admin
    =========================== */
 
-/* Login */
+/* Inicio de sesión */
 .loginPage {
   min-height: 100vh;
   display: flex;
@@ -43,7 +43,7 @@
   margin: 0;
 }
 
-/* Layout */
+/* Diseño */
 .adminShell {
   min-height: 100vh;
   background: linear-gradient(145deg, #0a101c 0%, #152238 50%, #0f1724 100%);
@@ -125,7 +125,7 @@
   font-size: 1rem;
 }
 
-/* Forms */
+/* Formularios */
 .label {
   display: flex;
   flex-direction: column;
@@ -207,7 +207,7 @@
   margin: 0;
 }
 
-/* Buttons */
+/* Botones */
 .btnPrimary {
   background: linear-gradient(135deg, #d4aa63, #c49a52);
   color: #0f1724;
@@ -255,7 +255,7 @@
   background: rgba(220, 53, 69, 0.3);
 }
 
-/* Table */
+/* Tabla */
 .tableHeader {
   display: flex;
   align-items: center;
@@ -346,7 +346,7 @@
   grid-column: 1 / -1;
 }
 
-/* Responsive */
+/* Responsivo */
 @media (max-width: 768px) {
   .adminHeader {
     padding: 0.75rem 1rem;

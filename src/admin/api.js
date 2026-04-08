@@ -1,4 +1,4 @@
-const API_URL = "/api"; // "http://localhost:3001/api" en local /api en hosting
+const API_URL = "/api"; // "http://localhost:3001/api" en local, /api en hosting
 
 function getHeaders() {
   const token = localStorage.getItem("admin_token");
@@ -38,7 +38,7 @@ export async function verifyToken() {
   return res.ok;
 }
 
-// --- Categories ---
+// --- Categorías ---
 export async function getCategories() {
   const res = await fetch(`${API_URL}/admin/categories`, { headers: getHeaders() });
   if (!res.ok) throw new Error("Error al obtener categorías");
@@ -83,7 +83,7 @@ export async function deleteCategory(id) {
   return res.json();
 }
 
-// --- Menu Items ---
+// --- Items del Menú ---
 export async function getItems() {
   const res = await fetch(`${API_URL}/admin/items`, { headers: getHeaders() });
   if (!res.ok) throw new Error("Error al obtener items");
@@ -128,7 +128,7 @@ export async function deleteItem(id) {
   return res.json();
 }
 
-// --- Password ---
+// --- Contraseña ---
 export async function changePassword(currentPassword, newPassword) {
   const res = await fetch(`${API_URL}/admin/password`, {
     method: "PUT",
@@ -142,7 +142,7 @@ export async function changePassword(currentPassword, newPassword) {
   return res.json();
 }
 
-// --- Public ---
+// --- Público ---
 export async function getPublicMenu() {
   const res = await fetch(`${API_URL}/menu`);
   if (!res.ok) throw new Error("Error al obtener menú");

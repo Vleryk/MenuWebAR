@@ -22,7 +22,7 @@ describe("ErrorBoundary", () => {
   });
 
   it("renders fallback UI when child throws", () => {
-    // Suppress console.error from React error boundary
+    // Suprimir console.error del error boundary de React
     const spy = vi.spyOn(console, "error").mockImplementation(() => {});
 
     render(

@@ -14,7 +14,7 @@ const JWT_SECRET = process.env.JWT_SECRET;
 const DATA_FILE = path.join(__dirname, "data", "menu.json");
 const ADMIN_FILE = path.join(__dirname, "data", "admin.json");
 
-// Fail-fast: require JWT_SECRET in production
+// Fallo inmediato: JWT_SECRET es obligatorio en producción
 if (!JWT_SECRET) {
   if (process.env.NODE_ENV === "production") {
     console.error("FATAL: JWT_SECRET environment variable is required in production.");
@@ -25,11 +25,11 @@ if (!JWT_SECRET) {
 
 const jwtSecret = JWT_SECRET || "dev-only-insecure-secret";
 
-// --- Validation helpers ---
+// --- Helpers de validación ---
 const SAFE_PATH_RE = /^\/assets\/(modelosAR|IMG)\//;
 
 function isSafePath(p) {
-  if (!p) return true; // empty is allowed
+  if (!p) return true; // vacío es permitido
   if (typeof p !== "string") return false;
   if (p.includes("..")) return false;
   if (!p.startsWith("/")) return false;
@@ -45,11 +45,11 @@ function isValidId(val) {
 }
 
 function isValidPrice(val) {
-  // Prices are stored as strings like "$12.990"
+  // Los precios se almacenan como strings, ej: "$12.990"
   return typeof val === "string" && val.trim().length > 0;
 }
 
-// Static assets (compiled Vite output)
+// Archivos estáticos (salida compilada de Vite)
 const frontendPath = path.join(__dirname, "../dist");
 app.use(express.static(frontendPath));
 
@@ -75,7 +75,7 @@ function initAdmin() {
   }
 }
 
-// --- Helpers ---
+// --- Funciones auxiliares ---
 function readData() {
   const raw = fs.readFileSync(DATA_FILE, "utf-8");
   return JSON.parse(raw);
@@ -89,7 +89,7 @@ function writeData(data) {
 app.use(cors());
 app.use(express.json());
 
-// Rate limiter for auth endpoints (15 attempts per 15-minute window)
+// Limitador de intentos para auth (15 intentos por ventana de 15 minutos)
 const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 15,
@@ -98,7 +98,7 @@ const loginLimiter = rateLimit({
   message: { error: "Demasiados intentos de login. Intenta de nuevo en 15 minutos." },
 });
 
-// General rate limiter for all API endpoints
+// Limitador general para todos los endpoints de la API
 const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 200,
@@ -124,7 +124,7 @@ function authMiddleware(req, res, next) {
   }
 }
 
-// Centralized error handler (Express requires all 4 params for error middleware)
+// Manejador centralizado de errores (Express requiere los 4 parámetros para middleware de errores)
 // eslint-disable-next-line no-unused-vars
 function errorHandler(err, _req, res, _next) {
   if (process.env.NODE_ENV !== "production") {
@@ -136,7 +136,7 @@ function errorHandler(err, _req, res, _next) {
 }
 
 // ========================
-// HEALTH CHECK
+// VERIFICACIÓN DE SALUD
 // ========================
 
 app.get("/api/health", (_req, res) => {
@@ -144,7 +144,7 @@ app.get("/api/health", (_req, res) => {
 });
 
 // ========================
-// PUBLIC ROUTES (no auth)
+// RUTAS PÚBLICAS (no protegidas)
 // ========================
 
 app.get("/api/menu", (_req, res) => {
@@ -163,7 +163,7 @@ app.get("/api/menu-items", (_req, res) => {
 });
 
 // ========================
-// AUTH
+// AUTENTICACIÓN
 // ========================
 
 app.post("/api/auth/login", loginLimiter, (req, res) => {
@@ -186,10 +186,10 @@ app.get("/api/auth/verify", authMiddleware, (req, res) => {
 });
 
 // ========================
-// ADMIN ROUTES (protected)
+// RUTAS DE ADMIN (protegidas)
 // ========================
 
-// --- Categories ---
+// --- Categorías ---
 app.get("/api/admin/categories", authMiddleware, (_req, res) => {
   const data = readData();
   res.json(data.categories);
@@ -320,7 +320,7 @@ app.delete("/api/admin/items/:id", authMiddleware, (req, res) => {
   res.json({ message: "Item eliminado" });
 });
 
-// --- Change Password ---
+// --- Cambiar Contraseña ---
 app.put("/api/admin/password", authMiddleware, loginLimiter, (req, res) => {
   const { currentPassword, newPassword } = req.body;
   if (!currentPassword || !newPassword) {
@@ -340,18 +340,18 @@ app.put("/api/admin/password", authMiddleware, loginLimiter, (req, res) => {
   res.json({ message: "Contraseña actualizada" });
 });
 
-// SPA fallback: serve React app for non-API routes
+// SPA fallback: servir la app React para rutas que no sean de la API
 app.get("/{*splat}", (_req, res) => {
   res.sendFile(path.join(frontendPath, "index.html"));
 });
 
-// Centralized error handler (must be last)
+// Manejador centralizado de errores (debe ir al final)
 app.use(errorHandler);
 
-// --- Start ---
+// --- Inicio ---
 initAdmin();
 
-// Export app for testing
+// Exportar app para testing
 module.exports = app;
 
 if (require.main === module) {

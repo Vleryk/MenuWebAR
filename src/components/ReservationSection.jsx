@@ -75,18 +75,18 @@ function ReservationSection() {
     return timeSlots.filter((slot) => toMinutes(slot) >= minAllowedMinutes);
   }, [reservationDate, timeSlots]);
 
-  // Derive a valid reservation time from available slots
+  // Derivar un horario de reserva válido de los slots disponibles
   const validReservationTime = useMemo(() => {
     if (!availableTimeSlots.length) return "";
     if (availableTimeSlots.includes(reservationTime)) return reservationTime;
     return availableTimeSlots[0];
   }, [availableTimeSlots, reservationTime]);
 
-  // Update state when derived value differs (via user handler instead of effect)
+  // Actualizar estado cuando el valor derivado difiere (vía handler del usuario en vez de efecto)
   const handleDateChange = (event) => {
     setReservationDate(event.target.value);
     setConfirmationMessage("");
-    // Time will be auto-corrected via validReservationTime on next render
+    // El horario se autocorregirá vía validReservationTime en el próximo render
   };
 
   const handleSubmit = (event) => {

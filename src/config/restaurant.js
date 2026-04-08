@@ -1,6 +1,6 @@
 /**
- * Restaurant configuration — single source of truth for all restaurant details.
- * Import this in any component instead of hardcoding values.
+ * Configuración del restaurante — fuente única de verdad para todos los detalles del local.
+ * Importar esto en cualquier componente en lugar de valores hardcodeados.
  */
 const restaurantConfig = {
   name: "Route 66",
