@@ -148,3 +148,20 @@ export async function getPublicMenu() {
   if (!res.ok) throw new Error("Error al obtener menú");
   return res.json();
 }
+
+// --- Upload modelo 3D ---
+export async function uploadModelFile(formData) {
+  const token = localStorage.getItem("admin_token");
+  const res = await fetch(`${API_URL}/admin/upload-model`, {
+    method: "POST",
+    headers: {
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: formData,
+  });
+  if (!res.ok) {
+    const err = await res.json();
+    throw new Error(err.error || "Error al subir modelo");
+  }
+  return res.json();
+}

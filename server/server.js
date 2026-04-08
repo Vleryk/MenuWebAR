@@ -4,15 +4,45 @@ const express = require("express");
 const cors = require("cors");
 const fs = require("fs");
 const path = require("path");
+const crypto = require("crypto");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const rateLimit = require("express-rate-limit");
+const multer = require("multer");
 
 const app = express();
 const PORT = process.env.PORT || 3001;
 const JWT_SECRET = process.env.JWT_SECRET;
 const DATA_FILE = path.join(__dirname, "data", "menu.json");
 const ADMIN_FILE = path.join(__dirname, "data", "admin.json");
+const MODELS_DIR = path.join(__dirname, "..", "public", "assets", "modelosAR");
+
+// --- Multer config for .glb model uploads ---
+const modelStorage = multer.diskStorage({
+  destination(_req, _file, cb) {
+    fs.mkdirSync(MODELS_DIR, { recursive: true });
+    cb(null, MODELS_DIR);
+  },
+  filename(_req, file, cb) {
+    const unique = crypto.randomUUID();
+    const ext = path.extname(file.originalname).toLowerCase();
+    cb(null, `${unique}${ext}`);
+  },
+});
+
+function glbFileFilter(_req, file, cb) {
+  const ext = path.extname(file.originalname).toLowerCase();
+  if (ext !== ".glb") {
+    return cb(new Error("Solo se permiten archivos .glb"));
+  }
+  cb(null, true);
+}
+
+const uploadModel = multer({
+  storage: modelStorage,
+  fileFilter: glbFileFilter,
+  limits: { fileSize: 50 * 1024 * 1024 }, // 50 MB max
+});
 
 // Fallo inmediato: JWT_SECRET es obligatorio en producción
 if (!JWT_SECRET) {
@@ -252,6 +282,20 @@ app.delete("/api/admin/categories/:id", authMiddleware, (req, res) => {
   data.menuItems = data.menuItems.filter((item) => item.category !== req.params.id);
   writeData(data);
   res.json({ message: "Categoria y sus items eliminados" });
+});
+
+// --- Upload modelo 3D ---
+app.post("/api/admin/upload-model", authMiddleware, (req, res) => {
+  uploadModel.single("model")(req, res, (err) => {
+    if (err) {
+      return res.status(400).json({ error: err.message });
+    }
+    if (!req.file) {
+      return res.status(400).json({ error: "No se envió ningún archivo" });
+    }
+    const relativePath = `/assets/modelosAR/${req.file.filename}`;
+    res.json({ path: relativePath });
+  });
 });
 
 // --- Menu Items ---
