@@ -11,7 +11,6 @@ import {
   deleteCategory,
   logout,
   verifyToken,
-  uploadModelFile,
 } from "./api";
 import AdminLogin from "./AdminLogin";
 import styles from "./admin.module.css";
@@ -156,12 +155,10 @@ function ItemsPanel({
     description: "",
     price: "",
     image: "/assets/IMG/comida.jfif",
-    modelAR: "",
+    modelAR: "/assets/modelosAR/Plato3.glb",
   });
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
-  const [selectedFile, setSelectedFile] = useState(null);
-  const [fileInputKey, setFileInputKey] = useState(0);
 
   useEffect(() => {
     if (editingItem) {
@@ -174,11 +171,9 @@ function ItemsPanel({
         description: "",
         price: "",
         image: "/assets/IMG/comida.jfif",
-        modelAR: "",
+        modelAR: "/assets/modelosAR/Plato3.glb",
       });
     }
-    setSelectedFile(null);
-    setFileInputKey((k) => k + 1);
   }, [editingItem, categories]);
 
   const handleChange = (e) => {
@@ -190,23 +185,12 @@ function ItemsPanel({
     setError("");
     setSaving(true);
     try {
-      let finalForm = { ...form };
-
-      if (selectedFile) {
-        const formData = new FormData();
-        formData.append("model", selectedFile);
-        const result = await uploadModelFile(formData);
-        finalForm.modelAR = result.path;
-      }
-
       if (editingItem) {
-        await updateItem(editingItem.id, finalForm);
+        await updateItem(editingItem.id, form);
       } else {
-        await createItem(finalForm);
+        await createItem(form);
       }
       setEditingItem(null);
-      setSelectedFile(null);
-      setFileInputKey((k) => k + 1);
       await onReload();
     } catch (err) {
       setError(err.message);
@@ -313,19 +297,14 @@ function ItemsPanel({
         </label>
 
         <label className={`${styles.label} ${styles.fullWidth}`}>
-          Modelo AR (archivo .glb)
+          Modelo AR (ruta .glb)
           <input
             className={styles.input}
-            type="file"
-            accept=".glb"
-            key={fileInputKey}
-            onChange={(e) => setSelectedFile(e.target.files[0] || null)}
+            name="modelAR"
+            value={form.modelAR}
+            onChange={handleChange}
+            placeholder="/assets/modelosAR/Plato3.glb"
           />
-          {editingItem && form.modelAR && (
-            <span className={styles.mono} style={{ fontSize: "0.85em", marginTop: 4, display: "block" }}>
-              Modelo actual: {form.modelAR}
-            </span>
-          )}
         </label>
 
         <div className={styles.formActions}>
