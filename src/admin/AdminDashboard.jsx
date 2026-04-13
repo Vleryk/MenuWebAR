@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import {
   getCategories,
   getItems,
+  getModelos,
   createItem,
   updateItem,
   deleteItem,
@@ -23,6 +24,7 @@ export default function AdminDashboard() {
   // Datos
   const [categories, setCategories] = useState([]);
   const [items, setItems] = useState([]);
+  const [modelos, setModelos] = useState([]);
   const [activeTab, setActiveTab] = useState("items"); // items | categorías | contraseña
 
   // Formularios
@@ -32,9 +34,10 @@ export default function AdminDashboard() {
 
   const loadData = async () => {
     try {
-      const [cats, itms] = await Promise.all([getCategories(), getItems()]);
+      const [cats, itms, mods] = await Promise.all([getCategories(), getItems(), getModelos()]);
       setCategories(cats);
       setItems(itms);
+      setModelos(mods);
     } catch {
       setAuthenticated(false);
     }
@@ -52,10 +55,11 @@ export default function AdminDashboard() {
     let cancelled = false;
     (async () => {
       try {
-        const [cats, itms] = await Promise.all([getCategories(), getItems()]);
+        const [cats, itms, mods] = await Promise.all([getCategories(), getItems(), getModelos()]);
         if (!cancelled) {
           setCategories(cats);
           setItems(itms);
+          setModelos(mods);
         }
       } catch {
         if (!cancelled) setAuthenticated(false);
@@ -115,6 +119,7 @@ export default function AdminDashboard() {
           <ItemsPanel
             items={filteredItems}
             categories={categories}
+            modelos={modelos}
             filterCategory={filterCategory}
             setFilterCategory={setFilterCategory}
             editingItem={editingItem}
@@ -141,6 +146,7 @@ export default function AdminDashboard() {
 function ItemsPanel({
   items,
   categories,
+  modelos,
   filterCategory,
   setFilterCategory,
   editingItem,
@@ -155,7 +161,7 @@ function ItemsPanel({
     description: "",
     price: "",
     image: "/assets/IMG/comida.jfif",
-    modelAR: "/assets/modelosAR/Plato3.glb",
+    modelAR: "Plato3",
   });
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
@@ -171,7 +177,7 @@ function ItemsPanel({
         description: "",
         price: "",
         image: "/assets/IMG/comida.jfif",
-        modelAR: "/assets/modelosAR/Plato3.glb",
+        modelAR: "Plato3",
       });
     }
   }, [editingItem, categories]);
@@ -297,14 +303,20 @@ function ItemsPanel({
         </label>
 
         <label className={`${styles.label} ${styles.fullWidth}`}>
-          Modelo AR (ruta .glb)
-          <input
+          Modelo AR
+          <select
             className={styles.input}
             name="modelAR"
             value={form.modelAR}
             onChange={handleChange}
-            placeholder="/assets/modelosAR/Plato3.glb"
-          />
+          >
+            <option value="">Sin modelo</option>
+            {modelos.map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.label}
+              </option>
+            ))}
+          </select>
         </label>
 
         <div className={styles.formActions}>

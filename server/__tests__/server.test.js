@@ -65,6 +65,18 @@ describe("API Endpoints", () => {
     });
   });
 
+  describe("GET /api/modelos", () => {
+    it("returns modelos array", async () => {
+      const res = await request(app).get("/api/modelos");
+      expect(res.status).toBe(200);
+      expect(Array.isArray(res.body)).toBe(true);
+      if (res.body.length > 0) {
+        expect(res.body[0]).toHaveProperty("id");
+        expect(res.body[0]).toHaveProperty("label");
+      }
+    });
+  });
+
   describe("POST /api/auth/login", () => {
     it("returns 400 if username or password missing", async () => {
       const res = await request(app)
@@ -121,7 +133,7 @@ describe("API Endpoints", () => {
         expect(res.status).toBe(400);
       });
 
-      it("rejects item with path traversal in modelAR", async () => {
+      it("rejects item with invalid modelAR id", async () => {
         const res = await request(app)
           .post("/api/admin/items")
           .set("Authorization", `Bearer ${token}`)
@@ -130,12 +142,12 @@ describe("API Endpoints", () => {
             category: "entradas",
             name: "Test",
             price: "$1000",
-            modelAR: "/assets/modelosAR/../../etc/passwd",
+            modelAR: "../../etc/passwd",
           });
         expect(res.status).toBe(400);
       });
 
-      it("accepts item with valid modelAR path", async () => {
+      it("accepts item with valid modelAR id", async () => {
         const res = await request(app)
           .post("/api/admin/items")
           .set("Authorization", `Bearer ${token}`)
@@ -144,7 +156,7 @@ describe("API Endpoints", () => {
             category: "entradas",
             name: "Test Item",
             price: "$1000",
-            modelAR: "/assets/modelosAR/Plato3.glb",
+            modelAR: "Plato1",
           });
         // Puede ser 201 o 409 si el item ya existe
         expect([201, 409]).toContain(res.status);

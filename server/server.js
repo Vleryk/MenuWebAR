@@ -49,6 +49,23 @@ function isValidPrice(val) {
   return typeof val === "string" && val.trim().length > 0;
 }
 
+function isValidModeloId(id) {
+  return typeof id === "string" && /^[a-zA-Z0-9_-]+$/.test(id);
+}
+
+function resolveModelAR(modeloId, modelos) {
+  if (!modeloId) return "";
+  const modelo = (modelos || []).find((m) => m.id === modeloId);
+  return modelo ? modelo.src : "";
+}
+
+function resolveMenuItems(items, modelos) {
+  return items.map((item) => ({
+    ...item,
+    modelAR: resolveModelAR(item.modelAR, modelos),
+  }));
+}
+
 // Archivos estáticos (salida compilada de Vite)
 const frontendPath = path.join(__dirname, "../dist");
 app.use(express.static(frontendPath));
@@ -164,7 +181,10 @@ app.get("/api/health", (_req, res) => {
 
 app.get("/api/menu", (_req, res) => {
   const data = readData();
-  res.json(data);
+  res.json({
+    ...data,
+    menuItems: resolveMenuItems(data.menuItems, data.modelos),
+  });
 });
 
 app.get("/api/categories", (_req, res) => {
@@ -172,9 +192,14 @@ app.get("/api/categories", (_req, res) => {
   res.json(data.categories);
 });
 
+app.get("/api/modelos", (_req, res) => {
+  const data = readData();
+  res.json(data.modelos || []);
+});
+
 app.get("/api/menu-items", (_req, res) => {
   const data = readData();
-  res.json(data.menuItems);
+  res.json(resolveMenuItems(data.menuItems, data.modelos));
 });
 
 // ========================
@@ -277,11 +302,14 @@ app.post("/api/admin/items", authMiddleware, (req, res) => {
   if (image && !isSafePath(image)) {
     return res.status(400).json({ error: "Ruta de imagen no permitida" });
   }
-  if (modelAR && !isSafePath(modelAR)) {
-    return res.status(400).json({ error: "Ruta de modelo AR no permitida" });
+  if (modelAR && !isValidModeloId(modelAR)) {
+    return res.status(400).json({ error: "modelAR debe ser un id de modelo valido" });
   }
 
   const data = readData();
+  if (modelAR && !(data.modelos || []).find((m) => m.id === modelAR)) {
+    return res.status(400).json({ error: "Modelo AR no encontrado" });
+  }
   if (data.menuItems.find((item) => item.id === id)) {
     return res.status(409).json({ error: "Item con ese id ya existe" });
   }
@@ -310,8 +338,14 @@ app.put("/api/admin/items/:id", authMiddleware, (req, res) => {
   if (image !== undefined && image && !isSafePath(image)) {
     return res.status(400).json({ error: "Ruta de imagen no permitida" });
   }
-  if (modelAR !== undefined && modelAR && !isSafePath(modelAR)) {
-    return res.status(400).json({ error: "Ruta de modelo AR no permitida" });
+  if (modelAR !== undefined && modelAR && !isValidModeloId(modelAR)) {
+    return res.status(400).json({ error: "modelAR debe ser un id de modelo valido" });
+  }
+  if (modelAR !== undefined && modelAR) {
+    const data2 = readData();
+    if (!(data2.modelos || []).find((m) => m.id === modelAR)) {
+      return res.status(400).json({ error: "Modelo AR no encontrado" });
+    }
   }
 
   if (category) item.category = category.trim();

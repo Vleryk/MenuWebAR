@@ -90,6 +90,13 @@ export async function getItems() {
   return res.json();
 }
 
+// --- Modelos AR ---
+export async function getModelos() {
+  const res = await fetch(`${API_URL}/modelos`);
+  if (!res.ok) throw new Error("Error al obtener modelos");
+  return res.json();
+}
+
 export async function createItem(item) {
   const res = await fetch(`${API_URL}/admin/items`, {
     method: "POST",
