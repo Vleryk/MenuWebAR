@@ -26,6 +26,7 @@ const isSameCalendarDay = (leftDate, rightDate) => {
 };
 
 const WHATSAPP_NUMBER = restaurantConfig.contact.whatsappNumber;
+const RESTAURANT_EMAIL = restaurantConfig.contact.email;
 
 function ReservationSection() {
   const [reservationDate, setReservationDate] = useState(() => formatDateForInput(new Date()));
@@ -33,6 +34,8 @@ function ReservationSection() {
   const [reservationTime, setReservationTime] = useState("20:00");
   const [reservationZone, setReservationZone] = useState("salon");
   const [confirmationMessage, setConfirmationMessage] = useState("");
+  // Estado para mostrar "Abriendo..." mientras se abren las ventanas
+  const [isLoading, setIsLoading] = useState(false);
 
   const peopleOptions = useMemo(
     () => Array.from({ length: restaurantConfig.reservations.maxPeople }, (_, i) => i + 1),
@@ -59,14 +62,17 @@ function ReservationSection() {
 
   const zones = restaurantConfig.reservations.zones;
 
+  // Filtra los horarios disponibles segun la fecha seleccionada
   const availableTimeSlots = useMemo(() => {
     const selectedDate = new Date(`${reservationDate}T00:00:00`);
     const now = new Date();
 
+    // Si es una fecha futura, muestra todos los horarios
     if (!isSameCalendarDay(selectedDate, now)) {
       return timeSlots;
     }
 
+    // Si es hoy, filtra los horarios que ya pasaron
     const currentMinutes = now.getHours() * 60 + now.getMinutes();
     const minAllowedMinutes = roundUpToQuarter(
       currentMinutes + restaurantConfig.reservations.minAdvanceMinutes,
@@ -75,25 +81,25 @@ function ReservationSection() {
     return timeSlots.filter((slot) => toMinutes(slot) >= minAllowedMinutes);
   }, [reservationDate, timeSlots]);
 
-  // Derivar un horario de reserva válido de los slots disponibles
   const validReservationTime = useMemo(() => {
     if (!availableTimeSlots.length) return "";
     if (availableTimeSlots.includes(reservationTime)) return reservationTime;
     return availableTimeSlots[0];
   }, [availableTimeSlots, reservationTime]);
 
-  // Actualizar estado cuando el valor derivado difiere (vía handler del usuario en vez de efecto)
   const handleDateChange = (event) => {
     setReservationDate(event.target.value);
     setConfirmationMessage("");
-    // El horario se autocorregirá vía validReservationTime en el próximo render
   };
 
   const handleSubmit = (event) => {
     event.preventDefault();
+    setIsLoading(true);
 
+    // Valida que haya horarios disponibles
     if (!availableTimeSlots.length || !validReservationTime) {
       setConfirmationMessage("Ya no hay horarios disponibles para hoy. Selecciona otra fecha.");
+      setIsLoading(false);
       return;
     }
 
@@ -102,14 +108,28 @@ function ReservationSection() {
       dateStyle: "full",
     }).format(new Date(`${reservationDate}T00:00:00`));
 
+    const reservationDetails = `Reserva para ${reservationPeople} personas\nFecha: ${reservationDate}\nHora: ${validReservationTime}\nZona: ${selectedZoneLabel}`;
+
+    // Prepara el mensaje para WhatsApp con todos los datos pre-llenados
     const whatsappMessage = `Hola, me gustaria hacer una reserva para el ${reservationDate} a las ${validReservationTime} en la zona ${selectedZoneLabel} para ${reservationPeople} personas.`;
     const whatsappUrl = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(whatsappMessage)}`;
 
+    // Prepara el email con subject y body pre-llenados
+    const emailSubject = `Nueva Reserva - ${reservationDate} ${validReservationTime}`;
+    const emailBody = `Solicitud de Reserva%0A%0A${encodeURIComponent(reservationDetails)}%0A%0APor favor, confirmar disponibilidad.`;
+    const emailUrl = `mailto:${RESTAURANT_EMAIL}?subject=${encodeURIComponent(emailSubject)}&body=${emailBody}`;
+
+    // Abre WhatsApp y email al mismo tiempo
+    window.open(whatsappUrl, "_blank", "noopener,noreferrer");
+    window.open(emailUrl);
+
+    // Muestra mensaje de confirmacion con la info de la reserva
     setConfirmationMessage(
-      `Reserva enviada para ${reservationPeople} personas el ${formattedDate} a las ${validReservationTime} en ${selectedZoneLabel}.`
+      `Reserva enviada para ${reservationPeople} personas el ${formattedDate} a las ${validReservationTime} en ${selectedZoneLabel}. Se abriran WhatsApp y email.`
     );
 
-    window.open(whatsappUrl, "_blank", "noopener,noreferrer");
+    // Deshabilita el boton durante un momento para que no se abran multiples ventanas
+    setTimeout(() => setIsLoading(false), 1500);
   };
 
   return (
@@ -167,6 +187,7 @@ function ReservationSection() {
               setReservationTime(event.target.value);
               setConfirmationMessage("");
             }}
+            // Se deshabilita si no hay horarios disponibles
             disabled={!availableTimeSlots.length}
           >
             {availableTimeSlots.map((slot) => (
@@ -198,11 +219,17 @@ function ReservationSection() {
           </select>
         </label>
 
-        <button type="submit" className={styles.reservationSubmit} disabled={!availableTimeSlots.length}>
-          Reservar
+        {/* El boton se deshabilita si no hay horarios o mientras se abre */}
+        <button 
+          type="submit" 
+          className={styles.reservationSubmit} 
+          disabled={!availableTimeSlots.length || isLoading}
+        >
+          {isLoading ? "Abriendo..." : "Reservar"}
         </button>
       </form>
 
+      {/* Muestra el mensaje de confirmacion cuando se envio la reserva */}
       {confirmationMessage ? <p className={styles.reservationNotice}>{confirmationMessage}</p> : null}
     </section>
   );

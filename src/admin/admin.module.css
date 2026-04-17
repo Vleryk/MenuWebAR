@@ -161,6 +161,32 @@
   resize: vertical;
 }
 
+.inputError {
+  border-color: #ff4444 !important;
+  background-color: rgba(255, 68, 68, 0.05);
+}
+
+.helperError {
+  display: block;
+  color: #ff4444;
+  font-size: 12px;
+  margin-top: 4px;
+}
+
+.helperText {
+  display: block;
+  color: #999;
+  font-size: 12px;
+  margin-top: 4px;
+}
+
+.helperRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 4px;
+}
+
 .formGrid {
   display: grid;
   grid-template-columns: 1fr 1fr;

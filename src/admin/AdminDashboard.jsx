@@ -25,7 +25,7 @@ export default function AdminDashboard() {
   const [categories, setCategories] = useState([]);
   const [items, setItems] = useState([]);
   const [modelos, setModelos] = useState([]);
-  const [activeTab, setActiveTab] = useState("items"); // items | categorías | contraseña
+  const [activeTab, setActiveTab] = useState("items");
 
   // Formularios
   const [editingItem, setEditingItem] = useState(null);
@@ -74,7 +74,7 @@ export default function AdminDashboard() {
   }
 
   if (checking) {
-    return <div className={styles.loading}>Verificando sesión...</div>;
+    return <div className={styles.loading}>Verificando sesion...</div>;
   }
 
   if (!authenticated) {
@@ -91,11 +91,11 @@ export default function AdminDashboard() {
         <div className={styles.adminHeaderLeft}>
           <h1 className={styles.adminBrand}>Route 66 — Admin</h1>
           <button className={styles.linkBtn} onClick={() => navigate("/")}>
-            ← Ver Menú
+            ← Ver Menu
           </button>
         </div>
         <button className={styles.btnDanger} onClick={handleLogout}>
-          Cerrar Sesión
+          Cerrar Sesion
         </button>
       </header>
 
@@ -104,13 +104,13 @@ export default function AdminDashboard() {
           className={`${styles.navBtn} ${activeTab === "items" ? styles.navActive : ""}`}
           onClick={() => setActiveTab("items")}
         >
-          Platos del Menú
+          Platos del Menu
         </button>
         <button
           className={`${styles.navBtn} ${activeTab === "categories" ? styles.navActive : ""}`}
           onClick={() => setActiveTab("categories")}
         >
-          Categorías
+          Categorias
         </button>
       </nav>
 
@@ -165,6 +165,8 @@ function ItemsPanel({
   });
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
+  // agregue fieldErrors para guardar los errores de validacion de cada campo
+  const [fieldErrors, setFieldErrors] = useState({});
 
   useEffect(() => {
     if (editingItem) {
@@ -180,15 +182,85 @@ function ItemsPanel({
         modelAR: "Plato3",
       });
     }
+    setFieldErrors({});
   }, [editingItem, categories]);
 
+  // Funcion para validar todos los campos antes de enviar
+  const validateFields = () => {
+    const errors = {};
+
+    // Valida que el ID no este vacio y sea unico
+    if (!form.id.trim()) {
+      errors.id = "ID es requerido";
+    } else if (!/^[a-zA-Z0-9_-]+$/.test(form.id)) {
+      errors.id = "ID solo acepta letras, numeros, guion y guion bajo";
+    } else if (!editingItem && items.some((item) => item.id === form.id)) {
+      errors.id = "ID ya existe";
+    }
+
+    // Valida que la categoria este seleccionada
+    if (!form.category) {
+      errors.category = "Categoria es requerida";
+    }
+
+    // Valida el nombre: solo letras y espacios
+    if (!form.name.trim()) {
+      errors.name = "Nombre es requerido";
+    } else if (!/^[a-zaeiounñ\s]*$/i.test(form.name)) {
+      errors.name = "Solo letras y espacios";
+    }
+
+    // Valida el precio: solo numeros y punto, y debe ser mayor a 0
+    if (!form.price.trim()) {
+      errors.price = "Precio es requerido";
+    } else if (!/^[\d.]+$/.test(form.price)) {
+      errors.price = "Solo numeros y punto";
+    } else if (parseFloat(form.price) <= 0) {
+      errors.price = "Precio debe ser mayor a 0";
+    }
+
+    // Valida que la descripcion no supere 500 caracteres
+    if (form.description && form.description.length > 500) {
+      errors.description = "Maximo 500 caracteres";
+    }
+
+    // Valida que la ruta de la imagen comience con /assets/
+    if (form.image && !form.image.startsWith("/assets/")) {
+      errors.image = "Ruta debe comenzar con /assets/";
+    }
+
+    setFieldErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
+  // Valida mientras escribe: solo letras en nombre, solo numeros en precio
   const handleChange = (e) => {
-    setForm((f) => ({ ...f, [e.target.name]: e.target.value }));
+    const { name, value } = e.target;
+    
+    // Si es el campo nombre, rechaza numeros
+    if (name === "name") {
+      if (!/^[a-zaeiounñ\s]*$/i.test(value)) return;
+    }
+    
+    // Si es el campo precio, rechaza letras
+    if (name === "price") {
+      if (!/^[\d.]*$/.test(value)) return;
+    }
+    
+    setForm((f) => ({ ...f, [name]: value }));
+    // Limpia el error del campo cuando el usuario empieza a escribir de nuevo
+    setFieldErrors((errs) => ({ ...errs, [name]: "" }));
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
+    
+    // Valida todos los campos antes de enviar
+    if (!validateFields()) {
+      return;
+    }
+
     setSaving(true);
     try {
       if (editingItem) {
@@ -206,7 +278,7 @@ function ItemsPanel({
   };
 
   const handleDelete = async (id) => {
-    if (!window.confirm("¿Eliminar este plato?")) return;
+    if (!window.confirm("Eliminar este plato?")) return;
     try {
       await deleteItem(id);
       await onReload();
@@ -214,6 +286,9 @@ function ItemsPanel({
       setError(err.message);
     }
   };
+
+  // Deshabilita el boton crear si hay errores o campos vacios
+  const isFormValid = form.id && form.category && form.name && form.price && Object.keys(fieldErrors).length === 0;
 
   return (
     <div>
@@ -227,7 +302,7 @@ function ItemsPanel({
         <label className={styles.label}>
           ID
           <input
-            className={styles.input}
+            className={`${styles.input} ${fieldErrors.id ? styles.inputError : ""}`}
             name="id"
             value={form.id}
             onChange={handleChange}
@@ -235,12 +310,13 @@ function ItemsPanel({
             disabled={!!editingItem}
             placeholder="ej: ap-7"
           />
+          {fieldErrors.id && <span className={styles.helperError}>{fieldErrors.id}</span>}
         </label>
 
         <label className={styles.label}>
-          Categoría
+          Categoria
           <select
-            className={styles.input}
+            className={`${styles.input} ${fieldErrors.category ? styles.inputError : ""}`}
             name="category"
             value={form.category}
             onChange={handleChange}
@@ -253,53 +329,73 @@ function ItemsPanel({
               </option>
             ))}
           </select>
+          {fieldErrors.category && <span className={styles.helperError}>{fieldErrors.category}</span>}
         </label>
 
         <label className={styles.label}>
           Nombre
           <input
-            className={styles.input}
+            className={`${styles.input} ${fieldErrors.name ? styles.inputError : ""}`}
             name="name"
             value={form.name}
             onChange={handleChange}
             required
             placeholder="Nombre del plato"
           />
+          {fieldErrors.name ? (
+            <span className={styles.helperError}>{fieldErrors.name}</span>
+          ) : (
+            <span className={styles.helperText}>Solo letras y espacios</span>
+          )}
         </label>
 
         <label className={styles.label}>
           Precio
           <input
-            className={styles.input}
+            className={`${styles.input} ${fieldErrors.price ? styles.inputError : ""}`}
             name="price"
             value={form.price}
             onChange={handleChange}
             required
             placeholder="$12.990"
           />
+          {fieldErrors.price ? (
+            <span className={styles.helperError}>{fieldErrors.price}</span>
+          ) : (
+            <span className={styles.helperText}>Solo numeros y punto</span>
+          )}
         </label>
 
         <label className={`${styles.label} ${styles.fullWidth}`}>
-          Descripción
+          Descripcion
           <textarea
-            className={styles.textarea}
+            className={`${styles.textarea} ${fieldErrors.description ? styles.inputError : ""}`}
             name="description"
             value={form.description}
             onChange={handleChange}
             rows={2}
-            placeholder="Descripción del plato..."
+            placeholder="Descripcion del plato..."
           />
+          <div className={styles.helperRow}>
+            {fieldErrors.description ? (
+              <span className={styles.helperError}>{fieldErrors.description}</span>
+            ) : (
+              // Muestra cuantos caracteres lleva el usuario escribiendo
+              <span className={styles.helperText}>{form.description.length}/500 caracteres</span>
+            )}
+          </div>
         </label>
 
         <label className={`${styles.label} ${styles.fullWidth}`}>
           Imagen (ruta)
           <input
-            className={styles.input}
+            className={`${styles.input} ${fieldErrors.image ? styles.inputError : ""}`}
             name="image"
             value={form.image}
             onChange={handleChange}
             placeholder="/assets/IMG/comida.jfif"
           />
+          {fieldErrors.image && <span className={styles.helperError}>{fieldErrors.image}</span>}
         </label>
 
         <label className={`${styles.label} ${styles.fullWidth}`}>
@@ -320,7 +416,8 @@ function ItemsPanel({
         </label>
 
         <div className={styles.formActions}>
-          <button className={styles.btnPrimary} type="submit" disabled={saving}>
+          {/* El boton se deshabilita si hay errores o campos vacios */}
+          <button className={styles.btnPrimary} type="submit" disabled={saving || !isFormValid}>
             {saving ? "Guardando..." : editingItem ? "Actualizar" : "Crear Plato"}
           </button>
           {editingItem && (
@@ -342,7 +439,7 @@ function ItemsPanel({
           value={filterCategory}
           onChange={(e) => setFilterCategory(e.target.value)}
         >
-          <option value="">Todas las categorías</option>
+          <option value="">Todas las categorias</option>
           {categories.map((c) => (
             <option key={c.id} value={c.id}>
               {c.label}
@@ -357,7 +454,7 @@ function ItemsPanel({
             <tr>
               <th>ID</th>
               <th>Nombre</th>
-              <th>Categoría</th>
+              <th>Categoria</th>
               <th>Precio</th>
               <th>Modelo AR</th>
               <th>Acciones</th>
@@ -398,7 +495,7 @@ function ItemsPanel({
 }
 
 // ====================
-// Panel de Categorías
+// Panel de Categorias
 // ====================
 function CategoriesPanel({ categories, editingCategory, setEditingCategory, onReload }) {
   const [form, setForm] = useState({ id: "", label: "" });
@@ -433,7 +530,7 @@ function CategoriesPanel({ categories, editingCategory, setEditingCategory, onRe
   };
 
   const handleDelete = async (id) => {
-    if (!window.confirm("¿Eliminar esta categoría y todos sus platos?")) return;
+    if (!window.confirm("Eliminar esta categoria y todos sus platos?")) return;
     try {
       await deleteCategory(id);
       await onReload();
@@ -445,7 +542,7 @@ function CategoriesPanel({ categories, editingCategory, setEditingCategory, onRe
   return (
     <div>
       <div className={styles.panelHeader}>
-        <h2>{editingCategory ? "Editar Categoría" : "Agregar Categoría"}</h2>
+        <h2>{editingCategory ? "Editar Categoria" : "Agregar Categoria"}</h2>
       </div>
 
       <form className={styles.formRow} onSubmit={handleSubmit}>

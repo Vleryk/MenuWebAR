@@ -1,13 +1,13 @@
 .siteFooter {
   margin-top: 2rem;
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: 1fr 1.2fr 1.2fr 1fr;
   align-items: start;
-  gap: 1.25rem;
+  gap: 1.5rem;
   border-top: 1px solid rgba(212, 170, 99, 0.24);
   background: linear-gradient(160deg, rgba(20, 32, 52, 0.78), rgba(10, 18, 31, 0.88));
   border-radius: 16px;
-  padding: 1.2rem;
+  padding: 1.5rem;
   color: rgba(247, 241, 232, 0.86);
 }
 
@@ -34,7 +34,7 @@
 .footerLinksCol {
   display: grid;
   align-content: start;
-  gap: 0.95rem;
+  gap: 1.2rem;
 }
 
 .footerBlock {
@@ -44,7 +44,12 @@
 
 .footerTagline {
   margin-top: 0.75rem;
+  margin-bottom: 1rem;
   color: rgba(247, 241, 232, 0.72);
+}
+
+.socialListMobile {
+  display: none;
 }
 
 .footerContactList,
@@ -68,6 +73,7 @@
 
 .footerHoursList li {
   color: rgba(247, 241, 232, 0.78);
+  font-size: 0.85rem;
 }
 
 .footerLinksList a {
@@ -97,6 +103,7 @@
   padding: 0.1rem 0;
   color: var(--r66-cream);
   text-decoration: none;
+  transition: color 0.2s ease;
 }
 
 .socialItem:hover {
@@ -119,14 +126,14 @@
 }
 
 .footerLogo {
-  width: min(150px, 45vw);
+  width: min(140px, 40vw);
   height: auto;
   margin-top: 0.25rem;
 }
 
 .footerMapFrame {
   width: 100%;
-  height: 150px;
+  height: 180px;
   border: 1px solid rgba(212, 170, 99, 0.3);
   border-radius: 12px;
   overflow: hidden;
@@ -149,14 +156,91 @@
   text-align: center;
 }
 
-@media (max-width: 900px) {
+.hoursHeader {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-bottom: 0.3rem;
+  flex-wrap: wrap;
+}
+
+.hoursHeader h5 {
+  margin: 0;
+}
+
+.statusBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.15rem 0.55rem;
+  border-radius: 12px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.statusOpen {
+  background: rgba(76, 175, 80, 0.15);
+  color: #6dd970;
+  border: 1px solid rgba(76, 175, 80, 0.35);
+}
+
+.statusClosed {
+  background: rgba(220, 53, 69, 0.15);
+  color: #ff6b6b;
+  border: 1px solid rgba(220, 53, 69, 0.3);
+}
+
+.statusDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+@media (max-width: 1024px) {
   .siteFooter {
     grid-template-columns: 1fr 1fr;
+    gap: 1.2rem;
+  }
+
+  .footerMapCol {
+    grid-column: 1 / -1;
   }
 }
 
-@media (max-width: 640px) {
+@media (max-width: 768px) {
   .siteFooter {
     grid-template-columns: 1fr;
+    padding: 1.2rem;
+    gap: 1rem;
+  }
+
+  .footerInfoCol,
+  .footerLinksCol {
+    gap: 1rem;
+  }
+
+  .socialListMobile {
+    display: block;
+  }
+
+  .footerLinksCol .socialList {
+    display: none;
+  }
+
+  .footerLogo {
+    width: min(120px, 35vw);
+  }
+
+  .footerMapFrame {
+    height: 150px;
   }
 }

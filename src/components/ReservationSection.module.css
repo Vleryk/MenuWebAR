@@ -98,11 +98,11 @@
   transition: transform 0.1s ease, box-shadow 0.2s ease;
 }
 
-.reservationSubmit:hover {
+.reservationSubmit:hover:not(:disabled) {
   box-shadow: 0 8px 18px rgba(212, 170, 99, 0.35);
 }
 
-.reservationSubmit:active {
+.reservationSubmit:active:not(:disabled) {
   transform: translateY(1px);
 }
 

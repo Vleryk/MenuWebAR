@@ -1,7 +1,41 @@
+import { useEffect, useState } from "react";
 import restaurantConfig from "../config/restaurant";
 import styles from "./Footer.module.css";
 
 function Footer() {
+  // Estado para saber si el restaurante esta abierto en este momento
+  const [isOpen, setIsOpen] = useState(false);
+
+  useEffect(() => {
+    // Funcion que chequea la hora actual contra los horarios
+    const checkIfOpen = () => {
+      const now = new Date();
+      const day = now.getDay(); // 0=domingo, 1=lunes, etc
+      const currentMinutes = now.getHours() * 60 + now.getMinutes();
+
+      // Horarios: abre a las 12:30 todos los dias
+      // Cierra a las 23:00 dom-mar, 00:00 mie-sab
+      const schedules = {
+        0: { open: 12 * 60 + 30, close: 23 * 60 },       // Domingo
+        1: { open: 12 * 60 + 30, close: 23 * 60 },       // Lunes
+        2: { open: 12 * 60 + 30, close: 23 * 60 },       // Martes
+        3: { open: 12 * 60 + 30, close: 24 * 60 },       // Miercoles
+        4: { open: 12 * 60 + 30, close: 24 * 60 },       // Jueves
+        5: { open: 12 * 60 + 30, close: 24 * 60 },       // Viernes
+        6: { open: 12 * 60 + 30, close: 24 * 60 },       // Sabado
+      };
+
+      const today = schedules[day];
+      // Compara si la hora actual esta dentro del horario
+      setIsOpen(currentMinutes >= today.open && currentMinutes < today.close);
+    };
+
+    checkIfOpen();
+    // Actualiza el estado cada minuto para que no desfase
+    const interval = setInterval(checkIfOpen, 60000);
+    return () => clearInterval(interval);
+  }, []);
+
   const socialLinks = [
     {
       name: "Instagram",
@@ -34,6 +68,19 @@ function Footer() {
         <p className={styles.footerTagline}>
           {restaurantConfig.tagline}
         </p>
+        {/* Las redes sociales aparecen aqui solo en mobile */}
+        <div className={styles.socialListMobile}>
+          <ul className={styles.socialList} aria-label="Redes sociales">
+            {socialLinks.map((social) => (
+              <li key={social.name}>
+                <a href={social.url} target="_blank" rel="noreferrer" className={styles.socialItem}>
+                  <span className={styles.socialIcon} aria-hidden="true">{social.icon}</span>
+                  <span>{social.name}</span>
+                </a>
+              </li>
+            ))}
+          </ul>
+        </div>
       </div>
 
       <div className={styles.footerInfoCol}>
@@ -47,7 +94,14 @@ function Footer() {
         </section>
 
         <section className={styles.footerBlock}>
-          <h5 className={styles.footerSubtitle}>Horarios</h5>
+          <div className={styles.hoursHeader}>
+            <h5 className={styles.footerSubtitle}>Horarios</h5>
+            {/* Badge que muestra si el local esta abierto o cerrado en tiempo real */}
+            <span className={`${styles.statusBadge} ${isOpen ? styles.statusOpen : styles.statusClosed}`}>
+              <span className={styles.statusDot} />
+              {isOpen ? "Abierto" : "Cerrado"}
+            </span>
+          </div>
           <ul className={styles.footerHoursList}>
             {restaurantConfig.hours.map((h) => (
               <li key={h.days}>
@@ -81,6 +135,7 @@ function Footer() {
 
         <section className={styles.footerBlock}>
           <h5 className={styles.footerSubtitle}>Redes</h5>
+          {/* Las redes sociales aparecen aqui en desktop */}
           <ul className={styles.socialList} aria-label="Redes sociales">
             {socialLinks.map((social) => (
               <li key={social.name}>
