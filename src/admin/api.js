@@ -38,6 +38,28 @@ export async function verifyToken() {
   return res.ok;
 }
 
+// --- Upload de Imágenes ---
+export async function uploadImage(file) {
+  const formData = new FormData();
+  formData.append("image", file);
+
+  const token = localStorage.getItem("admin_token");
+  const res = await fetch(`${API_URL}/admin/upload-image`, {
+    method: "POST",
+    headers: {
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: formData,
+  });
+
+  if (!res.ok) {
+    const err = await res.json();
+    throw new Error(err.error || "Error al subir imagen");
+  }
+
+  return res.json();
+}
+
 // --- Categorías ---
 export async function getCategories() {
   const res = await fetch(`${API_URL}/admin/categories`, { headers: getHeaders() });
@@ -155,4 +177,3 @@ export async function getPublicMenu() {
   if (!res.ok) throw new Error("Error al obtener menú");
   return res.json();
 }
-

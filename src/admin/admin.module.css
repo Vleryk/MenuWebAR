@@ -1,5 +1,5 @@
 /* ===========================
-   Estilos del Panel de Admin
+   ADMIN MODULE CSS - COMPLETO
    =========================== */
 
 /* Inicio de sesión */
@@ -372,6 +372,326 @@
   grid-column: 1 / -1;
 }
 
+/* INGREDIENTES */
+.ingredientsList {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  padding: 1rem;
+  margin-top: 1rem;
+}
+
+.ingredientItem {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  background: rgba(255, 255, 255, 0.03);
+  padding: 0.65rem;
+  border-radius: 8px;
+  margin-bottom: 0.5rem;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.ingredientInput {
+  flex: 1;
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.ingredientBadge {
+  background: rgba(212, 170, 99, 0.2);
+  color: #d4aa63;
+  padding: 0.3rem 0.75rem;
+  border-radius: 6px;
+  font-size: 0.8rem;
+  display: inline-block;
+  word-break: break-word;
+}
+
+/* ===========================
+   INPUT FILE PERSONALIZADO
+   =========================== */
+
+/* Ocultar el input nativo */
+input[type="file"] {
+  display: none;
+}
+
+/* Wrapper del input personalizado */
+.fileInputWrapper {
+  position: relative;
+  display: inline-block;
+  width: 100%;
+}
+
+/* Label que actúa como botón */
+.fileInputLabel {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  background: linear-gradient(135deg, rgba(212, 170, 99, 0.15), rgba(212, 170, 99, 0.08));
+  border: 2px dashed rgba(212, 170, 99, 0.4);
+  border-radius: 8px;
+  padding: 1.2rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  font-size: 0.95rem;
+  color: #d4aa63;
+  font-weight: 500;
+  user-select: none;
+  min-height: 50px;
+}
+
+.fileInputLabel:hover {
+  background: linear-gradient(135deg, rgba(212, 170, 99, 0.25), rgba(212, 170, 99, 0.15));
+  border-color: #d4aa63;
+  box-shadow: 0 0 15px rgba(212, 170, 99, 0.2);
+}
+
+.fileInputLabel:active {
+  transform: scale(0.98);
+}
+
+.fileInputLabel.fileInputDisabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.fileInputLabel.fileInputDisabled:hover {
+  background: linear-gradient(135deg, rgba(212, 170, 99, 0.15), rgba(212, 170, 99, 0.08));
+  border-color: rgba(212, 170, 99, 0.4);
+  box-shadow: none;
+}
+
+/* Icono de upload */
+.fileInputIcon {
+  font-size: 1.2rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+}
+
+/* Texto del botón */
+.fileInputText {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.fileInputMain {
+  font-weight: 600;
+  color: #d4aa63;
+}
+
+.fileInputSub {
+  font-size: 0.75rem;
+  color: rgba(212, 170, 99, 0.7);
+  font-weight: 400;
+}
+
+/* Archivo seleccionado */
+.fileInputSelected {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  background: rgba(40, 167, 69, 0.12);
+  border: 1px solid rgba(40, 167, 69, 0.3);
+  border-radius: 8px;
+  padding: 0.8rem;
+  margin-top: 0.75rem;
+  font-size: 0.9rem;
+  color: #28a745;
+}
+
+.fileInputSelectedIcon {
+  font-size: 1.1rem;
+  flex-shrink: 0;
+}
+
+.fileInputSelectedName {
+  flex: 1;
+  word-break: break-word;
+}
+
+.fileInputSelectedRemove {
+  background: none;
+  border: none;
+  color: #28a745;
+  cursor: pointer;
+  font-size: 1.1rem;
+  padding: 0;
+  flex-shrink: 0;
+  transition: color 0.2s;
+}
+
+.fileInputSelectedRemove:hover {
+  color: #20c997;
+}
+
+/* Estado de subiendo */
+.fileInputUploading {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  background: rgba(212, 170, 99, 0.12);
+  border: 1px solid rgba(212, 170, 99, 0.3);
+  border-radius: 8px;
+  padding: 0.8rem;
+  margin-top: 0.75rem;
+  font-size: 0.9rem;
+  color: #d4aa63;
+}
+
+.fileInputSpinner {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(212, 170, 99, 0.3);
+  border-top-color: #d4aa63;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Error en el archivo */
+.fileInputError {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  background: rgba(255, 68, 68, 0.12);
+  border: 1px solid rgba(255, 68, 68, 0.3);
+  border-radius: 8px;
+  padding: 0.8rem;
+  margin-top: 0.75rem;
+  font-size: 0.9rem;
+  color: #ff4444;
+}
+
+.fileInputErrorIcon {
+  font-size: 1.1rem;
+  flex-shrink: 0;
+}
+
+.fileInputErrorText {
+  flex: 1;
+}
+
+/* ===========================
+   MODAL DE ÉXITO
+   =========================== */
+
+.modalOverlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  animation: fadeIn 0.3s ease-in-out;
+}
+
+.modalContent {
+  background: linear-gradient(135deg, rgba(20, 25, 40, 0.95) 0%, rgba(15, 23, 36, 0.95) 100%);
+  border: 1px solid rgba(40, 167, 69, 0.3);
+  padding: 2.5rem 3rem;
+  border-radius: 16px;
+  text-align: center;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5), 0 0 30px rgba(40, 167, 69, 0.2);
+  max-width: 420px;
+  animation: slideUp 0.3s ease-out;
+  backdrop-filter: blur(10px);
+}
+
+.modalIcon {
+  font-size: 3.5rem;
+  color: #28a745;
+  margin-bottom: 1.2rem;
+  animation: scaleIn 0.4s ease-out 0.1s both;
+  text-shadow: 0 0 20px rgba(40, 167, 69, 0.4);
+}
+
+.modalText {
+  font-size: 1.4rem;
+  color: #28a745;
+  font-weight: 700;
+  margin: 0;
+  letter-spacing: 0.8px;
+  animation: fadeInText 0.5s ease-out 0.2s both;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slideUp {
+  from {
+    transform: translateY(40px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes scaleIn {
+  from {
+    transform: scale(0.3);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes fadeInText {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ===========================
+   ESTILOS PARA PREVIEW DE IMAGEN
+   =========================== */
+
+.imagePreviewContainer {
+  margin-top: 1rem;
+  display: flex;
+  justify-content: center;
+}
+
+.imagePreview {
+  max-width: 200px;
+  max-height: 200px;
+  border-radius: 8px;
+  border: 1px solid rgba(212, 170, 99, 0.3);
+  padding: 0.5rem;
+  background: rgba(255, 255, 255, 0.03);
+  box-shadow: 0 4px 12px rgba(212, 170, 99, 0.1);
+}
+
 /* Responsivo */
 @media (max-width: 768px) {
   .adminHeader {
@@ -391,5 +711,28 @@
   .navBtn {
     padding: 0.65rem 1rem;
     font-size: 0.82rem;
+  }
+  .modalContent {
+    padding: 2rem 2rem;
+    max-width: 90%;
+  }
+  .modalIcon {
+    font-size: 3rem;
+  }
+  .modalText {
+    font-size: 1.2rem;
+  }
+  .imagePreview {
+    max-width: 150px;
+    max-height: 150px;
+  }
+  .fileInputLabel {
+    padding: 1rem;
+    font-size: 0.9rem;
+  }
+  .fileInputIcon {
+    width: 20px;
+    height: 20px;
+    font-size: 1rem;
   }
 }

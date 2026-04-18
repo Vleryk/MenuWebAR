@@ -17,8 +17,17 @@ function EyeIcon() {
   );
 }
 
+function IngredientsIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" className={styles.cameraIcon}>
+      <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm3.5-9c.83 0 1.5-.67 1.5-1.5S16.33 8 15.5 8 14 8.67 14 9.5s.67 1.5 1.5 1.5zm-7 0c.83 0 1.5-.67 1.5-1.5S9.33 8 8.5 8 7 8.67 7 9.5 7.67 11 8.5 11zm3.5 6.5c2.33 0 4.31-1.46 5.11-3.5H6.89c.8 2.04 2.78 3.5 5.11 3.5z" />
+    </svg>
+  );
+}
+
 function MenuCard({ item }) {
   const [isArOpen, setIsArOpen] = useState(false);
+  const [isIngredientsOpen, setIsIngredientsOpen] = useState(false);
   const [loadProgress, setLoadProgress] = useState(0);
   const [isModelLoading, setIsModelLoading] = useState(false);
   const modelViewerRef = useRef(null);
@@ -35,12 +44,21 @@ function MenuCard({ item }) {
     setIsModelLoading(false);
   };
 
+  const openIngredientsModal = () => {
+    setIsIngredientsOpen(true);
+  };
+
+  const closeIngredientsModal = () => {
+    setIsIngredientsOpen(false);
+  };
+
   useEffect(() => {
-    if (!isArOpen) return;
+    if (!isArOpen && !isIngredientsOpen) return;
 
     const handleKeyDown = (event) => {
       if (event.key === "Escape") {
-        closeModal();
+        if (isArOpen) closeModal();
+        if (isIngredientsOpen) closeIngredientsModal();
       }
     };
 
@@ -49,10 +67,10 @@ function MenuCard({ item }) {
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [isArOpen]);
+  }, [isArOpen, isIngredientsOpen]);
 
   useEffect(() => {
-    if (!isArOpen) return;
+    if (!isArOpen && !isIngredientsOpen) return;
 
     const previousBodyOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
@@ -60,7 +78,7 @@ function MenuCard({ item }) {
     return () => {
       document.body.style.overflow = previousBodyOverflow;
     };
-  }, [isArOpen]);
+  }, [isArOpen, isIngredientsOpen]);
 
   useEffect(() => {
     if (!isArOpen || !modelViewerRef.current) return;
@@ -121,6 +139,16 @@ function MenuCard({ item }) {
             <strong>{item.price}</strong>
             
             <div className={styles.cardActions}>
+              <button
+                type="button"
+                className={styles.btnAction}
+                aria-label={`Ver ingredientes de ${item.name}`}
+                title="Ver ingredientes"
+                onClick={openIngredientsModal}
+              >
+                <IngredientsIcon />
+              </button>
+
               {item.modelAR ? (
                 <>
                   <button
@@ -187,6 +215,41 @@ function MenuCard({ item }) {
               shadow-intensity="1"
               class={styles.arViewer}
             />
+          </div>
+        </div>
+      ) : null}
+
+      {isIngredientsOpen ? (
+        <div className={styles.ingredientsModalOverlay} onClick={closeIngredientsModal}>
+          <div className={styles.ingredientsModal} onClick={(event) => event.stopPropagation()}>
+            <button
+              type="button"
+              className={styles.ingredientsCloseBtn}
+              onClick={closeIngredientsModal}
+              aria-label="Cerrar ingredientes"
+            >
+              x
+            </button>
+
+            <div className={styles.ingredientsContent}>
+              <h2 className={styles.ingredientsTitle}>Ingredientes</h2>
+              <p className={styles.ingredientsDish}>{item.name}</p>
+
+              {item.ingredients && item.ingredients.length > 0 ? (
+                <ul className={styles.ingredientsList}>
+                  {item.ingredients.map((ingredient, index) => (
+                    <li key={index} className={styles.ingredientItem}>
+                      <span className={styles.ingredientBullet}>•</span>
+                      {ingredient}
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <div className={styles.noIngredientsMessage}>
+                  <p>No hemos actualizado los ingredientes</p>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       ) : null}
