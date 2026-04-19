@@ -1,0 +1,287 @@
+import { useRef, useState } from "react";
+
+const CLOUDINARY_CLOUD_NAME = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME || "dxpam0kqa";
+const CLOUDINARY_UPLOAD_PRESET = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
+const CLOUDINARY_UPLOAD_FOLDER = import.meta.env.VITE_CLOUDINARY_UPLOAD_FOLDER || "uploads";
+const CLOUDINARY_MODELS_FOLDER = `${CLOUDINARY_UPLOAD_FOLDER}/models`;
+
+export default function AdminUploader({ onUploadComplete }) {
+  const imageInputRef = useRef(null);
+  const modelInputRef = useRef(null);
+
+  const [imageFile, setImageFile] = useState(null);
+  const [modelFile, setModelFile] = useState(null);
+  const [imageUploading, setImageUploading] = useState(false);
+  const [modelUploading, setModelUploading] = useState(false);
+  const [imageURL, setImageURL] = useState("");
+  const [modelURL, setModelURL] = useState("");
+  const [error, setError] = useState("");
+
+  const handleUploadError = (message) => {
+    if (message.toLowerCase().includes("upload preset not found")) {
+      return `Cloudinary no encuentra el preset "${CLOUDINARY_UPLOAD_PRESET}". Crealo como Unsigned en Settings > Upload > Upload presets.`;
+    }
+    return message;
+  };
+
+  const ensureCloudinaryConfig = () => {
+    const missingVariables = [];
+    if (!CLOUDINARY_CLOUD_NAME) missingVariables.push("VITE_CLOUDINARY_CLOUD_NAME");
+    if (!CLOUDINARY_UPLOAD_PRESET) missingVariables.push("VITE_CLOUDINARY_UPLOAD_PRESET");
+
+    if (missingVariables.length > 0) {
+      setError(
+        `Falta configurar: ${missingVariables.join(", ")}. Si acabas de editar .env, reinicia npm run dev.`
+      );
+      return false;
+    }
+
+    return true;
+  };
+
+  const uploadToCloudinary = async (file, resourceType, folder) => {
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("upload_preset", CLOUDINARY_UPLOAD_PRESET);
+    formData.append("folder", folder);
+
+    const response = await fetch(
+      `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/${resourceType}/upload`,
+      {
+        method: "POST",
+        body: formData,
+      }
+    );
+
+    const payload = await response.json();
+
+    if (!response.ok) {
+      throw new Error(payload?.error?.message || "Error al subir archivo a Cloudinary");
+    }
+
+    return payload.secure_url;
+  };
+
+  const handleImageFileChange = (event) => {
+    setImageFile(event.target.files?.[0] || null);
+    setImageURL("");
+    setError("");
+  };
+
+  const handleModelFileChange = (event) => {
+    setModelFile(event.target.files?.[0] || null);
+    setModelURL("");
+    setError("");
+  };
+
+  const handleImageUpload = async () => {
+    if (!imageFile) {
+      setError("Selecciona una imagen primero.");
+      return;
+    }
+
+    if (!ensureCloudinaryConfig()) return;
+
+    setImageUploading(true);
+    setError("");
+    setImageURL("");
+
+    try {
+      const url = await uploadToCloudinary(imageFile, "image", CLOUDINARY_UPLOAD_FOLDER);
+      setImageURL(url);
+      onUploadComplete?.(url, "image");
+    } catch (uploadError) {
+      const message = uploadError?.message || "No se pudo subir la imagen";
+      setError(handleUploadError(message));
+    } finally {
+      setImageUploading(false);
+    }
+  };
+
+  const handleModelUpload = async () => {
+    if (!modelFile) {
+      setError("Selecciona un modelo .glb primero.");
+      return;
+    }
+
+    if (!modelFile.name.toLowerCase().endsWith(".glb")) {
+      setError("El modelo AR debe tener extensión .glb");
+      return;
+    }
+
+    if (!ensureCloudinaryConfig()) return;
+
+    setModelUploading(true);
+    setError("");
+    setModelURL("");
+
+    try {
+      const url = await uploadToCloudinary(modelFile, "raw", CLOUDINARY_MODELS_FOLDER);
+      setModelURL(url);
+      onUploadComplete?.(url, "model");
+    } catch (uploadError) {
+      const message = uploadError?.message || "No se pudo subir el modelo .glb";
+      setError(handleUploadError(message));
+    } finally {
+      setModelUploading(false);
+    }
+  };
+
+  return (
+    <div style={{ display: "grid", gap: "1rem", maxWidth: 720 }}>
+      <h2 style={{ margin: 0, color: "#d4aa63" }}>Subir Archivos a Cloudinary</h2>
+
+      <div style={{ display: "grid", gap: "0.75rem" }}>
+        <h3 style={{ margin: 0, color: "#f7f1e8", fontSize: "1rem" }}>Imagen del menú</h3>
+
+        <input
+          ref={imageInputRef}
+          type="file"
+          accept="image/*"
+          onChange={handleImageFileChange}
+          style={{ display: "none" }}
+        />
+
+        <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+          <button
+            type="button"
+            onClick={() => imageInputRef.current?.click()}
+            style={{
+              background: "rgba(255, 255, 255, 0.08)",
+              color: "#f7f1e8",
+              border: "1px solid rgba(255, 255, 255, 0.15)",
+              borderRadius: 8,
+              padding: "0.65rem 1rem",
+              cursor: "pointer",
+            }}
+          >
+            Elegir imagen
+          </button>
+
+          <button
+            type="button"
+            onClick={handleImageUpload}
+            disabled={imageUploading || !imageFile}
+            style={{
+              background: "linear-gradient(135deg, #d4aa63, #c49a52)",
+              color: "#0f1724",
+              border: "none",
+              borderRadius: 8,
+              padding: "0.65rem 1rem",
+              fontWeight: 700,
+              cursor: imageUploading || !imageFile ? "not-allowed" : "pointer",
+              opacity: imageUploading || !imageFile ? 0.6 : 1,
+            }}
+          >
+            {imageUploading ? "Subiendo..." : "Subir imagen"}
+          </button>
+        </div>
+
+        {imageFile && (
+          <p style={{ margin: 0, color: "rgba(255,255,255,0.8)" }}>
+            Imagen seleccionada: {imageFile.name} ({(imageFile.size / 1024).toFixed(1)} KB)
+          </p>
+        )}
+
+        {imageURL && (
+          <div style={{ display: "grid", gap: "0.5rem" }}>
+            <p style={{ margin: 0, color: "#6ee7a7" }}>Imagen subida correctamente.</p>
+            <a
+              href={imageURL}
+              target="_blank"
+              rel="noreferrer"
+              style={{ color: "#7cc7ff", wordBreak: "break-all" }}
+            >
+              {imageURL}
+            </a>
+            <img
+              src={imageURL}
+              alt="Imagen subida"
+              style={{
+                maxWidth: 320,
+                width: "100%",
+                borderRadius: 8,
+                border: "1px solid rgba(255,255,255,0.2)",
+              }}
+            />
+          </div>
+        )}
+      </div>
+
+      <div style={{ height: 1, background: "rgba(255,255,255,0.15)" }} />
+
+      <div style={{ display: "grid", gap: "0.75rem" }}>
+        <h3 style={{ margin: 0, color: "#f7f1e8", fontSize: "1rem" }}>Modelo AR (.glb)</h3>
+
+        <input
+          ref={modelInputRef}
+          type="file"
+          accept=".glb,model/gltf-binary"
+          onChange={handleModelFileChange}
+          style={{ display: "none" }}
+        />
+
+        <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+          <button
+            type="button"
+            onClick={() => modelInputRef.current?.click()}
+            style={{
+              background: "rgba(255, 255, 255, 0.08)",
+              color: "#f7f1e8",
+              border: "1px solid rgba(255, 255, 255, 0.15)",
+              borderRadius: 8,
+              padding: "0.65rem 1rem",
+              cursor: "pointer",
+            }}
+          >
+            Elegir modelo .glb
+          </button>
+
+          <button
+            type="button"
+            onClick={handleModelUpload}
+            disabled={modelUploading || !modelFile}
+            style={{
+              background: "linear-gradient(135deg, #d4aa63, #c49a52)",
+              color: "#0f1724",
+              border: "none",
+              borderRadius: 8,
+              padding: "0.65rem 1rem",
+              fontWeight: 700,
+              cursor: modelUploading || !modelFile ? "not-allowed" : "pointer",
+              opacity: modelUploading || !modelFile ? 0.6 : 1,
+            }}
+          >
+            {modelUploading ? "Subiendo..." : "Subir modelo AR"}
+          </button>
+        </div>
+
+        {modelFile && (
+          <p style={{ margin: 0, color: "rgba(255,255,255,0.8)" }}>
+            Modelo seleccionado: {modelFile.name} ({(modelFile.size / 1024).toFixed(1)} KB)
+          </p>
+        )}
+
+        <p style={{ margin: 0, color: "rgba(212, 170, 99, 0.8)", fontSize: "0.85rem" }}>
+          Acepta solo archivos .glb
+        </p>
+
+        {modelURL && (
+          <div style={{ display: "grid", gap: "0.5rem" }}>
+            <p style={{ margin: 0, color: "#6ee7a7" }}>Modelo .glb subido correctamente.</p>
+            <a
+              href={modelURL}
+              target="_blank"
+              rel="noreferrer"
+              style={{ color: "#7cc7ff", wordBreak: "break-all" }}
+            >
+              {modelURL}
+            </a>
+          </div>
+        )}
+      </div>
+
+      {error && <p style={{ margin: 0, color: "#ff6b6b" }}>{error}</p>}
+    </div>
+  );
+}
