@@ -15,6 +15,7 @@ import {
   uploadImage,
 } from "./api";
 import AdminLogin from "./AdminLogin";
+import ImageUploader from "./ImageUploader";
 import styles from "./admin.module.css";
 
 export default function AdminDashboard() {
@@ -111,6 +112,12 @@ export default function AdminDashboard() {
         >
           Categorias
         </button>
+        <button
+          className={`${styles.navBtn} ${activeTab === "upload" ? styles.navActive : ""}`}
+          onClick={() => setActiveTab("upload")}
+        >
+          Subir Imagen
+        </button>
       </nav>
 
       <main className={styles.adminMain}>
@@ -134,6 +141,9 @@ export default function AdminDashboard() {
             setEditingCategory={setEditingCategory}
             onReload={loadData}
           />
+        )}
+        {activeTab === "upload" && (
+          <ImageUploader onUploadComplete={(url) => console.log("URL subida:", url)} />
         )}
       </main>
     </div>
