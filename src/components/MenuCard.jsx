@@ -9,14 +9,6 @@ function CameraIcon() {
   );
 }
 
-function EyeIcon() {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true" className={styles.cameraIcon}>
-      <path d="M12 5c5.4 0 9.8 4.3 10 6.9v.2c-.2 2.6-4.6 6.9-10 6.9s-9.8-4.3-10-6.9v-.2C2.2 9.3 6.6 5 12 5Zm0 2c-4.1 0-7.8 3.2-8.1 5 .3 1.8 4 5 8.1 5s7.8-3.2 8.1-5c-.3-1.8-4-5-8.1-5Zm0 1.8a3.2 3.2 0 1 1 0 6.4 3.2 3.2 0 0 1 0-6.4Zm0 1.9a1.3 1.3 0 1 0 0 2.6 1.3 1.3 0 0 0 0-2.6Z" />
-    </svg>
-  );
-}
-
 function IngredientsIcon() {
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true" className={styles.cameraIcon}>
@@ -113,10 +105,6 @@ function MenuCard({ item }) {
     };
   }, [isArOpen]);
 
-  const open3DPreview = () => {
-    openModal();
-  };
-
   const launchAr = () => {
     openModal();
     setTimeout(() => {
@@ -150,27 +138,15 @@ function MenuCard({ item }) {
               </button>
 
               {item.modelAR ? (
-                <>
-                  <button
-                    type="button"
-                    className={styles.btnAction}
-                    aria-label={`Ver ${item.name} en 3D`}
-                    title="Ver Modelo 3D"
-                    onClick={open3DPreview}
-                  >
-                    <EyeIcon />
-                  </button>
-
-                  <button
-                    type="button"
-                    className={`${styles.btnAction} ${styles.btnArPrimary}`}
-                    aria-label={`Ver ${item.name} en AR`}
-                    title="Proyectar en tu mesa"
-                    onClick={launchAr}
-                  >
-                    <CameraIcon />
-                  </button>
-                </>
+                <button
+                  type="button"
+                  className={`${styles.btnAction} ${styles.btnArPrimary}`}
+                  aria-label={`Ver ${item.name} en AR`}
+                  title="Proyectar en tu mesa"
+                  onClick={launchAr}
+                >
+                  <CameraIcon />
+                </button>
               ) : null}
             </div>
           </div>
