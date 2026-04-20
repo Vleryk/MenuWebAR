@@ -119,6 +119,38 @@ export async function getModelos() {
   return res.json();
 }
 
+export async function getImagenes() {
+  const res = await fetch(`${API_URL}/imagenes`);
+  if (!res.ok) throw new Error("Error al obtener imagenes");
+  return res.json();
+}
+
+export async function createModeloAsset(payload) {
+  const res = await fetch(`${API_URL}/admin/modelos`, {
+    method: "POST",
+    headers: getHeaders(),
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const err = await res.json();
+    throw new Error(err.error || "Error al guardar modelo");
+  }
+  return res.json();
+}
+
+export async function createImagenAsset(payload) {
+  const res = await fetch(`${API_URL}/admin/imagenes`, {
+    method: "POST",
+    headers: getHeaders(),
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const err = await res.json();
+    throw new Error(err.error || "Error al guardar imagen");
+  }
+  return res.json();
+}
+
 export async function createItem(item) {
   const res = await fetch(`${API_URL}/admin/items`, {
     method: "POST",

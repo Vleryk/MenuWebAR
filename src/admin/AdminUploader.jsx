@@ -1,9 +1,21 @@
 import { useRef, useState } from "react";
+import { createImagenAsset, createModeloAsset } from "./api";
 
 const CLOUDINARY_CLOUD_NAME = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME || "dxpam0kqa";
 const CLOUDINARY_UPLOAD_PRESET = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
 const CLOUDINARY_UPLOAD_FOLDER = import.meta.env.VITE_CLOUDINARY_UPLOAD_FOLDER || "uploads";
 const CLOUDINARY_MODELS_FOLDER = `${CLOUDINARY_UPLOAD_FOLDER}/models`;
+
+function buildAssetId(fileName, prefix) {
+  const baseName = fileName.replace(/\.[^/.]+$/, "").toLowerCase();
+  const sanitized = baseName.replace(/[^a-z0-9_-]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40);
+  const suffix = Date.now().toString(36);
+  return `${prefix}_${sanitized || "asset"}_${suffix}`;
+}
+
+function buildAssetLabel(fileName) {
+  return fileName.replace(/\.[^/.]+$/, "").trim() || "Archivo";
+}
 
 export default function AdminUploader({ onUploadComplete }) {
   const imageInputRef = useRef(null);
@@ -88,8 +100,14 @@ export default function AdminUploader({ onUploadComplete }) {
 
     try {
       const url = await uploadToCloudinary(imageFile, "image", CLOUDINARY_UPLOAD_FOLDER);
-      setImageURL(url);
-      onUploadComplete?.(url, "image");
+      const savedImage = await createImagenAsset({
+        id: buildAssetId(imageFile.name, "img"),
+        label: buildAssetLabel(imageFile.name),
+        url,
+      });
+
+      setImageURL(savedImage.src || url);
+      onUploadComplete?.(savedImage, "image");
     } catch (uploadError) {
       const message = uploadError?.message || "No se pudo subir la imagen";
       setError(handleUploadError(message));
@@ -117,8 +135,14 @@ export default function AdminUploader({ onUploadComplete }) {
 
     try {
       const url = await uploadToCloudinary(modelFile, "raw", CLOUDINARY_MODELS_FOLDER);
-      setModelURL(url);
-      onUploadComplete?.(url, "model");
+      const savedModel = await createModeloAsset({
+        id: buildAssetId(modelFile.name, "mdl"),
+        label: buildAssetLabel(modelFile.name),
+        url,
+      });
+
+      setModelURL(savedModel.src || url);
+      onUploadComplete?.(savedModel, "model");
     } catch (uploadError) {
       const message = uploadError?.message || "No se pudo subir el modelo .glb";
       setError(handleUploadError(message));

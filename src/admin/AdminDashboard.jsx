@@ -4,6 +4,7 @@ import {
   getCategories,
   getItems,
   getModelos,
+  getImagenes,
   createItem,
   updateItem,
   deleteItem,
@@ -12,7 +13,6 @@ import {
   deleteCategory,
   logout,
   verifyToken,
-  uploadImage,
 } from "./api";
 import AdminLogin from "./AdminLogin";
 import AdminUploader from "./AdminUploader";
@@ -26,6 +26,7 @@ export default function AdminDashboard() {
   const [categories, setCategories] = useState([]);
   const [items, setItems] = useState([]);
   const [modelos, setModelos] = useState([]);
+  const [imagenes, setImagenes] = useState([]);
   const [activeTab, setActiveTab] = useState("items");
 
   const [editingItem, setEditingItem] = useState(null);
@@ -34,10 +35,16 @@ export default function AdminDashboard() {
 
   const loadData = async () => {
     try {
-      const [cats, itms, mods] = await Promise.all([getCategories(), getItems(), getModelos()]);
+      const [cats, itms, mods, imgs] = await Promise.all([
+        getCategories(),
+        getItems(),
+        getModelos(),
+        getImagenes(),
+      ]);
       setCategories(cats);
       setItems(itms);
       setModelos(mods);
+      setImagenes(imgs);
     } catch {
       setAuthenticated(false);
     }
@@ -55,11 +62,17 @@ export default function AdminDashboard() {
     let cancelled = false;
     (async () => {
       try {
-        const [cats, itms, mods] = await Promise.all([getCategories(), getItems(), getModelos()]);
+        const [cats, itms, mods, imgs] = await Promise.all([
+          getCategories(),
+          getItems(),
+          getModelos(),
+          getImagenes(),
+        ]);
         if (!cancelled) {
           setCategories(cats);
           setItems(itms);
           setModelos(mods);
+          setImagenes(imgs);
         }
       } catch {
         if (!cancelled) setAuthenticated(false);
@@ -127,6 +140,7 @@ export default function AdminDashboard() {
             allItems={items}
             categories={categories}
             modelos={modelos}
+            imagenes={imagenes}
             filterCategory={filterCategory}
             setFilterCategory={setFilterCategory}
             editingItem={editingItem}
@@ -144,9 +158,10 @@ export default function AdminDashboard() {
         )}
         {activeTab === "upload" && (
           <AdminUploader
-            onUploadComplete={(url, type) =>
-              console.log(`${type === "model" ? "Modelo AR" : "Imagen"} subida:`, url)
-            }
+            onUploadComplete={async (asset, type) => {
+              console.log(`${type === "model" ? "Modelo AR" : "Imagen"} subida:`, asset);
+              await loadData();
+            }}
           />
         )}
       </main>
@@ -179,6 +194,7 @@ function ItemsPanel({
   allItems,
   categories,
   modelos,
+  imagenes,
   filterCategory,
   setFilterCategory,
   editingItem,
@@ -186,7 +202,6 @@ function ItemsPanel({
   onReload,
 }) {
   const formRef = useRef(null);
-  const fileInputRef = useRef(null);
   const [form, setForm] = useState({
     id: "",
     category: "",
@@ -200,11 +215,9 @@ function ItemsPanel({
   const [newIngredient, setNewIngredient] = useState("");
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
-  const [uploadingImage, setUploadingImage] = useState(false);
   const [fieldErrors, setFieldErrors] = useState({});
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [successMessage, setSuccessMessage] = useState("");
-  const [selectedFileName, setSelectedFileName] = useState("");
 
   const itemsList = allItems || items;
 
@@ -225,8 +238,6 @@ function ItemsPanel({
     }
     setFieldErrors({});
     setNewIngredient("");
-    setSelectedFileName("");
-    if (fileInputRef.current) fileInputRef.current.value = "";
   }, [editingItem, categories]);
 
   const getFieldError = (name, value) => {
@@ -298,44 +309,6 @@ function ItemsPanel({
     setFieldErrors((errs) => ({ ...errs, [name]: fieldError }));
   };
 
-  const handleImageChange = async (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    if (file.size > 5 * 1024 * 1024) {
-      setFieldErrors((errs) => ({ ...errs, image: "La imagen es muy grande (máximo 5MB)" }));
-      return;
-    }
-
-    const allowedTypes = ["image/jpeg", "image/jpg", "image/png", "image/webp", "image/gif"];
-    if (!allowedTypes.includes(file.type)) {
-      setFieldErrors((errs) => ({ ...errs, image: "Solo imágenes (JPEG, PNG, WebP, GIF)" }));
-      return;
-    }
-
-    setSelectedFileName(file.name);
-    setUploadingImage(true);
-    setFieldErrors((errs) => ({ ...errs, image: "" }));
-
-    try {
-      const result = await uploadImage(file);
-      setForm((f) => ({ ...f, image: result.image }));
-    } catch (err) {
-      setFieldErrors((errs) => ({ ...errs, image: err.message || "Error al subir imagen" }));
-      setSelectedFileName("");
-      if (fileInputRef.current) fileInputRef.current.value = "";
-    } finally {
-      setUploadingImage(false);
-    }
-  };
-
-  const handleRemoveImage = () => {
-    setForm((f) => ({ ...f, image: "" }));
-    setSelectedFileName("");
-    setFieldErrors((errs) => ({ ...errs, image: "" }));
-    if (fileInputRef.current) fileInputRef.current.value = "";
-  };
-
   const handleAddIngredient = () => {
     if (newIngredient.trim() && !form.ingredients.includes(newIngredient.trim())) {
       setForm((f) => ({
@@ -387,8 +360,6 @@ function ItemsPanel({
       });
       setFieldErrors({});
       setNewIngredient("");
-      setSelectedFileName("");
-      if (fileInputRef.current) fileInputRef.current.value = "";
       setSaving(false);
 
       setTimeout(async () => {
@@ -416,6 +387,7 @@ function ItemsPanel({
   };
 
   const formValid = isFormValid();
+  const selectedImageInLibrary = imagenes.some((img) => img.src === form.image);
 
   return (
     <div>
@@ -521,64 +493,41 @@ function ItemsPanel({
 
         <div className={`${styles.label} ${styles.fullWidth}`}>
           <span>Imagen</span>
-          
-          <div className={styles.fileInputWrapper}>
-            <input
-              ref={fileInputRef}
-              type="file"
-              id="imageInput"
-              accept="image/*"
-              onChange={handleImageChange}
-              disabled={saving || uploadingImage}
-              style={{ display: "none" }}
-            />
-            <label 
-              htmlFor="imageInput"
-              className={`${styles.fileInputLabel} ${(saving || uploadingImage) ? styles.fileInputDisabled : ""}`}
-            >
-              <span className={styles.fileInputText}>
-                <span className={styles.fileInputMain}>Seleccionar imagen</span>
-                <span className={styles.fileInputSub}>o arrastra aquí</span>
-              </span>
-            </label>
 
-            {uploadingImage && (
-              <div className={styles.fileInputUploading}>
-                <span className={styles.fileInputSpinner}></span>
-                <span>Subiendo imagen...</span>
-              </div>
+          <select
+            className={`${styles.input} ${fieldErrors.image ? styles.inputError : ""}`}
+            name="image"
+            value={form.image}
+            onChange={handleChange}
+            disabled={saving}
+          >
+            <option value="">Seleccionar imagen guardada...</option>
+            {form.image && !selectedImageInLibrary && (
+              <option value={form.image}>Imagen actual (no registrada)</option>
             )}
+            {imagenes.map((img) => (
+              <option key={img.id} value={img.src}>
+                {img.label}
+              </option>
+            ))}
+          </select>
 
-            {fieldErrors.image && !uploadingImage && (
-              <div className={styles.fileInputError}>
-                <span className={styles.fileInputErrorIcon}>⚠️</span>
-                <span className={styles.fileInputErrorText}>{fieldErrors.image}</span>
-              </div>
-            )}
+          {fieldErrors.image ? (
+            <span className={styles.helperError}>{fieldErrors.image}</span>
+          ) : (
+            <span className={styles.helperText}>
+              Selecciona una imagen ya subida desde la pestaña "Subir Archivos".
+            </span>
+          )}
 
-            {form.image && !uploadingImage && (
-              <div className={styles.fileInputSelected}>
-                <span className={styles.fileInputSelectedIcon}>✓</span>
-                <span className={styles.fileInputSelectedName}>{selectedFileName || "Imagen cargada"}</span>
-                <button
-                  type="button"
-                  className={styles.fileInputSelectedRemove}
-                  onClick={handleRemoveImage}
-                >
-                  ✕
-                </button>
-              </div>
-            )}
-
-            {!fieldErrors.image && !uploadingImage && !form.image && (
-              <div style={{ marginTop: "0.75rem", fontSize: "0.85rem", color: "rgba(212, 170, 99, 0.6)", textAlign: "center" }}>
-                Máximo 5MB (JPEG, PNG, WebP, GIF)
-              </div>
-            )}
-          </div>
+          {imagenes.length === 0 && (
+            <span className={styles.helperError}>
+              No hay imágenes registradas. Primero sube una imagen en "Subir Archivos".
+            </span>
+          )}
         </div>
 
-        {form.image && form.image.startsWith("/assets/") && (
+        {form.image && (form.image.startsWith("/assets/") || form.image.startsWith("https://")) && (
           <div className={`${styles.fullWidth} ${styles.imagePreviewContainer}`}>
             <img 
               src={form.image} 
@@ -655,7 +604,7 @@ function ItemsPanel({
           <button
             className={styles.btnPrimary}
             type="submit"
-            disabled={saving || uploadingImage || !formValid}
+            disabled={saving || !formValid}
           >
             {saving ? "Guardando..." : editingItem ? "Actualizar" : "Crear Plato"}
           </button>

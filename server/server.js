@@ -65,6 +65,7 @@ const upload = multer({
 
 // --- Helpers de validación ---
 const SAFE_PATH_RE = /^\/assets\/(modelosAR|IMG)\//;
+const CLOUDINARY_HOST = "res.cloudinary.com";
 
 function isSafePath(p) {
   if (!p) return true; // vacío es permitido
@@ -72,6 +73,37 @@ function isSafePath(p) {
   if (p.includes("..")) return false;
   if (!p.startsWith("/")) return false;
   return SAFE_PATH_RE.test(p);
+}
+
+function isCloudinaryUploadUrl(value, resourceType) {
+  if (typeof value !== "string" || !value.trim()) return false;
+
+  try {
+    const parsed = new URL(value);
+    if (parsed.protocol !== "https:") return false;
+    if (parsed.hostname !== CLOUDINARY_HOST) return false;
+
+    const pathName = parsed.pathname || "";
+    if (resourceType) {
+      return pathName.includes(`/${resourceType}/upload/`);
+    }
+
+    return pathName.includes("/upload/");
+  } catch {
+    return false;
+  }
+}
+
+function isSafeImageRef(value) {
+  return isSafePath(value) || isCloudinaryUploadUrl(value, "image");
+}
+
+function isSafeModelSrc(value) {
+  return (
+    isSafePath(value) ||
+    isCloudinaryUploadUrl(value, "raw") ||
+    isCloudinaryUploadUrl(value, "image")
+  );
 }
 
 function isNonEmptyString(val) {
@@ -151,7 +183,14 @@ function initAdmin() {
 // --- Funciones auxiliares ---
 function readData() {
   const raw = fs.readFileSync(DATA_FILE, "utf-8");
-  return JSON.parse(raw);
+  const data = JSON.parse(raw);
+
+  if (!Array.isArray(data.categories)) data.categories = [];
+  if (!Array.isArray(data.modelos)) data.modelos = [];
+  if (!Array.isArray(data.imagenes)) data.imagenes = [];
+  if (!Array.isArray(data.menuItems)) data.menuItems = [];
+
+  return data;
 }
 
 function writeData(data) {
@@ -238,6 +277,11 @@ app.get("/api/modelos", (_req, res) => {
   res.json(data.modelos || []);
 });
 
+app.get("/api/imagenes", (_req, res) => {
+  const data = readData();
+  res.json(data.imagenes || []);
+});
+
 app.get("/api/menu-items", (_req, res) => {
   const data = readData();
   res.json(resolveMenuItems(data.menuItems, data.modelos));
@@ -291,6 +335,94 @@ app.post("/api/admin/upload-image", authMiddleware, (req, res) => {
     const imagePath = `/assets/IMG/${req.file.filename}`;
     res.json({ image: imagePath });
   });
+});
+
+// --- Registrar Modelos (Cloudinary u origen permitido) ---
+app.post("/api/admin/modelos", authMiddleware, (req, res) => {
+  const { id, name, label, url, src, secure_url, secureUrl } = req.body || {};
+
+  const modeloId = typeof (id || name) === "string" ? (id || name).trim() : "";
+  const modeloSrc =
+    typeof (url || src || secure_url || secureUrl) === "string"
+      ? (url || src || secure_url || secureUrl).trim()
+      : "";
+  const modeloLabel =
+    typeof (label || name || modeloId) === "string" ? (label || name || modeloId).trim() : "";
+
+  if (!isValidModeloId(modeloId)) {
+    return res.status(400).json({ error: "id de modelo invalido (solo letras, numeros, guion y guion bajo)" });
+  }
+
+  if (!isNonEmptyString(modeloLabel)) {
+    return res.status(400).json({ error: "label es requerido" });
+  }
+
+  if (!isNonEmptyString(modeloSrc)) {
+    return res.status(400).json({ error: "url es requerida" });
+  }
+
+  if (!isSafeModelSrc(modeloSrc)) {
+    return res.status(400).json({ error: "URL de modelo no permitida" });
+  }
+
+  const data = readData();
+  if ((data.modelos || []).find((m) => m.id === modeloId)) {
+    return res.status(409).json({ error: "Modelo con ese id ya existe" });
+  }
+
+  const newModelo = {
+    id: modeloId,
+    label: modeloLabel,
+    src: modeloSrc,
+  };
+
+  data.modelos.push(newModelo);
+  writeData(data);
+  res.status(201).json(newModelo);
+});
+
+// --- Registrar Imágenes (Cloudinary u origen permitido) ---
+app.post("/api/admin/imagenes", authMiddleware, (req, res) => {
+  const { id, name, label, url, src, secure_url, secureUrl } = req.body || {};
+
+  const imagenId = typeof (id || name) === "string" ? (id || name).trim() : "";
+  const imagenSrc =
+    typeof (url || src || secure_url || secureUrl) === "string"
+      ? (url || src || secure_url || secureUrl).trim()
+      : "";
+  const imagenLabel =
+    typeof (label || name || imagenId) === "string" ? (label || name || imagenId).trim() : "";
+
+  if (!isValidId(imagenId)) {
+    return res.status(400).json({ error: "id de imagen invalido (solo letras, numeros, guion y guion bajo)" });
+  }
+
+  if (!isNonEmptyString(imagenLabel)) {
+    return res.status(400).json({ error: "label es requerido" });
+  }
+
+  if (!isNonEmptyString(imagenSrc)) {
+    return res.status(400).json({ error: "url es requerida" });
+  }
+
+  if (!isSafeImageRef(imagenSrc)) {
+    return res.status(400).json({ error: "URL de imagen no permitida" });
+  }
+
+  const data = readData();
+  if ((data.imagenes || []).find((img) => img.id === imagenId)) {
+    return res.status(409).json({ error: "Imagen con ese id ya existe" });
+  }
+
+  const newImagen = {
+    id: imagenId,
+    label: imagenLabel,
+    src: imagenSrc,
+  };
+
+  data.imagenes.push(newImagen);
+  writeData(data);
+  res.status(201).json(newImagen);
 });
 
 // --- Categorías ---
@@ -363,8 +495,8 @@ app.post("/api/admin/items", authMiddleware, (req, res) => {
   if (!isValidPrice(price)) {
     return res.status(400).json({ error: "price es requerido" });
   }
-  if (image && !isSafePath(image)) {
-    return res.status(400).json({ error: "Ruta de imagen no permitida" });
+  if (image && !isSafeImageRef(image)) {
+    return res.status(400).json({ error: "Imagen no permitida" });
   }
   if (modelAR && !isValidModeloId(modelAR)) {
     return res.status(400).json({ error: "modelAR debe ser un id de modelo valido" });
@@ -400,8 +532,8 @@ app.put("/api/admin/items/:id", authMiddleware, (req, res) => {
 
   const { category, name, description, price, image, modelAR, ingredients } = req.body;
 
-  if (image !== undefined && image && !isSafePath(image)) {
-    return res.status(400).json({ error: "Ruta de imagen no permitida" });
+  if (image !== undefined && image && !isSafeImageRef(image)) {
+    return res.status(400).json({ error: "Imagen no permitida" });
   }
   if (modelAR !== undefined && modelAR && !isValidModeloId(modelAR)) {
     return res.status(400).json({ error: "modelAR debe ser un id de modelo valido" });
