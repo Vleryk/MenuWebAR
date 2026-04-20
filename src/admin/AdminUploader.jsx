@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useRef, useState, useEffect } from "react";
 import { createImagenAsset, createModeloAsset } from "./api";
 
 const CLOUDINARY_CLOUD_NAME = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME || "dxpam0kqa";
@@ -22,12 +22,25 @@ export default function AdminUploader({ onUploadComplete }) {
   const modelInputRef = useRef(null);
 
   const [imageFile, setImageFile] = useState(null);
+  const [imagePreview, setImagePreview] = useState("");
+  const [customImageName, setCustomImageName] = useState("");
+
   const [modelFile, setModelFile] = useState(null);
   const [imageUploading, setImageUploading] = useState(false);
   const [modelUploading, setModelUploading] = useState(false);
   const [imageURL, setImageURL] = useState("");
   const [modelURL, setModelURL] = useState("");
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (!imageFile) {
+      setImagePreview("");
+      return;
+    }
+    const url = URL.createObjectURL(imageFile);
+    setImagePreview(url);
+    return () => URL.revokeObjectURL(url);
+  }, [imageFile]);
 
   const handleUploadError = (message) => {
     if (message.toLowerCase().includes("upload preset not found")) {
@@ -47,7 +60,6 @@ export default function AdminUploader({ onUploadComplete }) {
       );
       return false;
     }
-
     return true;
   };
 
@@ -59,25 +71,30 @@ export default function AdminUploader({ onUploadComplete }) {
 
     const response = await fetch(
       `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/${resourceType}/upload`,
-      {
-        method: "POST",
-        body: formData,
-      }
+      { method: "POST", body: formData }
     );
 
     const payload = await response.json();
-
     if (!response.ok) {
       throw new Error(payload?.error?.message || "Error al subir archivo a Cloudinary");
     }
-
     return payload.secure_url;
   };
 
   const handleImageFileChange = (event) => {
-    setImageFile(event.target.files?.[0] || null);
+    const file = event.target.files?.[0] || null;
+    setImageFile(file);
+    setCustomImageName(file ? buildAssetLabel(file.name) : "");
     setImageURL("");
     setError("");
+  };
+
+  const handleRemoveImage = () => {
+    setImageFile(null);
+    setCustomImageName("");
+    setImageURL("");
+    setError("");
+    if (imageInputRef.current) imageInputRef.current.value = "";
   };
 
   const handleModelFileChange = (event) => {
@@ -91,7 +108,10 @@ export default function AdminUploader({ onUploadComplete }) {
       setError("Selecciona una imagen primero.");
       return;
     }
-
+    if (!customImageName.trim()) {
+      setError("El nombre de la imagen no puede estar vacío.");
+      return;
+    }
     if (!ensureCloudinaryConfig()) return;
 
     setImageUploading(true);
@@ -101,13 +121,17 @@ export default function AdminUploader({ onUploadComplete }) {
     try {
       const url = await uploadToCloudinary(imageFile, "image", CLOUDINARY_UPLOAD_FOLDER);
       const savedImage = await createImagenAsset({
-        id: buildAssetId(imageFile.name, "img"),
-        label: buildAssetLabel(imageFile.name),
+        id: buildAssetId(customImageName, "img"),
+        label: customImageName.trim(),
         url,
       });
 
       setImageURL(savedImage.src || url);
       onUploadComplete?.(savedImage, "image");
+
+      setImageFile(null);
+      setCustomImageName("");
+      if (imageInputRef.current) imageInputRef.current.value = "";
     } catch (uploadError) {
       const message = uploadError?.message || "No se pudo subir la imagen";
       setError(handleUploadError(message));
@@ -121,12 +145,10 @@ export default function AdminUploader({ onUploadComplete }) {
       setError("Selecciona un modelo .glb primero.");
       return;
     }
-
     if (!modelFile.name.toLowerCase().endsWith(".glb")) {
       setError("El modelo AR debe tener extensión .glb");
       return;
     }
-
     if (!ensureCloudinaryConfig()) return;
 
     setModelUploading(true);
@@ -152,7 +174,7 @@ export default function AdminUploader({ onUploadComplete }) {
   };
 
   return (
-    <div style={{ display: "grid", gap: "1rem", maxWidth: 720 }}>
+    <div style={{ display: "grid", gap: "1rem", maxWidth: 720, width: "100%" }}>
       <h2 style={{ margin: 0, color: "#d4aa63" }}>Subir Archivos a Cloudinary</h2>
 
       <div style={{ display: "grid", gap: "0.75rem" }}>
@@ -166,7 +188,7 @@ export default function AdminUploader({ onUploadComplete }) {
           style={{ display: "none" }}
         />
 
-        <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+        {!imageFile && (
           <button
             type="button"
             onClick={() => imageInputRef.current?.click()}
@@ -177,34 +199,120 @@ export default function AdminUploader({ onUploadComplete }) {
               borderRadius: 8,
               padding: "0.65rem 1rem",
               cursor: "pointer",
+              width: "fit-content",
             }}
           >
             Elegir imagen
           </button>
+        )}
 
-          <button
-            type="button"
-            onClick={handleImageUpload}
-            disabled={imageUploading || !imageFile}
+        {imageFile && imagePreview && (
+          <div
             style={{
-              background: "linear-gradient(135deg, #d4aa63, #c49a52)",
-              color: "#0f1724",
-              border: "none",
-              borderRadius: 8,
-              padding: "0.65rem 1rem",
-              fontWeight: 700,
-              cursor: imageUploading || !imageFile ? "not-allowed" : "pointer",
-              opacity: imageUploading || !imageFile ? 0.6 : 1,
+              display: "grid",
+              gap: "0.75rem",
+              background: "rgba(255,255,255,0.04)",
+              border: "1px solid rgba(212, 170, 99, 0.2)",
+              borderRadius: 12,
+              padding: "1rem",
             }}
           >
-            {imageUploading ? "Subiendo..." : "Subir imagen"}
-          </button>
-        </div>
+            <div style={{ position: "relative", display: "inline-block", alignSelf: "center" }}>
+              <img
+                src={imagePreview}
+                alt="Vista previa"
+                style={{
+                  maxWidth: 320,
+                  width: "100%",
+                  borderRadius: 8,
+                  border: "1px solid rgba(255,255,255,0.2)",
+                  display: "block",
+                }}
+              />
+              <button
+                type="button"
+                onClick={handleRemoveImage}
+                disabled={imageUploading}
+                title="Quitar imagen y elegir otra"
+                style={{
+                  position: "absolute",
+                  top: -10,
+                  right: -10,
+                  width: 32,
+                  height: 32,
+                  borderRadius: "50%",
+                  border: "2px solid #0f1724",
+                  background: "#ff4444",
+                  color: "#fff",
+                  fontSize: "1rem",
+                  fontWeight: 700,
+                  cursor: imageUploading ? "not-allowed" : "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  boxShadow: "0 2px 8px rgba(0,0,0,0.4)",
+                  opacity: imageUploading ? 0.5 : 1,
+                }}
+              >
+                ✕
+              </button>
+            </div>
 
-        {imageFile && (
-          <p style={{ margin: 0, color: "rgba(255,255,255,0.8)" }}>
-            Imagen seleccionada: {imageFile.name} ({(imageFile.size / 1024).toFixed(1)} KB)
-          </p>
+            <label
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: "0.3rem",
+                fontSize: "0.8rem",
+                color: "rgba(255, 255, 255, 0.6)",
+                fontWeight: 600,
+                textTransform: "uppercase",
+                letterSpacing: "0.04em",
+              }}
+            >
+              Nombre de la imagen
+              <input
+                type="text"
+                value={customImageName}
+                onChange={(e) => setCustomImageName(e.target.value)}
+                disabled={imageUploading}
+                placeholder="Ej: Hamburguesa Clásica"
+                style={{
+                  background: "rgba(255, 255, 255, 0.07)",
+                  border: "1px solid rgba(255, 255, 255, 0.12)",
+                  borderRadius: 8,
+                  padding: "0.65rem 0.85rem",
+                  color: "#d4aa63",
+                  fontSize: "0.95rem",
+                  fontFamily: "inherit",
+                }}
+              />
+            </label>
+
+            <p style={{ margin: 0, color: "rgba(255,255,255,0.6)", fontSize: "0.85rem" }}>
+              Archivo: {imageFile.name} ({(imageFile.size / 1024).toFixed(1)} KB)
+            </p>
+
+            <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+              <button
+                type="button"
+                onClick={handleImageUpload}
+                disabled={imageUploading || !customImageName.trim()}
+                style={{
+                  background: "linear-gradient(135deg, #d4aa63, #c49a52)",
+                  color: "#0f1724",
+                  border: "none",
+                  borderRadius: 8,
+                  padding: "0.65rem 1rem",
+                  fontWeight: 700,
+                  cursor: imageUploading || !customImageName.trim() ? "not-allowed" : "pointer",
+                  opacity: imageUploading || !customImageName.trim() ? 0.6 : 1,
+                }}
+              >
+                {imageUploading ? "Subiendo..." : "Subir imagen"}
+              </button>
+            </div>
+          </div>
         )}
 
         {imageURL && (
@@ -218,16 +326,6 @@ export default function AdminUploader({ onUploadComplete }) {
             >
               {imageURL}
             </a>
-            <img
-              src={imageURL}
-              alt="Imagen subida"
-              style={{
-                maxWidth: 320,
-                width: "100%",
-                borderRadius: 8,
-                border: "1px solid rgba(255,255,255,0.2)",
-              }}
-            />
           </div>
         )}
       </div>
