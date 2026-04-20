@@ -413,19 +413,17 @@
    INPUT FILE PERSONALIZADO
    =========================== */
 
-/* Ocultar el input nativo */
 input[type="file"] {
   display: none;
 }
 
-/* Wrapper del input personalizado */
 .fileInputWrapper {
   position: relative;
   display: inline-block;
   width: 100%;
+  max-width: 500px;
 }
 
-/* Label que actúa como botón */
 .fileInputLabel {
   display: flex;
   align-items: center;
@@ -442,6 +440,8 @@ input[type="file"] {
   font-weight: 500;
   user-select: none;
   min-height: 50px;
+  flex-wrap: wrap;
+  text-align: center;
 }
 
 .fileInputLabel:hover {
@@ -465,7 +465,6 @@ input[type="file"] {
   box-shadow: none;
 }
 
-/* Icono de upload */
 .fileInputIcon {
   font-size: 1.2rem;
   display: flex;
@@ -475,7 +474,6 @@ input[type="file"] {
   height: 24px;
 }
 
-/* Texto del botón */
 .fileInputText {
   display: flex;
   flex-direction: column;
@@ -493,7 +491,6 @@ input[type="file"] {
   font-weight: 400;
 }
 
-/* Archivo seleccionado */
 .fileInputSelected {
   display: flex;
   align-items: center;
@@ -532,7 +529,6 @@ input[type="file"] {
   color: #20c997;
 }
 
-/* Estado de subiendo */
 .fileInputUploading {
   display: flex;
   align-items: center;
@@ -560,7 +556,6 @@ input[type="file"] {
   to { transform: rotate(360deg); }
 }
 
-/* Error en el archivo */
 .fileInputError {
   display: flex;
   align-items: flex-start;
@@ -631,12 +626,8 @@ input[type="file"] {
 }
 
 @keyframes fadeIn {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
 @keyframes slideUp {
@@ -692,6 +683,289 @@ input[type="file"] {
   box-shadow: 0 4px 12px rgba(212, 170, 99, 0.1);
 }
 
+/* ===========================
+   UPLOAD PANEL CONTAINER
+   =========================== */
+
+.uploadContainer {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  padding: 2rem;
+  margin-bottom: 2rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ===========================
+   UPLOADER CENTRADO
+   =========================== */
+
+.uploaderWrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  gap: 1rem;
+}
+
+.uploaderContent {
+  display: grid;
+  gap: 2rem;
+  width: 100%;
+  max-width: 600px;
+  padding: 0 1rem;
+}
+
+.uploaderSection {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.uploaderTitle {
+  margin: 0;
+  color: #f7f1e8;
+  font-size: 1rem;
+  text-align: center;
+}
+
+.uploaderButtonGroup {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.uploaderButtonGroup .btnSecondary,
+.uploaderButtonGroup .btnPrimary {
+  flex: 1;
+  min-width: 140px;
+  max-width: 200px;
+}
+
+.uploaderButtonGroup .btnPrimary:disabled {
+  cursor: not-allowed;
+}
+
+.fileInfo {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 0.9rem;
+  text-align: center;
+}
+
+.modelNote {
+  margin: 0;
+  color: rgba(212, 170, 99, 0.8);
+  font-size: 0.85rem;
+  text-align: center;
+}
+
+.uploadSuccess {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.successText {
+  margin: 0;
+  color: #6ee7a7;
+  font-size: 0.9rem;
+  text-align: center;
+}
+
+.urlLink {
+  color: #7cc7ff;
+  word-break: break-all;
+  text-align: center;
+  font-size: 0.85rem;
+}
+
+.previewImage {
+  max-width: 320px;
+  width: 100%;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  margin-top: 0.5rem;
+}
+
+.uploaderDivider {
+  height: 1px;
+  background: rgba(255, 255, 255, 0.15);
+  width: 100%;
+  max-width: 600px;
+}
+
+.uploaderError {
+  margin: 0;
+  color: #ff6b6b;
+  text-align: center;
+  width: 100%;
+  max-width: 600px;
+  padding: 0 1rem;
+}
+
+/* ===========================
+   IMAGE MODAL
+   =========================== */
+
+.imageModalContent {
+  background: linear-gradient(135deg, rgba(20, 25, 40, 0.98) 0%, rgba(15, 23, 36, 0.98) 100%);
+  border: 1px solid rgba(212, 170, 99, 0.2);
+  border-radius: 16px;
+  padding: 2rem;
+  max-width: 800px;
+  width: 90%;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(10px);
+}
+
+.imageModalHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+}
+
+.imageModalHeader h3 {
+  color: #d4aa63;
+  font-size: 1.25rem;
+  margin: 0;
+}
+
+.imageModalClose {
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 1.5rem;
+  cursor: pointer;
+  padding: 0;
+  transition: color 0.2s;
+}
+
+.imageModalClose:hover {
+  color: #d4aa63;
+}
+
+.imageSearchInput {
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  padding: 0.65rem 0.85rem;
+  color: #d4aa63;
+  font-size: 0.95rem;
+  margin-bottom: 1.5rem;
+  width: 100%;
+  font-family: inherit;
+}
+
+.imageSearchInput:focus {
+  outline: none;
+  border-color: #d4aa63;
+}
+
+.imageSearchInput::placeholder {
+  color: rgba(212, 170, 99, 0.5);
+}
+
+.imageGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 1rem;
+  overflow-y: auto;
+  max-height: 55vh;
+  padding-right: 0.5rem;
+}
+
+.imageGrid::-webkit-scrollbar {
+  width: 6px;
+}
+
+.imageGrid::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 3px;
+}
+
+.imageGrid::-webkit-scrollbar-thumb {
+  background: rgba(212, 170, 99, 0.3);
+  border-radius: 3px;
+}
+
+.imageGrid::-webkit-scrollbar-thumb:hover {
+  background: rgba(212, 170, 99, 0.5);
+}
+
+.imageGridItem {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.75rem;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(212, 170, 99, 0.2);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.imageGridItem:hover {
+  background: rgba(212, 170, 99, 0.15);
+  border-color: #d4aa63;
+  transform: scale(1.02);
+}
+
+.gridImage {
+  width: 100%;
+  height: 140px;
+  object-fit: cover;
+  border-radius: 6px;
+}
+
+.gridLabel {
+  font-size: 0.8rem;
+  color: rgba(255, 255, 255, 0.7);
+  margin: 0;
+  word-break: break-word;
+  text-align: center;
+}
+
+.noImagesText {
+  grid-column: 1 / -1;
+  text-align: center;
+  color: rgba(255, 255, 255, 0.5);
+  padding: 2rem;
+  margin: 0;
+}
+
+.btnImageSelector {
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(212, 170, 99, 0.3);
+  border-radius: 8px;
+  padding: 0.65rem 0.85rem;
+  color: #d4aa63;
+  font-size: 0.95rem;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-family: inherit;
+  width: 100%;
+}
+
+.btnImageSelector:hover {
+  background: rgba(212, 170, 99, 0.15);
+  border-color: #d4aa63;
+}
+
+.btnImageSelector:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 /* Responsivo */
 @media (max-width: 768px) {
   .adminHeader {
@@ -734,5 +1008,60 @@ input[type="file"] {
     width: 20px;
     height: 20px;
     font-size: 1rem;
+  }
+  .uploadContainer {
+    padding: 1.5rem;
+  }
+  .fileInputWrapper {
+    max-width: 100%;
+  }
+  .imageModalContent {
+    width: 95%;
+    padding: 1.5rem;
+    max-height: 90vh;
+  }
+  .imageGrid {
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    max-height: 60vh;
+  }
+  .gridImage {
+    height: 120px;
+  }
+}
+
+@media (max-width: 480px) {
+  .uploaderContent {
+    max-width: 100%;
+  }
+
+  .uploaderButtonGroup {
+    flex-direction: column;
+  }
+
+  .uploaderButtonGroup .btnSecondary,
+  .uploaderButtonGroup .btnPrimary {
+    max-width: 100%;
+  }
+
+  .previewImage {
+    max-width: 100%;
+  }
+
+  .imageModalContent {
+    width: 100%;
+    border-radius: 12px;
+  }
+
+  .imageGrid {
+    grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+    gap: 0.75rem;
+  }
+
+  .gridImage {
+    height: 100px;
+  }
+
+  .imageModalHeader h3 {
+    font-size: 1.1rem;
   }
 }

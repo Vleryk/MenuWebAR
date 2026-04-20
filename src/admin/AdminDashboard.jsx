@@ -78,7 +78,9 @@ export default function AdminDashboard() {
         if (!cancelled) setAuthenticated(false);
       }
     })();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [authenticated]);
 
   function handleLogout() {
@@ -94,9 +96,7 @@ export default function AdminDashboard() {
     return <AdminLogin onLogin={() => setAuthenticated(true)} />;
   }
 
-  const filteredItems = filterCategory
-    ? items.filter((i) => i.category === filterCategory)
-    : items;
+  const filteredItems = filterCategory ? items.filter((i) => i.category === filterCategory) : items;
 
   return (
     <div className={styles.adminShell}>
@@ -157,12 +157,7 @@ export default function AdminDashboard() {
           />
         )}
         {activeTab === "upload" && (
-          <AdminUploader
-            onUploadComplete={async (asset, type) => {
-              console.log(`${type === "model" ? "Modelo AR" : "Imagen"} subida:`, asset);
-              await loadData();
-            }}
-          />
+          <UploadPanel onReload={loadData} />
         )}
       </main>
     </div>
@@ -184,6 +179,58 @@ function SuccessModal({ isOpen, message, onClose }) {
       <div className={styles.modalContent}>
         <div className={styles.modalIcon}>✓</div>
         <p className={styles.modalText}>{message}</p>
+      </div>
+    </div>
+  );
+}
+
+function ImageModal({ isOpen, imagenes, onSelectImage, onClose }) {
+  const [searchTerm, setSearchTerm] = useState("");
+
+  const filteredImages = imagenes.filter((img) =>
+    img.label.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  if (!isOpen) return null;
+
+  return (
+    <div className={styles.modalOverlay} onClick={onClose}>
+      <div className={styles.imageModalContent} onClick={(e) => e.stopPropagation()}>
+        <div className={styles.imageModalHeader}>
+          <h3>Seleccionar Imagen</h3>
+          <button
+            className={styles.imageModalClose}
+            onClick={onClose}
+            type="button"
+          >
+            ✕
+          </button>
+        </div>
+
+        <input
+          type="text"
+          placeholder="Buscar imagen..."
+          className={styles.imageSearchInput}
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+        />
+
+        <div className={styles.imageGrid}>
+          {filteredImages.length > 0 ? (
+            filteredImages.map((img) => (
+              <div
+                key={img.id}
+                className={styles.imageGridItem}
+                onClick={() => onSelectImage(img.src)}
+              >
+                <img src={img.src} alt={img.label} className={styles.gridImage} />
+                <p className={styles.gridLabel}>{img.label}</p>
+              </div>
+            ))
+          ) : (
+            <p className={styles.noImagesText}>No hay imágenes que coincidan</p>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -218,12 +265,17 @@ function ItemsPanel({
   const [fieldErrors, setFieldErrors] = useState({});
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [successMessage, setSuccessMessage] = useState("");
+  const [showImageModal, setShowImageModal] = useState(false);
 
   const itemsList = allItems || items;
 
   useEffect(() => {
     if (editingItem) {
-      setForm({ ...editingItem, modelAR: editingItem.modelAR || "", ingredients: editingItem.ingredients || [] });
+      setForm({
+        ...editingItem,
+        modelAR: editingItem.modelAR || "",
+        ingredients: editingItem.ingredients || [],
+      });
     } else {
       setForm({
         id: "",
@@ -326,6 +378,12 @@ function ItemsPanel({
     }));
   };
 
+  const handleSelectImage = (imageUrl) => {
+    setForm((f) => ({ ...f, image: imageUrl }));
+    setFieldErrors((errs) => ({ ...errs, image: "" }));
+    setShowImageModal(false);
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
@@ -347,7 +405,7 @@ function ItemsPanel({
       }
       setShowSuccessModal(true);
       setEditingItem(null);
-      
+
       setForm({
         id: "",
         category: categories[0]?.id || "",
@@ -369,7 +427,6 @@ function ItemsPanel({
           console.error("Error al recargar datos:", reloadErr);
         }
       }, 1500);
-
     } catch (err) {
       setError(err.message || "Error al guardar el plato");
       setSaving(false);
@@ -395,6 +452,13 @@ function ItemsPanel({
         isOpen={showSuccessModal}
         message={successMessage}
         onClose={() => setShowSuccessModal(false)}
+      />
+
+      <ImageModal
+        isOpen={showImageModal}
+        imagenes={imagenes}
+        onSelectImage={handleSelectImage}
+        onClose={() => setShowImageModal(false)}
       />
 
       <div className={styles.panelHeader}>
@@ -434,7 +498,9 @@ function ItemsPanel({
               </option>
             ))}
           </select>
-          {fieldErrors.category && <span className={styles.helperError}>{fieldErrors.category}</span>}
+          {fieldErrors.category && (
+            <span className={styles.helperError}>{fieldErrors.category}</span>
+          )}
         </label>
 
         <label className={styles.label}>
@@ -494,23 +560,14 @@ function ItemsPanel({
         <div className={`${styles.label} ${styles.fullWidth}`}>
           <span>Imagen</span>
 
-          <select
-            className={`${styles.input} ${fieldErrors.image ? styles.inputError : ""}`}
-            name="image"
-            value={form.image}
-            onChange={handleChange}
+          <button
+            type="button"
+            className={styles.btnImageSelector}
+            onClick={() => setShowImageModal(true)}
             disabled={saving}
           >
-            <option value="">Seleccionar imagen guardada...</option>
-            {form.image && !selectedImageInLibrary && (
-              <option value={form.image}>Imagen actual (no registrada)</option>
-            )}
-            {imagenes.map((img) => (
-              <option key={img.id} value={img.src}>
-                {img.label}
-              </option>
-            ))}
-          </select>
+            {form.image ? "Cambiar imagen" : "Seleccionar imagen guardada..."}
+          </button>
 
           {fieldErrors.image ? (
             <span className={styles.helperError}>{fieldErrors.image}</span>
@@ -529,11 +586,7 @@ function ItemsPanel({
 
         {form.image && (form.image.startsWith("/assets/") || form.image.startsWith("https://")) && (
           <div className={`${styles.fullWidth} ${styles.imagePreviewContainer}`}>
-            <img 
-              src={form.image} 
-              alt="Vista previa" 
-              className={styles.imagePreview}
-            />
+            <img src={form.image} alt="Vista previa" className={styles.imagePreview} />
           </div>
         )}
 
@@ -601,11 +654,7 @@ function ItemsPanel({
         </label>
 
         <div className={styles.formActions}>
-          <button
-            className={styles.btnPrimary}
-            type="submit"
-            disabled={saving || !formValid}
-          >
+          <button className={styles.btnPrimary} type="submit" disabled={saving || !formValid}>
             {saving ? "Guardando..." : editingItem ? "Actualizar" : "Crear Plato"}
           </button>
           {editingItem && (
@@ -656,14 +705,20 @@ function ItemsPanel({
                 <td>{item.name}</td>
                 <td>{item.category}</td>
                 <td>{item.price}</td>
-                <td>{item.ingredients && item.ingredients.length > 0 ? item.ingredients.length : "—"}</td>
+                <td>
+                  {item.ingredients && item.ingredients.length > 0 ? item.ingredients.length : "—"}
+                </td>
                 <td className={styles.mono}>{item.modelAR ? "✓" : "—"}</td>
                 <td>
                   <button
                     className={styles.btnSmall}
                     onClick={() => {
                       setEditingItem(item);
-                      setTimeout(() => formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 50);
+                      setTimeout(
+                        () =>
+                          formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }),
+                        50,
+                      );
                     }}
                   >
                     Editar
@@ -705,7 +760,8 @@ function CategoriesPanel({ categories, editingCategory, setEditingCategory, onRe
     if (name === "id") {
       if (!value.trim()) return "ID es requerido";
       if (!/^[a-zA-Z\s\-áéíóúñÁÉÍÓÚÑ]+$/.test(value)) return "Solo letras y espacios";
-      if (!editingCategory && categories.some((cat) => cat.id === value)) return "Este ID ya existe";
+      if (!editingCategory && categories.some((cat) => cat.id === value))
+        return "Este ID ya existe";
     }
 
     if (name === "label") {
@@ -733,7 +789,6 @@ function CategoriesPanel({ categories, editingCategory, setEditingCategory, onRe
   const handleChange = (e) => {
     const { name, value } = e.target;
 
-    // Solo permitir letras, espacios, guiones y acentos
     if (value !== "" && !/^[a-zA-Z\s\-áéíóúñÁÉÍÓÚÑ]*$/.test(value)) return;
 
     setForm((f) => ({ ...f, [name]: value }));
@@ -774,7 +829,6 @@ function CategoriesPanel({ categories, editingCategory, setEditingCategory, onRe
           console.error("Error al recargar datos:", reloadErr);
         }
       }, 1500);
-
     } catch (err) {
       setError(err.message);
       setSaving(false);
@@ -844,11 +898,7 @@ function CategoriesPanel({ categories, editingCategory, setEditingCategory, onRe
         </label>
 
         <div className={styles.formActions}>
-          <button 
-            className={styles.btnPrimary} 
-            type="submit" 
-            disabled={saving || !formValid}
-          >
+          <button className={styles.btnPrimary} type="submit" disabled={saving || !formValid}>
             {saving ? "Guardando..." : editingCategory ? "Actualizar" : "Crear"}
           </button>
           {editingCategory && (
@@ -878,10 +928,7 @@ function CategoriesPanel({ categories, editingCategory, setEditingCategory, onRe
                 <td className={styles.mono}>{cat.id}</td>
                 <td>{cat.label}</td>
                 <td>
-                  <button
-                    className={styles.btnSmall}
-                    onClick={() => setEditingCategory(cat)}
-                  >
+                  <button className={styles.btnSmall} onClick={() => setEditingCategory(cat)}>
                     Editar
                   </button>
                   <button
@@ -895,6 +942,25 @@ function CategoriesPanel({ categories, editingCategory, setEditingCategory, onRe
             ))}
           </tbody>
         </table>
+      </div>
+    </div>
+  );
+}
+
+function UploadPanel({ onReload }) {
+  return (
+    <div>
+      <div className={styles.panelHeader}>
+        <h2>Subir Archivos</h2>
+      </div>
+
+      <div className={styles.uploadContainer}>
+        <AdminUploader
+          onUploadComplete={async (asset, type) => {
+            console.log(`${type === "model" ? "Modelo AR" : "Imagen"} subida:`, asset);
+            await onReload();
+          }}
+        />
       </div>
     </div>
   );
