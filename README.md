@@ -50,6 +50,11 @@ Required variables:
 | `ADMIN_DEFAULT_EMAIL`    | Initial admin email                | First run   |
 | `ADMIN_DEFAULT_PASSWORD` | Initial admin password             | First run   |
 | `PORT`                   | Server port (default: 3001)        | No          |
+| `SUPABASE_URL`           | Supabase project URL (backend API) | Yes         |
+| `SUPABASE_SERVICE_ROLE_KEY` | Supabase service role key (backend API) | Yes      |
+
+The API reads/writes menu data only from Supabase.
+If backend Supabase variables are missing, data routes return `503` until configured.
 
 ### Running Locally
 
@@ -83,8 +88,9 @@ npm run server    # Serves both API and static files from dist/
 ├── server/
 │   ├── server.js               # Express API (auth, CRUD, health check)
 │   ├── data/
-│   │   ├── menu.json           # Menu data (categories + items)
-│   │   └── admin.json          # Admin credentials (auto-generated)
+│   │   ├── menu.json           # Legacy local data file (not used as API data source)
+│   │   ├── admin.json          # Admin credentials (auto-generated)
+│   │   └── supabase-schema.sql # SQL schema for Supabase tables
 │   └── __tests__/
 │       └── server.test.js      # API endpoint tests
 │

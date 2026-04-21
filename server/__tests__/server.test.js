@@ -47,41 +47,34 @@ describe("API Endpoints", () => {
   });
 
   describe("GET /api/menu", () => {
-    it("returns menu data with categories and menuItems", async () => {
+    it("returns 503 when Supabase is not configured", async () => {
       const res = await request(app).get("/api/menu");
-      expect(res.status).toBe(200);
-      expect(res.body).toHaveProperty("categories");
-      expect(res.body).toHaveProperty("menuItems");
-      expect(Array.isArray(res.body.categories)).toBe(true);
-      expect(Array.isArray(res.body.menuItems)).toBe(true);
+      expect(res.status).toBe(503);
+      expect(res.body.error).toMatch(/Supabase no esta configurado/i);
     });
   });
 
   describe("GET /api/categories", () => {
-    it("returns categories array", async () => {
+    it("returns 503 when Supabase is not configured", async () => {
       const res = await request(app).get("/api/categories");
-      expect(res.status).toBe(200);
-      expect(Array.isArray(res.body)).toBe(true);
+      expect(res.status).toBe(503);
+      expect(res.body.error).toMatch(/Supabase no esta configurado/i);
     });
   });
 
   describe("GET /api/modelos", () => {
-    it("returns modelos array", async () => {
+    it("returns 503 when Supabase is not configured", async () => {
       const res = await request(app).get("/api/modelos");
-      expect(res.status).toBe(200);
-      expect(Array.isArray(res.body)).toBe(true);
-      if (res.body.length > 0) {
-        expect(res.body[0]).toHaveProperty("id");
-        expect(res.body[0]).toHaveProperty("label");
-      }
+      expect(res.status).toBe(503);
+      expect(res.body.error).toMatch(/Supabase no esta configurado/i);
     });
   });
 
   describe("GET /api/imagenes", () => {
-    it("returns imagenes array", async () => {
+    it("returns 503 when Supabase is not configured", async () => {
       const res = await request(app).get("/api/imagenes");
-      expect(res.status).toBe(200);
-      expect(Array.isArray(res.body)).toBe(true);
+      expect(res.status).toBe(503);
+      expect(res.body.error).toMatch(/Supabase no esta configurado/i);
     });
   });
 
@@ -125,11 +118,12 @@ describe("API Endpoints", () => {
       expect(res.status).toBe(401);
     });
 
-    it("allows requests with valid token", async () => {
+    it("returns 503 for data routes when Supabase is not configured", async () => {
       const res = await request(app)
         .get("/api/admin/categories")
         .set("Authorization", `Bearer ${token}`);
-      expect(res.status).toBe(200);
+      expect(res.status).toBe(503);
+      expect(res.body.error).toMatch(/Supabase no esta configurado/i);
     });
 
     describe("Input validation", () => {
@@ -166,8 +160,8 @@ describe("API Endpoints", () => {
             price: "$1000",
             modelAR: "Plato1",
           });
-        // Puede ser 201 o 409 si el item ya existe
-        expect([201, 409]).toContain(res.status);
+        expect(res.status).toBe(503);
+        expect(res.body.error).toMatch(/Supabase no esta configurado/i);
       });
 
       it("registers a Cloudinary model in /api/admin/modelos", async () => {
@@ -180,11 +174,8 @@ describe("API Endpoints", () => {
             url: "https://res.cloudinary.com/dxpam0kqa/raw/upload/v1/menu/models/test-model.glb",
           });
 
-        expect(res.status).toBe(201);
-        expect(res.body).toMatchObject({
-          id: "test_model_cloudinary",
-          label: "Modelo Test Cloudinary",
-        });
+        expect(res.status).toBe(503);
+        expect(res.body.error).toMatch(/Supabase no esta configurado/i);
       });
 
       it("registers a Cloudinary image in /api/admin/imagenes", async () => {
@@ -197,11 +188,8 @@ describe("API Endpoints", () => {
             url: "https://res.cloudinary.com/dxpam0kqa/image/upload/v1/menu/images/test-image.jpg",
           });
 
-        expect(res.status).toBe(201);
-        expect(res.body).toMatchObject({
-          id: "test_image_cloudinary",
-          label: "Imagen Test Cloudinary",
-        });
+        expect(res.status).toBe(503);
+        expect(res.body.error).toMatch(/Supabase no esta configurado/i);
       });
     });
   });

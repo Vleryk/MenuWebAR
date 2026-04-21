@@ -9,11 +9,22 @@ const jwt = require("jsonwebtoken");
 const rateLimit = require("express-rate-limit");
 const multer = require("multer");
 const crypto = require("crypto");
+const {
+  isSupabaseEnabled,
+  loadSupabaseData,
+  createModeloAsset: createSupabaseModeloAsset,
+  createImagenAsset: createSupabaseImagenAsset,
+  createCategory: createSupabaseCategory,
+  updateCategory: updateSupabaseCategory,
+  deleteCategory: deleteSupabaseCategory,
+  createItem: createSupabaseItem,
+  updateItem: updateSupabaseItem,
+  deleteItem: deleteSupabaseItem,
+} = require("./supabaseStore");
 
 const app = express();
 const PORT = process.env.PORT || 3001;
 const JWT_SECRET = process.env.JWT_SECRET;
-const DATA_FILE = path.join(__dirname, "data", "menu.json");
 const ADMIN_FILE = path.join(__dirname, "data", "admin.json");
 
 // Fallo inmediato: JWT_SECRET es obligatorio en producción
@@ -180,21 +191,25 @@ function initAdmin() {
   }
 }
 
-// --- Funciones auxiliares ---
-function readData() {
-  const raw = fs.readFileSync(DATA_FILE, "utf-8");
-  const data = JSON.parse(raw);
+function handleSupabaseRouteError(res, error) {
+  const statusCode = Number.isInteger(error?.status) ? error.status : 500;
 
-  if (!Array.isArray(data.categories)) data.categories = [];
-  if (!Array.isArray(data.modelos)) data.modelos = [];
-  if (!Array.isArray(data.imagenes)) data.imagenes = [];
-  if (!Array.isArray(data.menuItems)) data.menuItems = [];
+  if (statusCode >= 500) {
+    console.error("Supabase route error:", error?.message || error);
+  }
 
-  return data;
+  return res
+    .status(statusCode)
+    .json({ error: error?.message || "Error de datos en Supabase" });
 }
 
-function writeData(data) {
-  fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2));
+function requireSupabaseDataSource(res) {
+  if (isSupabaseEnabled) return true;
+
+  return res.status(503).json({
+    error:
+      "Supabase no esta configurado. Define SUPABASE_URL y SUPABASE_SERVICE_ROLE_KEY para usar la API de datos.",
+  });
 }
 
 // --- Middleware ---
@@ -259,32 +274,72 @@ app.get("/api/health", (_req, res) => {
 // RUTAS PÚBLICAS (no protegidas)
 // ========================
 
-app.get("/api/menu", (_req, res) => {
-  const data = readData();
-  res.json({
-    ...data,
-    menuItems: resolveMenuItems(data.menuItems, data.modelos),
-  });
+app.get("/api/menu", async (_req, res) => {
+  if (!isSupabaseEnabled) {
+    return requireSupabaseDataSource(res);
+  }
+
+  try {
+    const data = await loadSupabaseData();
+    return res.json({
+      ...data,
+      menuItems: resolveMenuItems(data.menuItems, data.modelos),
+    });
+  } catch (error) {
+    return handleSupabaseRouteError(res, error);
+  }
 });
 
-app.get("/api/categories", (_req, res) => {
-  const data = readData();
-  res.json(data.categories);
+app.get("/api/categories", async (_req, res) => {
+  if (!isSupabaseEnabled) {
+    return requireSupabaseDataSource(res);
+  }
+
+  try {
+    const data = await loadSupabaseData();
+    return res.json(data.categories);
+  } catch (error) {
+    return handleSupabaseRouteError(res, error);
+  }
 });
 
-app.get("/api/modelos", (_req, res) => {
-  const data = readData();
-  res.json(data.modelos || []);
+app.get("/api/modelos", async (_req, res) => {
+  if (!isSupabaseEnabled) {
+    return requireSupabaseDataSource(res);
+  }
+
+  try {
+    const data = await loadSupabaseData();
+    return res.json(data.modelos || []);
+  } catch (error) {
+    return handleSupabaseRouteError(res, error);
+  }
 });
 
-app.get("/api/imagenes", (_req, res) => {
-  const data = readData();
-  res.json(data.imagenes || []);
+app.get("/api/imagenes", async (_req, res) => {
+  if (!isSupabaseEnabled) {
+    return requireSupabaseDataSource(res);
+  }
+
+  try {
+    const data = await loadSupabaseData();
+    return res.json(data.imagenes || []);
+  } catch (error) {
+    return handleSupabaseRouteError(res, error);
+  }
 });
 
-app.get("/api/menu-items", (_req, res) => {
-  const data = readData();
-  res.json(resolveMenuItems(data.menuItems, data.modelos));
+app.get("/api/menu-items", async (_req, res) => {
+  if (!isSupabaseEnabled) {
+    return requireSupabaseDataSource(res);
+  }
+
+  try {
+    const data = await loadSupabaseData();
+    return res.json(resolveMenuItems(data.menuItems, data.modelos));
+  } catch (error) {
+    return handleSupabaseRouteError(res, error);
+  }
 });
 
 // ========================
@@ -365,20 +420,13 @@ app.post("/api/admin/modelos", authMiddleware, (req, res) => {
     return res.status(400).json({ error: "URL de modelo no permitida" });
   }
 
-  const data = readData();
-  if ((data.modelos || []).find((m) => m.id === modeloId)) {
-    return res.status(409).json({ error: "Modelo con ese id ya existe" });
+  if (!isSupabaseEnabled) {
+    return requireSupabaseDataSource(res);
   }
 
-  const newModelo = {
-    id: modeloId,
-    label: modeloLabel,
-    src: modeloSrc,
-  };
-
-  data.modelos.push(newModelo);
-  writeData(data);
-  res.status(201).json(newModelo);
+  createSupabaseModeloAsset({ id, name, label: modeloLabel, url: modeloSrc })
+    .then((newModelo) => res.status(201).json(newModelo))
+    .catch((error) => handleSupabaseRouteError(res, error));
 });
 
 // --- Registrar Imágenes (Cloudinary u origen permitido) ---
@@ -409,26 +457,27 @@ app.post("/api/admin/imagenes", authMiddleware, (req, res) => {
     return res.status(400).json({ error: "URL de imagen no permitida" });
   }
 
-  const data = readData();
-  if ((data.imagenes || []).find((img) => img.id === imagenId)) {
-    return res.status(409).json({ error: "Imagen con ese id ya existe" });
+  if (!isSupabaseEnabled) {
+    return requireSupabaseDataSource(res);
   }
 
-  const newImagen = {
-    id: imagenId,
-    label: imagenLabel,
-    src: imagenSrc,
-  };
-
-  data.imagenes.push(newImagen);
-  writeData(data);
-  res.status(201).json(newImagen);
+  createSupabaseImagenAsset({ id, name, label: imagenLabel, url: imagenSrc })
+    .then((newImagen) => res.status(201).json(newImagen))
+    .catch((error) => handleSupabaseRouteError(res, error));
 });
 
 // --- Categorías ---
-app.get("/api/admin/categories", authMiddleware, (_req, res) => {
-  const data = readData();
-  res.json(data.categories);
+app.get("/api/admin/categories", authMiddleware, async (_req, res) => {
+  if (!isSupabaseEnabled) {
+    return requireSupabaseDataSource(res);
+  }
+
+  try {
+    const data = await loadSupabaseData();
+    return res.json(data.categories);
+  } catch (error) {
+    return handleSupabaseRouteError(res, error);
+  }
 });
 
 app.post("/api/admin/categories", authMiddleware, (req, res) => {
@@ -440,13 +489,13 @@ app.post("/api/admin/categories", authMiddleware, (req, res) => {
     return res.status(400).json({ error: "label es requerido" });
   }
 
-  const data = readData();
-  if (data.categories.find((c) => c.id === id)) {
-    return res.status(409).json({ error: "Categoria ya existe" });
+  if (!isSupabaseEnabled) {
+    return requireSupabaseDataSource(res);
   }
-  data.categories.push({ id, label: label.trim() });
-  writeData(data);
-  res.status(201).json({ id, label: label.trim() });
+
+  createSupabaseCategory({ id, label })
+    .then((newCategory) => res.status(201).json(newCategory))
+    .catch((error) => handleSupabaseRouteError(res, error));
 });
 
 app.put("/api/admin/categories/:id", authMiddleware, (req, res) => {
@@ -455,30 +504,37 @@ app.put("/api/admin/categories/:id", authMiddleware, (req, res) => {
     return res.status(400).json({ error: "label no puede estar vacio" });
   }
 
-  const data = readData();
-  const cat = data.categories.find((c) => c.id === req.params.id);
-  if (!cat) return res.status(404).json({ error: "Categoria no encontrada" });
+  if (!isSupabaseEnabled) {
+    return requireSupabaseDataSource(res);
+  }
 
-  cat.label = label ? label.trim() : cat.label;
-  writeData(data);
-  res.json(cat);
+  updateSupabaseCategory(req.params.id, { label })
+    .then((updatedCategory) => res.json(updatedCategory))
+    .catch((error) => handleSupabaseRouteError(res, error));
 });
 
 app.delete("/api/admin/categories/:id", authMiddleware, (req, res) => {
-  const data = readData();
-  const idx = data.categories.findIndex((c) => c.id === req.params.id);
-  if (idx === -1) return res.status(404).json({ error: "Categoria no encontrada" });
+  if (!isSupabaseEnabled) {
+    return requireSupabaseDataSource(res);
+  }
 
-  data.categories.splice(idx, 1);
-  data.menuItems = data.menuItems.filter((item) => item.category !== req.params.id);
-  writeData(data);
-  res.json({ message: "Categoria y sus items eliminados" });
+  deleteSupabaseCategory(req.params.id)
+    .then(() => res.json({ message: "Categoria y sus items eliminados" }))
+    .catch((error) => handleSupabaseRouteError(res, error));
 });
 
 // --- Menu Items ---
-app.get("/api/admin/items", authMiddleware, (_req, res) => {
-  const data = readData();
-  res.json(data.menuItems);
+app.get("/api/admin/items", authMiddleware, async (_req, res) => {
+  if (!isSupabaseEnabled) {
+    return requireSupabaseDataSource(res);
+  }
+
+  try {
+    const data = await loadSupabaseData();
+    return res.json(data.menuItems);
+  } catch (error) {
+    return handleSupabaseRouteError(res, error);
+  }
 });
 
 app.post("/api/admin/items", authMiddleware, (req, res) => {
@@ -502,35 +558,17 @@ app.post("/api/admin/items", authMiddleware, (req, res) => {
     return res.status(400).json({ error: "modelAR debe ser un id de modelo valido" });
   }
 
-  const data = readData();
-  if (modelAR && !(data.modelos || []).find((m) => m.id === modelAR)) {
-    return res.status(400).json({ error: "Modelo AR no encontrado" });
-  }
-  if (data.menuItems.find((item) => item.id === id)) {
-    return res.status(409).json({ error: "Item con ese id ya existe" });
+  if (!isSupabaseEnabled) {
+    return requireSupabaseDataSource(res);
   }
 
-  const newItem = {
-    id,
-    category: category.trim(),
-    name: name.trim(),
-    description: description ? description.trim() : "",
-    price: price.trim(),
-    image: image || "/assets/IMG/comida.jfif",
-    modelAR: modelAR || "",
-    ingredients: Array.isArray(ingredients) ? ingredients : [],
-  };
-  data.menuItems.push(newItem);
-  writeData(data);
-  res.status(201).json(newItem);
+  createSupabaseItem({ id, category, name, description, price, image, modelAR, ingredients })
+    .then((newItem) => res.status(201).json(newItem))
+    .catch((error) => handleSupabaseRouteError(res, error));
 });
 
 app.put("/api/admin/items/:id", authMiddleware, (req, res) => {
-  const data = readData();
-  const item = data.menuItems.find((i) => i.id === req.params.id);
-  if (!item) return res.status(404).json({ error: "Item no encontrado" });
-
-  const { category, name, description, price, image, modelAR, ingredients } = req.body;
+  const { image, modelAR } = req.body || {};
 
   if (image !== undefined && image && !isSafeImageRef(image)) {
     return res.status(400).json({ error: "Imagen no permitida" });
@@ -538,33 +576,24 @@ app.put("/api/admin/items/:id", authMiddleware, (req, res) => {
   if (modelAR !== undefined && modelAR && !isValidModeloId(modelAR)) {
     return res.status(400).json({ error: "modelAR debe ser un id de modelo valido" });
   }
-  if (modelAR !== undefined && modelAR) {
-    const data2 = readData();
-    if (!(data2.modelos || []).find((m) => m.id === modelAR)) {
-      return res.status(400).json({ error: "Modelo AR no encontrado" });
-    }
+
+  if (!isSupabaseEnabled) {
+    return requireSupabaseDataSource(res);
   }
 
-  if (category) item.category = category.trim();
-  if (name) item.name = name.trim();
-  if (description !== undefined) item.description = description.trim();
-  if (price) item.price = price.trim();
-  if (image) item.image = image;
-  if (modelAR !== undefined) item.modelAR = modelAR;
-  if (ingredients !== undefined) item.ingredients = Array.isArray(ingredients) ? ingredients : [];
-
-  writeData(data);
-  res.json(item);
+  updateSupabaseItem(req.params.id, req.body || {})
+    .then((updatedItem) => res.json(updatedItem))
+    .catch((error) => handleSupabaseRouteError(res, error));
 });
 
 app.delete("/api/admin/items/:id", authMiddleware, (req, res) => {
-  const data = readData();
-  const idx = data.menuItems.findIndex((i) => i.id === req.params.id);
-  if (idx === -1) return res.status(404).json({ error: "Item no encontrado" });
+  if (!isSupabaseEnabled) {
+    return requireSupabaseDataSource(res);
+  }
 
-  data.menuItems.splice(idx, 1);
-  writeData(data);
-  res.json({ message: "Item eliminado" });
+  deleteSupabaseItem(req.params.id)
+    .then(() => res.json({ message: "Item eliminado" }))
+    .catch((error) => handleSupabaseRouteError(res, error));
 });
 
 // --- Cambiar Contraseña ---

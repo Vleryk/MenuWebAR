@@ -5,6 +5,7 @@ import MenuSection from "./components/MenuSection";
 import { MenuSkeleton } from "./components/MenuCardSkeleton";
 import ReservationSection from "./components/ReservationSection";
 import Footer from "./components/Footer";
+import { supabase } from "./utils/supabase";
 import styles from "./App.module.css";
 
 function App() {
@@ -12,7 +13,10 @@ function App() {
   const [menuItems, setMenuItems] = useState([]);
   const [activeCategory, setActiveCategory] = useState("");
   const [loading, setLoading] = useState(true);
- useEffect(() => {
+  const [todos, setTodos] = useState([]);
+  const [todosError, setTodosError] = useState("");
+
+  useEffect(() => {
     fetch("/api/menu")
       .then((res) => {
         if (!res.ok) throw new Error("Error al conectar con el servidor");
@@ -21,7 +25,7 @@ function App() {
       .then((data) => {
         setCategories(data.categories || []);
         setMenuItems(data.menuItems || []);
-        
+
         if (data.categories && data.categories.length > 0) {
           setActiveCategory(data.categories[0].id);
         }
@@ -32,6 +36,22 @@ function App() {
       .finally(() => {
         setLoading(false);
       });
+  }, []);
+
+  useEffect(() => {
+    async function getTodos() {
+      const { data, error } = await supabase.from("todos").select();
+
+      if (error) {
+        console.error("Error cargando todos desde Supabase:", error);
+        setTodosError("No se pudieron cargar tareas desde Supabase.");
+        return;
+      }
+
+      setTodos(data || []);
+    }
+
+    getTodos();
   }, []);
 
   const filteredItems = useMemo(
@@ -79,6 +99,20 @@ function App() {
         </div>
 
         <ReservationSection />
+
+        <section className={styles.todoSection} aria-label="Tareas desde Supabase">
+          <h2>Todos</h2>
+
+          {todosError ? (
+            <p className={styles.todoError}>{todosError}</p>
+          ) : (
+            <ul className={styles.todoList}>
+              {todos.map((todo) => (
+                <li key={todo.id}>{todo.name}</li>
+              ))}
+            </ul>
+          )}
+        </section>
       </main>
 
       <Footer />
