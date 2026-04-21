@@ -346,7 +346,7 @@ export default function AdminUploader({ onUploadComplete }) {
             </p>
 
             <p style={{ margin: 0, color: "rgba(212, 170, 99, 0.8)", fontSize: "0.8rem" }}>
-              La imagen se redimensionará automáticamente a 64x64 px al subirla.
+              La imagen se redimensionará automáticamente a 120x120 px al subirla.
             </p>
 
             <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
