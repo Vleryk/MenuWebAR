@@ -17,6 +17,37 @@ function buildAssetLabel(fileName) {
   return fileName.replace(/\.[^/.]+$/, "").trim() || "Archivo";
 }
 
+function resizeImageTo64(file) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      const canvas = document.createElement("canvas");
+      canvas.width = 64;
+      canvas.height = 64;
+      const ctx = canvas.getContext("2d");
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = "high";
+      ctx.drawImage(img, 0, 0, 64, 64);
+      URL.revokeObjectURL(url);
+      canvas.toBlob(
+        (blob) => {
+          if (!blob) return reject(new Error("No se pudo redimensionar la imagen"));
+          const newName = file.name.replace(/\.[^/.]+$/, "") + ".png";
+          const resizedFile = new File([blob], newName, { type: "image/png" });
+          resolve(resizedFile);
+        },
+        "image/png"
+      );
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error("No se pudo cargar la imagen"));
+    };
+    img.src = url;
+  });
+}
+
 export default function AdminUploader({ onUploadComplete }) {
   const imageInputRef = useRef(null);
   const modelInputRef = useRef(null);
@@ -26,6 +57,8 @@ export default function AdminUploader({ onUploadComplete }) {
   const [customImageName, setCustomImageName] = useState("");
 
   const [modelFile, setModelFile] = useState(null);
+  const [customModelName, setCustomModelName] = useState("");
+
   const [imageUploading, setImageUploading] = useState(false);
   const [modelUploading, setModelUploading] = useState(false);
   const [imageURL, setImageURL] = useState("");
@@ -98,9 +131,19 @@ export default function AdminUploader({ onUploadComplete }) {
   };
 
   const handleModelFileChange = (event) => {
-    setModelFile(event.target.files?.[0] || null);
+    const file = event.target.files?.[0] || null;
+    setModelFile(file);
+    setCustomModelName(file ? buildAssetLabel(file.name) : "");
     setModelURL("");
     setError("");
+  };
+
+  const handleRemoveModel = () => {
+    setModelFile(null);
+    setCustomModelName("");
+    setModelURL("");
+    setError("");
+    if (modelInputRef.current) modelInputRef.current.value = "";
   };
 
   const handleImageUpload = async () => {
@@ -119,7 +162,8 @@ export default function AdminUploader({ onUploadComplete }) {
     setImageURL("");
 
     try {
-      const url = await uploadToCloudinary(imageFile, "image", CLOUDINARY_UPLOAD_FOLDER);
+      const resizedFile = await resizeImageTo64(imageFile);
+      const url = await uploadToCloudinary(resizedFile, "image", CLOUDINARY_UPLOAD_FOLDER);
       const savedImage = await createImagenAsset({
         id: buildAssetId(customImageName, "img"),
         label: customImageName.trim(),
@@ -149,6 +193,10 @@ export default function AdminUploader({ onUploadComplete }) {
       setError("El modelo AR debe tener extensión .glb");
       return;
     }
+    if (!customModelName.trim()) {
+      setError("El nombre del modelo no puede estar vacío.");
+      return;
+    }
     if (!ensureCloudinaryConfig()) return;
 
     setModelUploading(true);
@@ -158,13 +206,17 @@ export default function AdminUploader({ onUploadComplete }) {
     try {
       const url = await uploadToCloudinary(modelFile, "raw", CLOUDINARY_MODELS_FOLDER);
       const savedModel = await createModeloAsset({
-        id: buildAssetId(modelFile.name, "mdl"),
-        label: buildAssetLabel(modelFile.name),
+        id: buildAssetId(customModelName, "mdl"),
+        label: customModelName.trim(),
         url,
       });
 
       setModelURL(savedModel.src || url);
       onUploadComplete?.(savedModel, "model");
+
+      setModelFile(null);
+      setCustomModelName("");
+      if (modelInputRef.current) modelInputRef.current.value = "";
     } catch (uploadError) {
       const message = uploadError?.message || "No se pudo subir el modelo .glb";
       setError(handleUploadError(message));
@@ -293,6 +345,10 @@ export default function AdminUploader({ onUploadComplete }) {
               Archivo: {imageFile.name} ({(imageFile.size / 1024).toFixed(1)} KB)
             </p>
 
+            <p style={{ margin: 0, color: "rgba(212, 170, 99, 0.8)", fontSize: "0.8rem" }}>
+              La imagen se redimensionará automáticamente a 64x64 px al subirla.
+            </p>
+
             <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
               <button
                 type="button"
@@ -343,7 +399,7 @@ export default function AdminUploader({ onUploadComplete }) {
           style={{ display: "none" }}
         />
 
-        <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+        {!modelFile && (
           <button
             type="button"
             onClick={() => modelInputRef.current?.click()}
@@ -354,34 +410,128 @@ export default function AdminUploader({ onUploadComplete }) {
               borderRadius: 8,
               padding: "0.65rem 1rem",
               cursor: "pointer",
+              width: "fit-content",
             }}
           >
             Elegir modelo .glb
           </button>
-
-          <button
-            type="button"
-            onClick={handleModelUpload}
-            disabled={modelUploading || !modelFile}
-            style={{
-              background: "linear-gradient(135deg, #d4aa63, #c49a52)",
-              color: "#0f1724",
-              border: "none",
-              borderRadius: 8,
-              padding: "0.65rem 1rem",
-              fontWeight: 700,
-              cursor: modelUploading || !modelFile ? "not-allowed" : "pointer",
-              opacity: modelUploading || !modelFile ? 0.6 : 1,
-            }}
-          >
-            {modelUploading ? "Subiendo..." : "Subir modelo AR"}
-          </button>
-        </div>
+        )}
 
         {modelFile && (
-          <p style={{ margin: 0, color: "rgba(255,255,255,0.8)" }}>
-            Modelo seleccionado: {modelFile.name} ({(modelFile.size / 1024).toFixed(1)} KB)
-          </p>
+          <div
+            style={{
+              display: "grid",
+              gap: "0.75rem",
+              background: "rgba(255,255,255,0.04)",
+              border: "1px solid rgba(212, 170, 99, 0.2)",
+              borderRadius: 12,
+              padding: "1rem",
+            }}
+          >
+            <div style={{ position: "relative", display: "inline-block", alignSelf: "center" }}>
+              <div
+                style={{
+                  width: 320,
+                  maxWidth: "100%",
+                  height: 160,
+                  borderRadius: 8,
+                  border: "1px solid rgba(255,255,255,0.2)",
+                  background: "linear-gradient(135deg, rgba(212, 170, 99, 0.12), rgba(212, 170, 99, 0.04))",
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: "0.5rem",
+                  color: "#d4aa63",
+                }}
+              >
+                <div style={{ fontSize: "2.5rem" }}>📦</div>
+                <div style={{ fontSize: "0.85rem", fontWeight: 600 }}>Modelo 3D .glb</div>
+              </div>
+              <button
+                type="button"
+                onClick={handleRemoveModel}
+                disabled={modelUploading}
+                title="Quitar modelo y elegir otro"
+                style={{
+                  position: "absolute",
+                  top: -10,
+                  right: -10,
+                  width: 32,
+                  height: 32,
+                  borderRadius: "50%",
+                  border: "2px solid #0f1724",
+                  background: "#ff4444",
+                  color: "#fff",
+                  fontSize: "1rem",
+                  fontWeight: 700,
+                  cursor: modelUploading ? "not-allowed" : "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  boxShadow: "0 2px 8px rgba(0,0,0,0.4)",
+                  opacity: modelUploading ? 0.5 : 1,
+                }}
+              >
+                ✕
+              </button>
+            </div>
+
+            <label
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: "0.3rem",
+                fontSize: "0.8rem",
+                color: "rgba(255, 255, 255, 0.6)",
+                fontWeight: 600,
+                textTransform: "uppercase",
+                letterSpacing: "0.04em",
+              }}
+            >
+              Nombre del modelo
+              <input
+                type="text"
+                value={customModelName}
+                onChange={(e) => setCustomModelName(e.target.value)}
+                disabled={modelUploading}
+                placeholder="Ej: Hamburguesa 3D"
+                style={{
+                  background: "rgba(255, 255, 255, 0.07)",
+                  border: "1px solid rgba(255, 255, 255, 0.12)",
+                  borderRadius: 8,
+                  padding: "0.65rem 0.85rem",
+                  color: "#d4aa63",
+                  fontSize: "0.95rem",
+                  fontFamily: "inherit",
+                }}
+              />
+            </label>
+
+            <p style={{ margin: 0, color: "rgba(255,255,255,0.6)", fontSize: "0.85rem" }}>
+              Archivo: {modelFile.name} ({(modelFile.size / 1024).toFixed(1)} KB)
+            </p>
+
+            <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+              <button
+                type="button"
+                onClick={handleModelUpload}
+                disabled={modelUploading || !customModelName.trim()}
+                style={{
+                  background: "linear-gradient(135deg, #d4aa63, #c49a52)",
+                  color: "#0f1724",
+                  border: "none",
+                  borderRadius: 8,
+                  padding: "0.65rem 1rem",
+                  fontWeight: 700,
+                  cursor: modelUploading || !customModelName.trim() ? "not-allowed" : "pointer",
+                  opacity: modelUploading || !customModelName.trim() ? 0.6 : 1,
+                }}
+              >
+                {modelUploading ? "Subiendo..." : "Subir modelo AR"}
+              </button>
+            </div>
+          </div>
         )}
 
         <p style={{ margin: 0, color: "rgba(212, 170, 99, 0.8)", fontSize: "0.85rem" }}>
