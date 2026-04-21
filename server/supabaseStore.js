@@ -48,6 +48,36 @@ function safeTrim(value) {
   return typeof value === "string" ? value.trim() : "";
 }
 
+function normalizeIngredientsInput(ingredientsInput) {
+  if (ingredientsInput === undefined || ingredientsInput === null) return [];
+
+  const rawList = [];
+
+  if (Array.isArray(ingredientsInput)) {
+    for (const entry of ingredientsInput) {
+      rawList.push(...String(entry).split(","));
+    }
+  } else if (typeof ingredientsInput === "string" || typeof ingredientsInput === "number") {
+    rawList.push(...String(ingredientsInput).split(","));
+  }
+
+  const normalized = [];
+  const seen = new Set();
+
+  for (const entry of rawList) {
+    const candidate = safeTrim(entry);
+    if (!candidate) continue;
+
+    const dedupeKey = candidate.toLowerCase();
+    if (seen.has(dedupeKey)) continue;
+
+    seen.add(dedupeKey);
+    normalized.push(candidate);
+  }
+
+  return normalized;
+}
+
 function mapCategoryRow(row) {
   return {
     id: String(row.id_categ),
@@ -73,7 +103,7 @@ function mapImagenRow(row) {
 
 function mapItemRow(row, lookups) {
   const imageSrc = lookups.imagenesById.get(row.imagen) || "/assets/IMG/comida.jfif";
-  const ingredientName = lookups.ingredientesById.get(row.ingrediente);
+  const ingredients = normalizeIngredientsInput(row.ingredientes);
 
   return {
     id: String(row.id),
@@ -83,7 +113,7 @@ function mapItemRow(row, lookups) {
     price: formatPrice(row.precio),
     image: imageSrc,
     modelAR: row.modelo !== null && row.modelo !== undefined ? String(row.modelo) : "",
-    ingredients: ingredientName ? [ingredientName] : [],
+    ingredients,
   };
 }
 
@@ -99,23 +129,19 @@ async function selectTable(table, columns, orderBy) {
 }
 
 async function getLookups() {
-  const [modelosRows, imagenesRows, ingredientesRows] = await Promise.all([
+  const [modelosRows, imagenesRows] = await Promise.all([
     selectTable("modelos", "id_model,nombre_model,url_model", "id_model"),
     selectTable("imagenes", "id_image,nombre_image,url_image", "id_image"),
-    selectTable("ingredientes", "id,nombre", "id"),
   ]);
 
   const modelosById = new Map(modelosRows.map((row) => [row.id_model, row.url_model]));
   const imagenesById = new Map(imagenesRows.map((row) => [row.id_image, row.url_image]));
-  const ingredientesById = new Map(ingredientesRows.map((row) => [row.id, row.nombre]));
 
   return {
     modelosRows,
     imagenesRows,
-    ingredientesRows,
     modelosById,
     imagenesById,
-    ingredientesById,
   };
 }
 
@@ -283,68 +309,12 @@ async function ensureImagenId(imageValue) {
   return inserted.data.id_image;
 }
 
-async function ensureIngredienteId(ingredientsInput) {
-  let candidate = "";
-
-  if (Array.isArray(ingredientsInput)) {
-    candidate = safeTrim(ingredientsInput.find((entry) => safeTrim(entry)) || "");
-  } else if (typeof ingredientsInput === "string" || typeof ingredientsInput === "number") {
-    candidate = safeTrim(ingredientsInput);
-  }
-
-  if (!candidate) return null;
-
-  const numeric = parseIntId(candidate);
-  if (numeric !== null) {
-    const byId = await supabase
-      .from("ingredientes")
-      .select("id")
-      .eq("id", numeric)
-      .maybeSingle();
-
-    if (byId.error) {
-      throw createHttpError(500, `Error validando ingrediente por id: ${byId.error.message}`);
-    }
-
-    if (byId.data) {
-      return byId.data.id;
-    }
-  }
-
-  const byName = await supabase
-    .from("ingredientes")
-    .select("id")
-    .eq("nombre", candidate)
-    .maybeSingle();
-
-  if (byName.error) {
-    throw createHttpError(500, `Error validando ingrediente por nombre: ${byName.error.message}`);
-  }
-
-  if (byName.data) {
-    return byName.data.id;
-  }
-
-  const newId = await getNextId("ingredientes", "id");
-  const inserted = await supabase
-    .from("ingredientes")
-    .insert({ id: newId, nombre: candidate })
-    .select("id")
-    .single();
-
-  if (inserted.error) {
-    throw createHttpError(500, `No se pudo crear ingrediente: ${inserted.error.message}`);
-  }
-
-  return inserted.data.id;
-}
-
 async function loadSupabaseData() {
   const [categoriesRows, platosRows, lookups] = await Promise.all([
     selectTable("categorias", "id_categ,nombre_categ", "id_categ"),
     selectTable(
       "platos",
-      "id,nombre,descripcion,precio,categoria,imagen,modelo,ingrediente",
+      "id,nombre,descripcion,precio,categoria,imagen,modelo,ingredientes",
       "id"
     ),
     getLookups(),
@@ -354,15 +324,16 @@ async function loadSupabaseData() {
   const modelos = lookups.modelosRows.map(mapModeloRow);
   const imagenes = lookups.imagenesRows.map(mapImagenRow);
   const menuItems = platosRows.map((row) => mapItemRow(row, lookups));
+  const uniqueIngredients = Array.from(new Set(menuItems.flatMap((item) => item.ingredients)));
 
   return {
     categories,
     modelos,
     imagenes,
     menuItems,
-    ingredientes: lookups.ingredientesRows.map((row) => ({
-      id: String(row.id),
-      label: row.nombre,
+    ingredientes: uniqueIngredients.map((label, index) => ({
+      id: String(index + 1),
+      label,
     })),
   };
 }
@@ -583,7 +554,7 @@ async function createItem(payload) {
 
   const imageId = await ensureImagenId(payload.image);
   const modelId = await ensureModeloId(payload.modelAR);
-  const ingredientId = await ensureIngredienteId(payload.ingredients);
+  const ingredients = normalizeIngredientsInput(payload.ingredients);
 
   const inserted = await supabase
     .from("platos")
@@ -595,7 +566,7 @@ async function createItem(payload) {
       categoria: categoryId,
       imagen: imageId,
       modelo: modelId,
-      ingrediente: ingredientId,
+      ingredientes: ingredients,
     })
     .select("id")
     .single();
@@ -616,7 +587,7 @@ async function getItemById(itemId) {
   const [itemResponse, lookups] = await Promise.all([
     supabase
       .from("platos")
-      .select("id,nombre,descripcion,precio,categoria,imagen,modelo,ingrediente")
+      .select("id,nombre,descripcion,precio,categoria,imagen,modelo,ingredientes")
       .eq("id", numericId)
       .maybeSingle(),
     getLookups(),
@@ -684,7 +655,7 @@ async function updateItem(itemIdParam, payload) {
   }
 
   if (payload.ingredients !== undefined) {
-    updates.ingrediente = await ensureIngredienteId(payload.ingredients);
+    updates.ingredientes = normalizeIngredientsInput(payload.ingredients);
   }
 
   const updated = await supabase.from("platos").update(updates).eq("id", itemId);

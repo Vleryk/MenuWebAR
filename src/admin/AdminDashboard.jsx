@@ -382,13 +382,32 @@ function ItemsPanel({
   };
 
   const handleAddIngredient = () => {
-    if (newIngredient.trim() && !form.ingredients.includes(newIngredient.trim())) {
-      setForm((f) => ({
+    const nextIngredients = newIngredient
+      .split(",")
+      .map((value) => value.trim())
+      .filter(Boolean);
+
+    if (nextIngredients.length === 0) return;
+
+    setForm((f) => {
+      const existingKeys = new Set(f.ingredients.map((item) => item.toLowerCase()));
+      const merged = [...f.ingredients];
+
+      for (const ingredient of nextIngredients) {
+        const key = ingredient.toLowerCase();
+        if (existingKeys.has(key)) continue;
+
+        existingKeys.add(key);
+        merged.push(ingredient);
+      }
+
+      return {
         ...f,
-        ingredients: [...f.ingredients, newIngredient.trim()],
-      }));
-      setNewIngredient("");
-    }
+        ingredients: merged,
+      };
+    });
+
+    setNewIngredient("");
   };
 
   const handleRemoveIngredient = (index) => {
