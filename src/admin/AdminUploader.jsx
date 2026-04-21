@@ -17,37 +17,6 @@ function buildAssetLabel(fileName) {
   return fileName.replace(/\.[^/.]+$/, "").trim() || "Archivo";
 }
 
-function resizeImageTo64(file) {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    const url = URL.createObjectURL(file);
-    img.onload = () => {
-      const canvas = document.createElement("canvas");
-      canvas.width = 120;
-      canvas.height = 120;
-      const ctx = canvas.getContext("2d");
-      ctx.imageSmoothingEnabled = true;
-      ctx.imageSmoothingQuality = "high";
-      ctx.drawImage(img, 0, 0, 64, 64);
-      URL.revokeObjectURL(url);
-      canvas.toBlob(
-        (blob) => {
-          if (!blob) return reject(new Error("No se pudo redimensionar la imagen"));
-          const newName = file.name.replace(/\.[^/.]+$/, "") + ".png";
-          const resizedFile = new File([blob], newName, { type: "image/png" });
-          resolve(resizedFile);
-        },
-        "image/png"
-      );
-    };
-    img.onerror = () => {
-      URL.revokeObjectURL(url);
-      reject(new Error("No se pudo cargar la imagen"));
-    };
-    img.src = url;
-  });
-}
-
 export default function AdminUploader({ onUploadComplete }) {
   const imageInputRef = useRef(null);
   const modelInputRef = useRef(null);
@@ -162,8 +131,7 @@ export default function AdminUploader({ onUploadComplete }) {
     setImageURL("");
 
     try {
-      const resizedFile = await resizeImageTo64(imageFile);
-      const url = await uploadToCloudinary(resizedFile, "image", CLOUDINARY_UPLOAD_FOLDER);
+      const url = await uploadToCloudinary(imageFile, "image", CLOUDINARY_UPLOAD_FOLDER);
       const savedImage = await createImagenAsset({
         id: buildAssetId(customImageName, "img"),
         label: customImageName.trim(),
@@ -343,10 +311,6 @@ export default function AdminUploader({ onUploadComplete }) {
 
             <p style={{ margin: 0, color: "rgba(255,255,255,0.6)", fontSize: "0.85rem" }}>
               Archivo: {imageFile.name} ({(imageFile.size / 1024).toFixed(1)} KB)
-            </p>
-
-            <p style={{ margin: 0, color: "rgba(212, 170, 99, 0.8)", fontSize: "0.8rem" }}>
-              La imagen se redimensionará automáticamente a 120x120 px al subirla.
             </p>
 
             <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>

@@ -9,13 +9,13 @@
 }
 
 .menuThumb {
-  flex: 0 0 64px;
-  height: 64px;
+  flex: 0 0 100px;
+  width: 100px;
+  height: 100px;
   border-radius: 12px;
   object-fit: cover;
   border: 2px solid rgba(212, 170, 99, 0.4);
 }
-
 .menuContent {
   display: flex;
   flex-direction: column;
