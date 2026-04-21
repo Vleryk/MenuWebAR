@@ -85,7 +85,13 @@
       "src": "/assets/modelosAR/Plato1.glb"
     }
   ],
-  "imagenes": [],
+  "imagenes": [
+    {
+      "id": "img_test_mo7uy9ii",
+      "label": "test",
+      "src": "https://res.cloudinary.com/dxpam0kqa/image/upload/v1776729634/uploads/fyths5evuov3lv6bvpmy.png"
+    }
+  ],
   "menuItems": [
     {
       "id": "ap-1",
@@ -518,6 +524,19 @@
       "price": "$7.990",
       "image": "/assets/IMG/comida.jfif",
       "modelAR": "Plato1"
+    },
+    {
+      "id": "ap-10",
+      "category": "Aperitivos",
+      "name": "fideostest",
+      "description": "test imagen 64x64",
+      "price": "11.111",
+      "image": "https://res.cloudinary.com/dxpam0kqa/image/upload/v1776729634/uploads/fyths5evuov3lv6bvpmy.png",
+      "modelAR": "arrozConSalsa",
+      "ingredients": [
+        "tomate",
+        "fideos"
+      ]
     }
   ]
 }
