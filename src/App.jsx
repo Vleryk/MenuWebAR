@@ -13,8 +13,6 @@ function App() {
   const [menuItems, setMenuItems] = useState([]);
   const [activeCategory, setActiveCategory] = useState("");
   const [loading, setLoading] = useState(true);
-  const [todos, setTodos] = useState([]);
-  const [todosError, setTodosError] = useState("");
 
   useEffect(() => {
     fetch("/api/menu")
@@ -36,22 +34,6 @@ function App() {
       .finally(() => {
         setLoading(false);
       });
-  }, []);
-
-  useEffect(() => {
-    async function getTodos() {
-      const { data, error } = await supabase.from("todos").select();
-
-      if (error) {
-        console.error("Error cargando todos desde Supabase:", error);
-        setTodosError("No se pudieron cargar tareas desde Supabase.");
-        return;
-      }
-
-      setTodos(data || []);
-    }
-
-    getTodos();
   }, []);
 
   const filteredItems = useMemo(
@@ -100,19 +82,6 @@ function App() {
 
         <ReservationSection />
 
-        <section className={styles.todoSection} aria-label="Tareas desde Supabase">
-          <h2>Todos</h2>
-
-          {todosError ? (
-            <p className={styles.todoError}>{todosError}</p>
-          ) : (
-            <ul className={styles.todoList}>
-              {todos.map((todo) => (
-                <li key={todo.id}>{todo.name}</li>
-              ))}
-            </ul>
-          )}
-        </section>
       </main>
 
       <Footer />
