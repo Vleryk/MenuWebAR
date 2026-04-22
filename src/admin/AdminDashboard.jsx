@@ -318,6 +318,7 @@ function ItemsPanel({
 
   const itemsList = allItems || items;
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => {
     if (editingItem) {
       setForm({
@@ -587,7 +588,7 @@ function ItemsPanel({
             value={form.price}
             onChange={handleChange}
             required
-            placeholder="$12.990"
+            placeholder="$12.990 (al editar borra el signo $)"
           />
           {fieldErrors.price ? (
             <span className={styles.helperError}>{fieldErrors.price}</span>
@@ -632,13 +633,13 @@ function ItemsPanel({
             <span className={styles.helperError}>{fieldErrors.image}</span>
           ) : (
             <span className={styles.helperText}>
-              Selecciona una imagen ya subida desde la pestaña "Subir Archivos".
+              Selecciona una imagen ya subida desde la pestaña &quot;Subir Archivos&quot;.
             </span>
           )}
 
           {imagenes.length === 0 && (
             <span className={styles.helperError}>
-              No hay imágenes registradas. Primero sube una imagen en "Subir Archivos".
+              No hay imágenes registradas. Primero sube una imagen en &quot;Subir Archivos&quot;.
             </span>
           )}
         </div>
@@ -806,6 +807,7 @@ function CategoriesPanel({ categories, editingCategory, setEditingCategory, onRe
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [successMessage, setSuccessMessage] = useState("");
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => {
     if (editingCategory) {
       setForm({ ...editingCategory });

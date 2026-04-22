@@ -5,7 +5,6 @@ import MenuSection from "./components/MenuSection";
 import { MenuSkeleton } from "./components/MenuCardSkeleton";
 import ReservationSection from "./components/ReservationSection";
 import Footer from "./components/Footer";
-import { supabase } from "./utils/supabase";
 import styles from "./App.module.css";
 
 function App() {
