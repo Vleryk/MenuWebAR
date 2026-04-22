@@ -318,8 +318,10 @@ function ItemsPanel({
 
   const itemsList = allItems || items;
 
-  // eslint-disable-next-line react-hooks/set-state-in-effect
-  useEffect(() => {
+  // Sincronizar form cuando cambia editingItem (patron recomendado por React en lugar de useEffect)
+  const prevEditingItemRef = useRef(editingItem);
+  if (prevEditingItemRef.current !== editingItem) {
+    prevEditingItemRef.current = editingItem;
     if (editingItem) {
       setForm({
         ...editingItem,
@@ -340,7 +342,7 @@ function ItemsPanel({
     }
     setFieldErrors({});
     setNewIngredient("");
-  }, [editingItem, categories]);
+  }
 
   const getFieldError = (name, value) => {
     if (name === "category") {
@@ -588,7 +590,7 @@ function ItemsPanel({
             value={form.price}
             onChange={handleChange}
             required
-            placeholder="$12.990 (al editar borra el signo $)"
+            placeholder="$12.990"
           />
           {fieldErrors.price ? (
             <span className={styles.helperError}>{fieldErrors.price}</span>
@@ -807,15 +809,17 @@ function CategoriesPanel({ categories, editingCategory, setEditingCategory, onRe
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [successMessage, setSuccessMessage] = useState("");
 
-  // eslint-disable-next-line react-hooks/set-state-in-effect
-  useEffect(() => {
+  // Sincronizar form cuando cambia editingCategory
+  const prevEditingCategoryRef = useRef(editingCategory);
+  if (prevEditingCategoryRef.current !== editingCategory) {
+    prevEditingCategoryRef.current = editingCategory;
     if (editingCategory) {
       setForm({ ...editingCategory });
     } else {
       setForm({ id: "", label: "" });
     }
     setFieldErrors({});
-  }, [editingCategory]);
+  }
 
   const getFieldError = (name, value) => {
     if (name === "label") {
