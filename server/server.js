@@ -9,11 +9,13 @@ const jwt = require("jsonwebtoken");
 const rateLimit = require("express-rate-limit");
 const multer = require("multer");
 const crypto = require("crypto");
+const cloudinary = require("cloudinary").v2;
 const {
   isSupabaseEnabled,
   loadSupabaseData,
   createModeloAsset: createSupabaseModeloAsset,
   createImagenAsset: createSupabaseImagenAsset,
+  deleteImagenAsset: deleteSupabaseImagenAsset,
   createCategory: createSupabaseCategory,
   updateCategory: updateSupabaseCategory,
   deleteCategory: deleteSupabaseCategory,
@@ -37,6 +39,47 @@ if (!JWT_SECRET) {
 }
 
 const jwtSecret = JWT_SECRET || "dev-only-insecure-secret";
+
+// --- Configuración de Cloudinary ---
+const cloudinaryEnabled = Boolean(
+  process.env.CLOUDINARY_CLOUD_NAME &&
+  process.env.CLOUDINARY_API_KEY &&
+  process.env.CLOUDINARY_API_SECRET,
+);
+
+if (cloudinaryEnabled) {
+  cloudinary.config({
+    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+    api_key: process.env.CLOUDINARY_API_KEY,
+    api_secret: process.env.CLOUDINARY_API_SECRET,
+    secure: true,
+  });
+} else {
+  console.warn(
+    "WARNING: Cloudinary no configurado (falta CLOUDINARY_CLOUD_NAME/API_KEY/API_SECRET). El borrado solo afectara Supabase.",
+  );
+}
+
+function extractCloudinaryPublicId(url) {
+  if (typeof url !== "string" || !url.includes("res.cloudinary.com")) return null;
+  try {
+    const parsed = new URL(url);
+    const parts = parsed.pathname.split("/").filter(Boolean);
+    const uploadIdx = parts.indexOf("upload");
+    if (uploadIdx === -1) return null;
+    let afterUpload = parts.slice(uploadIdx + 1);
+    // Quitar version si existe (ej: v1234567890)
+    if (afterUpload[0] && /^v\d+$/.test(afterUpload[0])) {
+      afterUpload = afterUpload.slice(1);
+    }
+    if (afterUpload.length === 0) return null;
+    const last = afterUpload[afterUpload.length - 1];
+    const lastNoExt = last.replace(/\.[^.]+$/, "");
+    return [...afterUpload.slice(0, -1), lastNoExt].join("/");
+  } catch {
+    return null;
+  }
+}
 
 // --- Configuración de Multer para subida de imágenes ---
 const uploadDir = path.join(__dirname, "..", "public", "assets", "IMG");
@@ -126,7 +169,6 @@ function isValidId(val) {
 }
 
 function isValidPrice(val) {
-  // Los precios se almacenan como strings, ej: "$12.990"
   return typeof val === "string" && val.trim().length > 0;
 }
 
@@ -466,6 +508,40 @@ app.post("/api/admin/imagenes", authMiddleware, (req, res) => {
   createSupabaseImagenAsset({ id, name, label: imagenLabel, url: imagenSrc })
     .then((newImagen) => res.status(201).json(newImagen))
     .catch((error) => handleSupabaseRouteError(res, error));
+});
+
+// --- Eliminar Imagen (Supabase + Cloudinary) ---
+app.delete("/api/admin/imagenes/:id", authMiddleware, async (req, res) => {
+  if (!isSupabaseEnabled) {
+    return requireSupabaseDataSource(res);
+  }
+
+  try {
+    const { url } = await deleteSupabaseImagenAsset(req.params.id);
+
+    let cloudinaryResult = null;
+    if (cloudinaryEnabled && url) {
+      const publicId = extractCloudinaryPublicId(url);
+      if (publicId) {
+        try {
+          cloudinaryResult = await cloudinary.uploader.destroy(publicId, {
+            resource_type: "image",
+            invalidate: true,
+          });
+        } catch (cloudErr) {
+          console.error("Error borrando de Cloudinary:", cloudErr?.message || cloudErr);
+          cloudinaryResult = { error: cloudErr?.message || "Error Cloudinary" };
+        }
+      }
+    }
+
+    return res.json({
+      message: "Imagen eliminada",
+      cloudinary: cloudinaryResult,
+    });
+  } catch (error) {
+    return handleSupabaseRouteError(res, error);
+  }
 });
 
 // --- Categorías ---

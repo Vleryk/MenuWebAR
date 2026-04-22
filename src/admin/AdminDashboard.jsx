@@ -11,6 +11,7 @@ import {
   createCategory,
   updateCategory,
   deleteCategory,
+  deleteImagen,
   logout,
   verifyToken,
 } from "./api";
@@ -182,14 +183,34 @@ function SuccessModal({ isOpen, message, onClose }) {
   );
 }
 
-function ImageModal({ isOpen, imagenes, onSelectImage, onClose }) {
+function ImageModal({ isOpen, imagenes, onSelectImage, onDeleteImage, onClose }) {
   const [searchTerm, setSearchTerm] = useState("");
+  const [deletingId, setDeletingId] = useState(null);
 
   const filteredImages = imagenes.filter((img) =>
     img.label.toLowerCase().includes(searchTerm.toLowerCase()),
   );
 
   if (!isOpen) return null;
+
+  const handleDeleteClick = async (e, img) => {
+    e.stopPropagation();
+    if (
+      !window.confirm(
+        `¿Eliminar "${img.label}"?\n\nSe borrará de Cloudinary y no podrá recuperarse.`,
+      )
+    ) {
+      return;
+    }
+    setDeletingId(img.id);
+    try {
+      await onDeleteImage(img.id);
+    } catch (err) {
+      alert(err.message || "Error al eliminar imagen");
+    } finally {
+      setDeletingId(null);
+    }
+  };
 
   return (
     <div className={styles.modalOverlay} onClick={onClose}>
@@ -212,13 +233,20 @@ function ImageModal({ isOpen, imagenes, onSelectImage, onClose }) {
         <div className={styles.imageGrid}>
           {filteredImages.length > 0 ? (
             filteredImages.map((img) => (
-              <div
-                key={img.id}
-                className={styles.imageGridItem}
-                onClick={() => onSelectImage(img.src)}
-              >
-                <img src={img.src} alt={img.label} className={styles.gridImage} />
-                <p className={styles.gridLabel}>{img.label}</p>
+              <div key={img.id} className={styles.imageGridItem}>
+                <button
+                  type="button"
+                  className={styles.imageDeleteBtn}
+                  onClick={(e) => handleDeleteClick(e, img)}
+                  disabled={deletingId === img.id}
+                  title="Eliminar imagen"
+                >
+                  {deletingId === img.id ? "..." : "✕"}
+                </button>
+                <div className={styles.imageGridItemInner} onClick={() => onSelectImage(img.src)}>
+                  <img src={img.src} alt={img.label} className={styles.gridImage} />
+                  <p className={styles.gridLabel}>{img.label}</p>
+                </div>
               </div>
             ))
           ) : (
@@ -418,6 +446,16 @@ function ItemsPanel({
     setShowImageModal(false);
   };
 
+  const handleDeleteImage = async (imageId) => {
+    await deleteImagen(imageId);
+    // Si la imagen borrada estaba seleccionada en el form, limpiar
+    const deletedImg = imagenes.find((i) => i.id === imageId);
+    if (deletedImg && form.image === deletedImg.src) {
+      setForm((f) => ({ ...f, image: "" }));
+    }
+    await onReload();
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
@@ -492,6 +530,7 @@ function ItemsPanel({
         isOpen={showImageModal}
         imagenes={imagenes}
         onSelectImage={handleSelectImage}
+        onDeleteImage={handleDeleteImage}
         onClose={() => setShowImageModal(false)}
       />
 

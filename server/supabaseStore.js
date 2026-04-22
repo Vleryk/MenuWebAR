@@ -430,6 +430,60 @@ async function createImagenAsset(payload) {
   return mapImagenRow(inserted.data);
 }
 
+async function deleteImagenAsset(imageIdParam) {
+  const imageId = parseIntId(imageIdParam);
+  if (imageId === null) {
+    throw createHttpError(400, "Imagen no valida");
+  }
+
+  // Validar que ningun plato este usando esta imagen
+  const inUse = await supabase.from("platos").select("id,nombre").eq("imagen", imageId).limit(5);
+
+  if (inUse.error) {
+    throw createHttpError(500, `Error validando uso de imagen: ${inUse.error.message}`);
+  }
+
+  if (inUse.data && inUse.data.length > 0) {
+    const nombres = inUse.data.map((p) => p.nombre).join(", ");
+    throw createHttpError(
+      409,
+      `No se puede eliminar: imagen en uso por ${inUse.data.length} plato(s): ${nombres}`,
+    );
+  }
+
+  // Obtener URL antes de borrar (para eliminar de Cloudinary despues)
+  const { data: imagen, error: fetchError } = await supabase
+    .from("imagenes")
+    .select("id_image,url_image")
+    .eq("id_image", imageId)
+    .maybeSingle();
+
+  if (fetchError) {
+    throw createHttpError(500, `Error consultando imagen: ${fetchError.message}`);
+  }
+
+  if (!imagen) {
+    throw createHttpError(404, "Imagen no encontrada");
+  }
+
+  const removed = await supabase
+    .from("imagenes")
+    .delete()
+    .eq("id_image", imageId)
+    .select("id_image")
+    .maybeSingle();
+
+  if (removed.error) {
+    throw createHttpError(500, `No se pudo eliminar imagen: ${removed.error.message}`);
+  }
+
+  if (!removed.data) {
+    throw createHttpError(404, "Imagen no encontrada");
+  }
+
+  return { url: imagen.url_image };
+}
+
 async function createCategory(payload) {
   const categoryLabel = safeTrim(payload.label);
   if (!categoryLabel) {
@@ -697,6 +751,7 @@ module.exports = {
   loadSupabaseData,
   createModeloAsset,
   createImagenAsset,
+  deleteImagenAsset,
   createCategory,
   updateCategory,
   deleteCategory,

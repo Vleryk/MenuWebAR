@@ -151,6 +151,18 @@ export async function createImagenAsset(payload) {
   return res.json();
 }
 
+export async function deleteImagen(id) {
+  const res = await fetch(`${API_URL}/admin/imagenes/${encodeURIComponent(id)}`, {
+    method: "DELETE",
+    headers: getHeaders(),
+  });
+  if (!res.ok) {
+    const err = await res.json();
+    throw new Error(err.error || "Error al eliminar imagen");
+  }
+  return res.json();
+}
+
 export async function createItem(item) {
   const res = await fetch(`${API_URL}/admin/items`, {
     method: "POST",
