@@ -156,9 +156,7 @@ export default function AdminDashboard() {
             onReload={loadData}
           />
         )}
-        {activeTab === "upload" && (
-          <UploadPanel onReload={loadData} />
-        )}
+        {activeTab === "upload" && <UploadPanel onReload={loadData} />}
       </main>
     </div>
   );
@@ -188,7 +186,7 @@ function ImageModal({ isOpen, imagenes, onSelectImage, onClose }) {
   const [searchTerm, setSearchTerm] = useState("");
 
   const filteredImages = imagenes.filter((img) =>
-    img.label.toLowerCase().includes(searchTerm.toLowerCase())
+    img.label.toLowerCase().includes(searchTerm.toLowerCase()),
   );
 
   if (!isOpen) return null;
@@ -198,11 +196,7 @@ function ImageModal({ isOpen, imagenes, onSelectImage, onClose }) {
       <div className={styles.imageModalContent} onClick={(e) => e.stopPropagation()}>
         <div className={styles.imageModalHeader}>
           <h3>Seleccionar Imagen</h3>
-          <button
-            className={styles.imageModalClose}
-            onClick={onClose}
-            type="button"
-          >
+          <button className={styles.imageModalClose} onClick={onClose} type="button">
             ✕
           </button>
         </div>
@@ -248,12 +242,13 @@ function generateItemId(itemsList) {
 }
 
 function generateCategoryId(categoriesList, label) {
-  const base = label
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "") || "cat";
+  const base =
+    label
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "") || "cat";
   let id = base;
   let i = 2;
   while (categoriesList.some((c) => c.id === id)) {

@@ -13,7 +13,9 @@ function DirectARViewer() {
       .then((res) => res.json())
       .then((data) => {
         // Buscamos el plato específico. Asumiendo que tus items tienen una propiedad 'id' o 'name'
-        const foundItem = data.menuItems?.find((m) => m.id === itemId || m.name.toLowerCase().replace(/\s+/g, '-') === itemId);
+        const foundItem = data.menuItems?.find(
+          (m) => m.id === itemId || m.name.toLowerCase().replace(/\s+/g, "-") === itemId,
+        );
         setItem(foundItem);
         setLoading(false);
       })
@@ -87,7 +89,7 @@ const styles = {
     boxShadow: "0px 4px 10px rgba(0,0,0,0.5)",
     cursor: "pointer",
     zIndex: 10,
-  }
+  },
 };
 
 export default DirectARViewer;

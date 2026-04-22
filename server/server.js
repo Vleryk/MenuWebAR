@@ -176,7 +176,7 @@ function initAdmin() {
 
     if (!defaultPassword) {
       console.error(
-        "ADMIN_DEFAULT_PASSWORD env var is required to create the initial admin account."
+        "ADMIN_DEFAULT_PASSWORD env var is required to create the initial admin account.",
       );
       console.error("Set it in your .env file. See .env.example for reference.");
       process.exit(1);
@@ -185,7 +185,7 @@ function initAdmin() {
     const hash = bcrypt.hashSync(defaultPassword, 10);
     fs.writeFileSync(
       ADMIN_FILE,
-      JSON.stringify({ username: defaultEmail, password: hash }, null, 2)
+      JSON.stringify({ username: defaultEmail, password: hash }, null, 2),
     );
     console.log(`Admin created: ${defaultEmail} (change password after first login)`);
   }
@@ -198,9 +198,7 @@ function handleSupabaseRouteError(res, error) {
     console.error("Supabase route error:", error?.message || error);
   }
 
-  return res
-    .status(statusCode)
-    .json({ error: error?.message || "Error de datos en Supabase" });
+  return res.status(statusCode).json({ error: error?.message || "Error de datos en Supabase" });
 }
 
 function requireSupabaseDataSource(res) {
@@ -405,7 +403,9 @@ app.post("/api/admin/modelos", authMiddleware, (req, res) => {
     typeof (label || name || modeloId) === "string" ? (label || name || modeloId).trim() : "";
 
   if (!isValidModeloId(modeloId)) {
-    return res.status(400).json({ error: "id de modelo invalido (solo letras, numeros, guion y guion bajo)" });
+    return res
+      .status(400)
+      .json({ error: "id de modelo invalido (solo letras, numeros, guion y guion bajo)" });
   }
 
   if (!isNonEmptyString(modeloLabel)) {
@@ -442,7 +442,9 @@ app.post("/api/admin/imagenes", authMiddleware, (req, res) => {
     typeof (label || name || imagenId) === "string" ? (label || name || imagenId).trim() : "";
 
   if (!isValidId(imagenId)) {
-    return res.status(400).json({ error: "id de imagen invalido (solo letras, numeros, guion y guion bajo)" });
+    return res
+      .status(400)
+      .json({ error: "id de imagen invalido (solo letras, numeros, guion y guion bajo)" });
   }
 
   if (!isNonEmptyString(imagenLabel)) {
@@ -483,7 +485,9 @@ app.get("/api/admin/categories", authMiddleware, async (_req, res) => {
 app.post("/api/admin/categories", authMiddleware, (req, res) => {
   const { id, label } = req.body;
   if (!isValidId(id)) {
-    return res.status(400).json({ error: "id invalido (solo letras, numeros, guion y guion bajo)" });
+    return res
+      .status(400)
+      .json({ error: "id invalido (solo letras, numeros, guion y guion bajo)" });
   }
   if (!isNonEmptyString(label)) {
     return res.status(400).json({ error: "label es requerido" });
@@ -540,7 +544,9 @@ app.get("/api/admin/items", authMiddleware, async (_req, res) => {
 app.post("/api/admin/items", authMiddleware, (req, res) => {
   const { id, category, name, description, price, image, modelAR, ingredients } = req.body;
   if (!isValidId(id)) {
-    return res.status(400).json({ error: "id invalido (solo letras, numeros, guion y guion bajo)" });
+    return res
+      .status(400)
+      .json({ error: "id invalido (solo letras, numeros, guion y guion bajo)" });
   }
   if (!isNonEmptyString(category)) {
     return res.status(400).json({ error: "category es requerido" });

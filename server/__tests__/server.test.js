@@ -80,9 +80,7 @@ describe("API Endpoints", () => {
 
   describe("POST /api/auth/login", () => {
     it("returns 400 if username or password missing", async () => {
-      const res = await request(app)
-        .post("/api/auth/login")
-        .send({ username: "test@test.com" });
+      const res = await request(app).post("/api/auth/login").send({ username: "test@test.com" });
       expect(res.status).toBe(400);
     });
 

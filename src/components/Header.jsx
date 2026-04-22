@@ -25,11 +25,7 @@ function Header() {
   return (
     <header className={styles.headerNavbar}>
       <div className={styles.navbarContent}>
-        <img
-          className={styles.navbarLogo}
-          src={restaurantConfig.links.logo}
-          alt="Logo Route 66"
-        />
+        <img className={styles.navbarLogo} src={restaurantConfig.links.logo} alt="Logo Route 66" />
 
         <nav className={styles.navbarLinks}>
           {navLinks.map((link) => (

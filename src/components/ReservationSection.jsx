@@ -103,7 +103,8 @@ function ReservationSection() {
       return;
     }
 
-    const selectedZoneLabel = zones.find((zone) => zone.value === reservationZone)?.label ?? "Salon";
+    const selectedZoneLabel =
+      zones.find((zone) => zone.value === reservationZone)?.label ?? "Salon";
     const formattedDate = new Intl.DateTimeFormat("es-CL", {
       dateStyle: "full",
     }).format(new Date(`${reservationDate}T00:00:00`));
@@ -125,7 +126,7 @@ function ReservationSection() {
 
     // Muestra mensaje de confirmacion con la info de la reserva
     setConfirmationMessage(
-      `Reserva enviada para ${reservationPeople} personas el ${formattedDate} a las ${validReservationTime} en ${selectedZoneLabel}. Se abriran WhatsApp y email.`
+      `Reserva enviada para ${reservationPeople} personas el ${formattedDate} a las ${validReservationTime} en ${selectedZoneLabel}. Se abriran WhatsApp y email.`,
     );
 
     // Deshabilita el boton durante un momento para que no se abran multiples ventanas
@@ -220,9 +221,9 @@ function ReservationSection() {
         </label>
 
         {/* El boton se deshabilita si no hay horarios o mientras se abre */}
-        <button 
-          type="submit" 
-          className={styles.reservationSubmit} 
+        <button
+          type="submit"
+          className={styles.reservationSubmit}
           disabled={!availableTimeSlots.length || isLoading}
         >
           {isLoading ? "Abriendo..." : "Reservar"}
@@ -230,7 +231,9 @@ function ReservationSection() {
       </form>
 
       {/* Muestra el mensaje de confirmacion cuando se envio la reserva */}
-      {confirmationMessage ? <p className={styles.reservationNotice}>{confirmationMessage}</p> : null}
+      {confirmationMessage ? (
+        <p className={styles.reservationNotice}>{confirmationMessage}</p>
+      ) : null}
     </section>
   );
 }

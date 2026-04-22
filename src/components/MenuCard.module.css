@@ -55,7 +55,7 @@
   border-radius: 10px;
   background: rgba(12, 20, 35, 0.6);
   padding: 0.3rem 0.6rem;
-  min-width: 44px; 
+  min-width: 44px;
   min-height: 44px;
   display: inline-flex;
   align-items: center;
@@ -166,7 +166,12 @@
   content: "";
   position: absolute;
   inset: 0;
-  background: linear-gradient(120deg, transparent 0%, rgba(255, 255, 255, 0.35) 50%, transparent 100%);
+  background: linear-gradient(
+    120deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.35) 50%,
+    transparent 100%
+  );
   transform: translateX(-100%);
   animation: loadingShimmer 1.2s linear infinite;
 }

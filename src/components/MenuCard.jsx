@@ -125,7 +125,7 @@ function MenuCard({ item }) {
 
           <div className={styles.menuFooter}>
             <strong>{item.price}</strong>
-            
+
             <div className={styles.cardActions}>
               <button
                 type="button"

@@ -8,7 +8,10 @@ const CLOUDINARY_MODELS_FOLDER = `${CLOUDINARY_UPLOAD_FOLDER}/models`;
 
 function buildAssetId(fileName, prefix) {
   const baseName = fileName.replace(/\.[^/.]+$/, "").toLowerCase();
-  const sanitized = baseName.replace(/[^a-z0-9_-]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40);
+  const sanitized = baseName
+    .replace(/[^a-z0-9_-]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 40);
   const suffix = Date.now().toString(36);
   return `${prefix}_${sanitized || "asset"}_${suffix}`;
 }
@@ -58,7 +61,7 @@ export default function AdminUploader({ onUploadComplete }) {
 
     if (missingVariables.length > 0) {
       setError(
-        `Falta configurar: ${missingVariables.join(", ")}. Si acabas de editar .env, reinicia npm run dev.`
+        `Falta configurar: ${missingVariables.join(", ")}. Si acabas de editar .env, reinicia npm run dev.`,
       );
       return false;
     }
@@ -73,7 +76,7 @@ export default function AdminUploader({ onUploadComplete }) {
 
     const response = await fetch(
       `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/${resourceType}/upload`,
-      { method: "POST", body: formData }
+      { method: "POST", body: formData },
     );
 
     const payload = await response.json();
@@ -400,7 +403,8 @@ export default function AdminUploader({ onUploadComplete }) {
                   height: 160,
                   borderRadius: 8,
                   border: "1px solid rgba(255,255,255,0.2)",
-                  background: "linear-gradient(135deg, rgba(212, 170, 99, 0.12), rgba(212, 170, 99, 0.04))",
+                  background:
+                    "linear-gradient(135deg, rgba(212, 170, 99, 0.12), rgba(212, 170, 99, 0.04))",
                   display: "flex",
                   flexDirection: "column",
                   alignItems: "center",

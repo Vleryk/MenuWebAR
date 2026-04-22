@@ -16,13 +16,13 @@ function Footer() {
       // Horarios: abre a las 12:30 todos los dias
       // Cierra a las 23:00 dom-mar, 00:00 mie-sab
       const schedules = {
-        0: { open: 12 * 60 + 30, close: 23 * 60 },       // Domingo
-        1: { open: 12 * 60 + 30, close: 23 * 60 },       // Lunes
-        2: { open: 12 * 60 + 30, close: 23 * 60 },       // Martes
-        3: { open: 12 * 60 + 30, close: 24 * 60 },       // Miercoles
-        4: { open: 12 * 60 + 30, close: 24 * 60 },       // Jueves
-        5: { open: 12 * 60 + 30, close: 24 * 60 },       // Viernes
-        6: { open: 12 * 60 + 30, close: 24 * 60 },       // Sabado
+        0: { open: 12 * 60 + 30, close: 23 * 60 }, // Domingo
+        1: { open: 12 * 60 + 30, close: 23 * 60 }, // Lunes
+        2: { open: 12 * 60 + 30, close: 23 * 60 }, // Martes
+        3: { open: 12 * 60 + 30, close: 24 * 60 }, // Miercoles
+        4: { open: 12 * 60 + 30, close: 24 * 60 }, // Jueves
+        5: { open: 12 * 60 + 30, close: 24 * 60 }, // Viernes
+        6: { open: 12 * 60 + 30, close: 24 * 60 }, // Sabado
       };
 
       const today = schedules[day];
@@ -65,16 +65,16 @@ function Footer() {
           src={restaurantConfig.links.logo}
           alt={`Logo ${restaurantConfig.name}`}
         />
-        <p className={styles.footerTagline}>
-          {restaurantConfig.tagline}
-        </p>
+        <p className={styles.footerTagline}>{restaurantConfig.tagline}</p>
         {/* Las redes sociales aparecen aqui solo en mobile */}
         <div className={styles.socialListMobile}>
           <ul className={styles.socialList} aria-label="Redes sociales">
             {socialLinks.map((social) => (
               <li key={social.name}>
                 <a href={social.url} target="_blank" rel="noreferrer" className={styles.socialItem}>
-                  <span className={styles.socialIcon} aria-hidden="true">{social.icon}</span>
+                  <span className={styles.socialIcon} aria-hidden="true">
+                    {social.icon}
+                  </span>
                   <span>{social.name}</span>
                 </a>
               </li>
@@ -97,7 +97,9 @@ function Footer() {
           <div className={styles.hoursHeader}>
             <h5 className={styles.footerSubtitle}>Horarios</h5>
             {/* Badge que muestra si el local esta abierto o cerrado en tiempo real */}
-            <span className={`${styles.statusBadge} ${isOpen ? styles.statusOpen : styles.statusClosed}`}>
+            <span
+              className={`${styles.statusBadge} ${isOpen ? styles.statusOpen : styles.statusClosed}`}
+            >
               <span className={styles.statusDot} />
               {isOpen ? "Abierto" : "Cerrado"}
             </span>
@@ -140,7 +142,9 @@ function Footer() {
             {socialLinks.map((social) => (
               <li key={social.name}>
                 <a href={social.url} target="_blank" rel="noreferrer" className={styles.socialItem}>
-                  <span className={styles.socialIcon} aria-hidden="true">{social.icon}</span>
+                  <span className={styles.socialIcon} aria-hidden="true">
+                    {social.icon}
+                  </span>
                   <span>{social.name}</span>
                 </a>
               </li>

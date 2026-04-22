@@ -533,10 +533,7 @@
       "price": "11.111",
       "image": "https://res.cloudinary.com/dxpam0kqa/image/upload/v1776729634/uploads/fyths5evuov3lv6bvpmy.png",
       "modelAR": "arrozConSalsa",
-      "ingredients": [
-        "tomate",
-        "fideos"
-      ]
+      "ingredients": ["tomate", "fideos"]
     }
   ]
 }

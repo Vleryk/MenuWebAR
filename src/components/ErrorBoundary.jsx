@@ -33,9 +33,7 @@ class ErrorBoundary extends Component {
             textAlign: "center",
           }}
         >
-          <h2 style={{ color: "#d4aa63", marginBottom: "0.5rem" }}>
-            Algo salió mal
-          </h2>
+          <h2 style={{ color: "#d4aa63", marginBottom: "0.5rem" }}>Algo salió mal</h2>
           <p style={{ opacity: 0.7 }}>
             Hubo un error al cargar esta sección. Intenta recargar la página.
           </p>

@@ -38,12 +38,11 @@ function App() {
 
   const filteredItems = useMemo(
     () => menuItems.filter((item) => item.category === activeCategory),
-    [activeCategory, menuItems]
+    [activeCategory, menuItems],
   );
 
   const activeLabel =
-    categories.find((category) => category.id === activeCategory)?.label ||
-    "Menu";
+    categories.find((category) => category.id === activeCategory)?.label || "Menu";
 
   return (
     <div className={styles.appShell}>
@@ -81,7 +80,6 @@ function App() {
         </div>
 
         <ReservationSection />
-
       </main>
 
       <Footer />

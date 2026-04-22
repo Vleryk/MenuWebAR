@@ -45,7 +45,6 @@
   }
 }
 
-
 @media (max-width: 900px) {
   .menuGrid {
     grid-template-columns: 1fr;

@@ -16,9 +16,7 @@ describe("CategoryTabs", () => {
   });
 
   it("renders all category buttons", () => {
-    render(
-      <CategoryTabs categories={categories} activeCategory="entradas" onChange={onChange} />,
-    );
+    render(<CategoryTabs categories={categories} activeCategory="entradas" onChange={onChange} />);
 
     expect(screen.getByText("Entradas")).toBeInTheDocument();
     expect(screen.getByText("Platos Principales")).toBeInTheDocument();
@@ -26,9 +24,7 @@ describe("CategoryTabs", () => {
   });
 
   it("calls onChange when a tab is clicked", () => {
-    render(
-      <CategoryTabs categories={categories} activeCategory="entradas" onChange={onChange} />,
-    );
+    render(<CategoryTabs categories={categories} activeCategory="entradas" onChange={onChange} />);
 
     fireEvent.click(screen.getByText("Bebidas"));
     expect(onChange).toHaveBeenCalledWith("bebidas");

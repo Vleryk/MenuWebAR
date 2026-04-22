@@ -315,7 +315,7 @@ async function loadSupabaseData() {
     selectTable(
       "platos",
       "id,nombre,descripcion,precio,categoria,imagen,modelo,ingredientes",
-      "id"
+      "id",
     ),
     getLookups(),
   ]);
@@ -503,7 +503,10 @@ async function deleteCategory(categoryIdParam) {
 
   const removedItems = await supabase.from("platos").delete().eq("categoria", categoryId);
   if (removedItems.error) {
-    throw createHttpError(500, `No se pudieron eliminar platos de la categoria: ${removedItems.error.message}`);
+    throw createHttpError(
+      500,
+      `No se pudieron eliminar platos de la categoria: ${removedItems.error.message}`,
+    );
   }
 
   const removedCategory = await supabase

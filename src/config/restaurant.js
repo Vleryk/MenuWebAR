@@ -26,8 +26,7 @@ const restaurantConfig = {
   links: {
     delivery: "https://delivery.route66.cl/pedir",
     logo: "/assets/references/logo-contraste.7ddc12ebe66a8491be1140703728458f.svg",
-    mapEmbed:
-      "https://www.google.com/maps?q=Isidora+Goyenechea+2960,+Las+Condes&output=embed",
+    mapEmbed: "https://www.google.com/maps?q=Isidora+Goyenechea+2960,+Las+Condes&output=embed",
   },
 
   reservations: {
