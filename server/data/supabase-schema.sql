@@ -46,3 +46,22 @@ create table if not exists public.platos (
 create index if not exists idx_platos_categoria on public.platos (categoria);
 create index if not exists idx_platos_imagen on public.platos (imagen);
 create index if not exists idx_platos_modelo on public.platos (modelo);
+
+
+-- Ejecutar este script en el SQL Editor de Supabase para una base nueva.
+
+-- Esto debería arreglarlo:
+
+-- Para fixear agregar plato:
+-- SELECT setval(
+--   pg_get_serial_sequence('platos', 'id'),
+--   COALESCE((SELECT MAX(id) FROM platos), 0) + 1,
+--   false
+-- );
+
+-- Para fixear agregar categoría:
+-- SELECT setval(
+--   pg_get_serial_sequence('categorias', 'id_categ'),
+--   COALESCE((SELECT MAX(id_categ) FROM categorias), 0) + 1,
+--   false
+-- );
