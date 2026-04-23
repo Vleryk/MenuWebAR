@@ -36,37 +36,25 @@ function MenuCard({ item }) {
     setIsModelLoading(false);
   };
 
-  const openIngredientsModal = () => {
-    setIsIngredientsOpen(true);
-  };
-
-  const closeIngredientsModal = () => {
-    setIsIngredientsOpen(false);
-  };
+  const openIngredientsModal = () => setIsIngredientsOpen(true);
+  const closeIngredientsModal = () => setIsIngredientsOpen(false);
 
   useEffect(() => {
     if (!isArOpen && !isIngredientsOpen) return;
-
     const handleKeyDown = (event) => {
       if (event.key === "Escape") {
         if (isArOpen) closeModal();
         if (isIngredientsOpen) closeIngredientsModal();
       }
     };
-
     window.addEventListener("keydown", handleKeyDown);
-
-    return () => {
-      window.removeEventListener("keydown", handleKeyDown);
-    };
+    return () => window.removeEventListener("keydown", handleKeyDown);
   }, [isArOpen, isIngredientsOpen]);
 
   useEffect(() => {
     if (!isArOpen && !isIngredientsOpen) return;
-
     const previousBodyOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
-
     return () => {
       document.body.style.overflow = previousBodyOverflow;
     };
@@ -80,7 +68,6 @@ function MenuCard({ item }) {
     const handleProgress = (event) => {
       const rawProgress = event.detail?.totalProgress ?? 0;
       const nextProgress = Math.min(100, Math.max(0, Math.round(rawProgress * 100)));
-
       setLoadProgress(nextProgress);
       setIsModelLoading(nextProgress < 100);
     };
@@ -90,9 +77,7 @@ function MenuCard({ item }) {
       setIsModelLoading(false);
     };
 
-    const handleError = () => {
-      setIsModelLoading(false);
-    };
+    const handleError = () => setIsModelLoading(false);
 
     modelViewer.addEventListener("progress", handleProgress);
     modelViewer.addEventListener("load", handleLoad);
@@ -114,9 +99,13 @@ function MenuCard({ item }) {
     }, 50);
   };
 
+  const cardStyle = item.cardColor ? { backgroundColor: item.cardColor } : undefined;
+
   return (
     <>
-      <article className={styles.menuCard}>
+      <article className={styles.menuCard} style={cardStyle}>
+        {item.cardMessage && <span className={styles.cardBadge}>{item.cardMessage}</span>}
+
         <img className={styles.menuThumb} src={item.image} alt={item.name} loading="lazy" />
 
         <div className={styles.menuContent}>

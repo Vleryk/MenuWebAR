@@ -29,7 +29,6 @@ const PORT = process.env.PORT || 3001;
 const JWT_SECRET = process.env.JWT_SECRET;
 const ADMIN_FILE = path.join(__dirname, "data", "admin.json");
 
-// Fallo inmediato: JWT_SECRET es obligatorio en producción
 if (!JWT_SECRET) {
   if (process.env.NODE_ENV === "production") {
     console.error("FATAL: JWT_SECRET environment variable is required in production.");
@@ -40,7 +39,7 @@ if (!JWT_SECRET) {
 
 const jwtSecret = JWT_SECRET || "dev-only-insecure-secret";
 
-// --- Configuración de Cloudinary ---
+// --- Cloudinary ---
 const cloudinaryEnabled = Boolean(
   process.env.CLOUDINARY_CLOUD_NAME &&
   process.env.CLOUDINARY_API_KEY &&
@@ -55,9 +54,7 @@ if (cloudinaryEnabled) {
     secure: true,
   });
 } else {
-  console.warn(
-    "WARNING: Cloudinary no configurado (falta CLOUDINARY_CLOUD_NAME/API_KEY/API_SECRET). El borrado solo afectara Supabase.",
-  );
+  console.warn("WARNING: Cloudinary no configurado. El borrado solo afectara Supabase.");
 }
 
 function extractCloudinaryPublicId(url) {
@@ -68,7 +65,6 @@ function extractCloudinaryPublicId(url) {
     const uploadIdx = parts.indexOf("upload");
     if (uploadIdx === -1) return null;
     let afterUpload = parts.slice(uploadIdx + 1);
-    // Quitar version si existe (ej: v1234567890)
     if (afterUpload[0] && /^v\d+$/.test(afterUpload[0])) {
       afterUpload = afterUpload.slice(1);
     }
@@ -81,20 +77,16 @@ function extractCloudinaryPublicId(url) {
   }
 }
 
-// --- Configuración de Multer para subida de imágenes ---
+// --- Multer ---
 const uploadDir = path.join(__dirname, "..", "public", "assets", "IMG");
 
-// Crear directorio si no existe
 if (!fs.existsSync(uploadDir)) {
   fs.mkdirSync(uploadDir, { recursive: true });
 }
 
 const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, uploadDir);
-  },
+  destination: (req, file, cb) => cb(null, uploadDir),
   filename: (req, file, cb) => {
-    // Generar nombre único: timestamp-hash.extensión
     const ext = path.extname(file.originalname).toLowerCase();
     const name = `${Date.now()}-${crypto.randomBytes(8).toString("hex")}${ext}`;
     cb(null, name);
@@ -102,7 +94,6 @@ const storage = multer.diskStorage({
 });
 
 const fileFilter = (req, file, cb) => {
-  // Solo permitir imágenes
   const allowedMimes = ["image/jpeg", "image/jpg", "image/png", "image/webp", "image/gif"];
   if (allowedMimes.includes(file.mimetype)) {
     cb(null, true);
@@ -114,15 +105,17 @@ const fileFilter = (req, file, cb) => {
 const upload = multer({
   storage,
   fileFilter,
-  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB máximo
+  limits: { fileSize: 5 * 1024 * 1024 },
 });
 
-// --- Helpers de validación ---
+// --- Validación ---
 const SAFE_PATH_RE = /^\/assets\/(modelosAR|IMG)\//;
 const CLOUDINARY_HOST = "res.cloudinary.com";
+const HEX_COLOR_RE = /^#[0-9A-Fa-f]{6}$/;
+const CARD_MESSAGE_MAX = 40;
 
 function isSafePath(p) {
-  if (!p) return true; // vacío es permitido
+  if (!p) return true;
   if (typeof p !== "string") return false;
   if (p.includes("..")) return false;
   if (!p.startsWith("/")) return false;
@@ -131,17 +124,14 @@ function isSafePath(p) {
 
 function isCloudinaryUploadUrl(value, resourceType) {
   if (typeof value !== "string" || !value.trim()) return false;
-
   try {
     const parsed = new URL(value);
     if (parsed.protocol !== "https:") return false;
     if (parsed.hostname !== CLOUDINARY_HOST) return false;
-
     const pathName = parsed.pathname || "";
     if (resourceType) {
       return pathName.includes(`/${resourceType}/upload/`);
     }
-
     return pathName.includes("/upload/");
   } catch {
     return false;
@@ -176,6 +166,23 @@ function isValidModeloId(id) {
   return typeof id === "string" && /^[a-zA-Z0-9_-]+$/.test(id);
 }
 
+function validateCardFields({ cardColor, cardMessage }) {
+  if (cardColor !== undefined && cardColor !== null && cardColor !== "") {
+    if (typeof cardColor !== "string" || !HEX_COLOR_RE.test(cardColor)) {
+      return "cardColor debe ser hex #RRGGBB";
+    }
+  }
+  if (cardMessage !== undefined && cardMessage !== null) {
+    if (typeof cardMessage !== "string") {
+      return "cardMessage debe ser texto";
+    }
+    if (cardMessage.length > CARD_MESSAGE_MAX) {
+      return `cardMessage maximo ${CARD_MESSAGE_MAX} caracteres`;
+    }
+  }
+  return null;
+}
+
 function resolveModelAR(modeloId, modelos) {
   if (!modeloId) return "";
   const modelo = (modelos || []).find((m) => m.id === modeloId);
@@ -189,11 +196,9 @@ function resolveMenuItems(items, modelos) {
   }));
 }
 
-// Archivos estáticos (salida compilada de Vite)
+// Archivos estáticos
 const frontendPath = path.join(__dirname, "../dist");
 app.use(express.static(frontendPath));
-
-// Servir archivos estáticos de public (para las imágenes subidas)
 app.use("/assets", express.static(path.join(__dirname, "..", "public", "assets")));
 
 function initAdmin() {
@@ -256,7 +261,6 @@ function requireSupabaseDataSource(res) {
 app.use(cors());
 app.use(express.json({ limit: "10mb" }));
 
-// Limitador de intentos para auth (15 intentos por ventana de 15 minutos)
 const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 15,
@@ -265,7 +269,6 @@ const loginLimiter = rateLimit({
   message: { error: "Demasiados intentos de login. Intenta de nuevo en 15 minutos." },
 });
 
-// Limitador general para todos los endpoints de la API
 const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 200,
@@ -291,7 +294,6 @@ function authMiddleware(req, res, next) {
   }
 }
 
-// Manejador centralizado de errores (Express requiere los 4 parámetros para middleware de errores)
 // eslint-disable-next-line no-unused-vars
 function errorHandler(err, _req, res, _next) {
   if (process.env.NODE_ENV !== "production") {
@@ -303,7 +305,7 @@ function errorHandler(err, _req, res, _next) {
 }
 
 // ========================
-// VERIFICACIÓN DE SALUD
+// HEALTH
 // ========================
 
 app.get("/api/health", (_req, res) => {
@@ -311,14 +313,11 @@ app.get("/api/health", (_req, res) => {
 });
 
 // ========================
-// RUTAS PÚBLICAS (no protegidas)
+// RUTAS PÚBLICAS
 // ========================
 
 app.get("/api/menu", async (_req, res) => {
-  if (!isSupabaseEnabled) {
-    return requireSupabaseDataSource(res);
-  }
-
+  if (!isSupabaseEnabled) return requireSupabaseDataSource(res);
   try {
     const data = await loadSupabaseData();
     return res.json({
@@ -331,10 +330,7 @@ app.get("/api/menu", async (_req, res) => {
 });
 
 app.get("/api/categories", async (_req, res) => {
-  if (!isSupabaseEnabled) {
-    return requireSupabaseDataSource(res);
-  }
-
+  if (!isSupabaseEnabled) return requireSupabaseDataSource(res);
   try {
     const data = await loadSupabaseData();
     return res.json(data.categories);
@@ -344,10 +340,7 @@ app.get("/api/categories", async (_req, res) => {
 });
 
 app.get("/api/modelos", async (_req, res) => {
-  if (!isSupabaseEnabled) {
-    return requireSupabaseDataSource(res);
-  }
-
+  if (!isSupabaseEnabled) return requireSupabaseDataSource(res);
   try {
     const data = await loadSupabaseData();
     return res.json(data.modelos || []);
@@ -357,10 +350,7 @@ app.get("/api/modelos", async (_req, res) => {
 });
 
 app.get("/api/imagenes", async (_req, res) => {
-  if (!isSupabaseEnabled) {
-    return requireSupabaseDataSource(res);
-  }
-
+  if (!isSupabaseEnabled) return requireSupabaseDataSource(res);
   try {
     const data = await loadSupabaseData();
     return res.json(data.imagenes || []);
@@ -370,10 +360,7 @@ app.get("/api/imagenes", async (_req, res) => {
 });
 
 app.get("/api/menu-items", async (_req, res) => {
-  if (!isSupabaseEnabled) {
-    return requireSupabaseDataSource(res);
-  }
-
+  if (!isSupabaseEnabled) return requireSupabaseDataSource(res);
   try {
     const data = await loadSupabaseData();
     return res.json(resolveMenuItems(data.menuItems, data.modelos));
@@ -406,10 +393,9 @@ app.get("/api/auth/verify", authMiddleware, (req, res) => {
 });
 
 // ========================
-// RUTAS DE ADMIN (protegidas)
+// ADMIN
 // ========================
 
-// --- Upload de Imágenes ---
 app.post("/api/admin/upload-image", authMiddleware, (req, res) => {
   upload.single("image")(req, res, (err) => {
     if (err) {
@@ -426,13 +412,11 @@ app.post("/api/admin/upload-image", authMiddleware, (req, res) => {
       return res.status(400).json({ error: "No se subió ninguna imagen" });
     }
 
-    // Devolver la ruta relativa para guardar en la BD
     const imagePath = `/assets/IMG/${req.file.filename}`;
     res.json({ image: imagePath });
   });
 });
 
-// --- Registrar Modelos (Cloudinary u origen permitido) ---
 app.post("/api/admin/modelos", authMiddleware, (req, res) => {
   const { id, name, label, url, src, secure_url, secureUrl } = req.body || {};
 
@@ -449,29 +433,23 @@ app.post("/api/admin/modelos", authMiddleware, (req, res) => {
       .status(400)
       .json({ error: "id de modelo invalido (solo letras, numeros, guion y guion bajo)" });
   }
-
   if (!isNonEmptyString(modeloLabel)) {
     return res.status(400).json({ error: "label es requerido" });
   }
-
   if (!isNonEmptyString(modeloSrc)) {
     return res.status(400).json({ error: "url es requerida" });
   }
-
   if (!isSafeModelSrc(modeloSrc)) {
     return res.status(400).json({ error: "URL de modelo no permitida" });
   }
 
-  if (!isSupabaseEnabled) {
-    return requireSupabaseDataSource(res);
-  }
+  if (!isSupabaseEnabled) return requireSupabaseDataSource(res);
 
   createSupabaseModeloAsset({ id, name, label: modeloLabel, url: modeloSrc })
     .then((newModelo) => res.status(201).json(newModelo))
     .catch((error) => handleSupabaseRouteError(res, error));
 });
 
-// --- Registrar Imágenes (Cloudinary u origen permitido) ---
 app.post("/api/admin/imagenes", authMiddleware, (req, res) => {
   const { id, name, label, url, src, secure_url, secureUrl } = req.body || {};
 
@@ -488,33 +466,25 @@ app.post("/api/admin/imagenes", authMiddleware, (req, res) => {
       .status(400)
       .json({ error: "id de imagen invalido (solo letras, numeros, guion y guion bajo)" });
   }
-
   if (!isNonEmptyString(imagenLabel)) {
     return res.status(400).json({ error: "label es requerido" });
   }
-
   if (!isNonEmptyString(imagenSrc)) {
     return res.status(400).json({ error: "url es requerida" });
   }
-
   if (!isSafeImageRef(imagenSrc)) {
     return res.status(400).json({ error: "URL de imagen no permitida" });
   }
 
-  if (!isSupabaseEnabled) {
-    return requireSupabaseDataSource(res);
-  }
+  if (!isSupabaseEnabled) return requireSupabaseDataSource(res);
 
   createSupabaseImagenAsset({ id, name, label: imagenLabel, url: imagenSrc })
     .then((newImagen) => res.status(201).json(newImagen))
     .catch((error) => handleSupabaseRouteError(res, error));
 });
 
-// --- Eliminar Imagen (Supabase + Cloudinary) ---
 app.delete("/api/admin/imagenes/:id", authMiddleware, async (req, res) => {
-  if (!isSupabaseEnabled) {
-    return requireSupabaseDataSource(res);
-  }
+  if (!isSupabaseEnabled) return requireSupabaseDataSource(res);
 
   try {
     const { url } = await deleteSupabaseImagenAsset(req.params.id);
@@ -544,12 +514,9 @@ app.delete("/api/admin/imagenes/:id", authMiddleware, async (req, res) => {
   }
 });
 
-// --- Categorías ---
+// Categorías
 app.get("/api/admin/categories", authMiddleware, async (_req, res) => {
-  if (!isSupabaseEnabled) {
-    return requireSupabaseDataSource(res);
-  }
-
+  if (!isSupabaseEnabled) return requireSupabaseDataSource(res);
   try {
     const data = await loadSupabaseData();
     return res.json(data.categories);
@@ -569,9 +536,7 @@ app.post("/api/admin/categories", authMiddleware, (req, res) => {
     return res.status(400).json({ error: "label es requerido" });
   }
 
-  if (!isSupabaseEnabled) {
-    return requireSupabaseDataSource(res);
-  }
+  if (!isSupabaseEnabled) return requireSupabaseDataSource(res);
 
   createSupabaseCategory({ id, label })
     .then((newCategory) => res.status(201).json(newCategory))
@@ -584,9 +549,7 @@ app.put("/api/admin/categories/:id", authMiddleware, (req, res) => {
     return res.status(400).json({ error: "label no puede estar vacio" });
   }
 
-  if (!isSupabaseEnabled) {
-    return requireSupabaseDataSource(res);
-  }
+  if (!isSupabaseEnabled) return requireSupabaseDataSource(res);
 
   updateSupabaseCategory(req.params.id, { label })
     .then((updatedCategory) => res.json(updatedCategory))
@@ -594,21 +557,16 @@ app.put("/api/admin/categories/:id", authMiddleware, (req, res) => {
 });
 
 app.delete("/api/admin/categories/:id", authMiddleware, (req, res) => {
-  if (!isSupabaseEnabled) {
-    return requireSupabaseDataSource(res);
-  }
+  if (!isSupabaseEnabled) return requireSupabaseDataSource(res);
 
   deleteSupabaseCategory(req.params.id)
     .then(() => res.json({ message: "Categoria y sus items eliminados" }))
     .catch((error) => handleSupabaseRouteError(res, error));
 });
 
-// --- Menu Items ---
+// Menu Items
 app.get("/api/admin/items", authMiddleware, async (_req, res) => {
-  if (!isSupabaseEnabled) {
-    return requireSupabaseDataSource(res);
-  }
-
+  if (!isSupabaseEnabled) return requireSupabaseDataSource(res);
   try {
     const data = await loadSupabaseData();
     return res.json(data.menuItems);
@@ -618,7 +576,19 @@ app.get("/api/admin/items", authMiddleware, async (_req, res) => {
 });
 
 app.post("/api/admin/items", authMiddleware, (req, res) => {
-  const { id, category, name, description, price, image, modelAR, ingredients } = req.body;
+  const {
+    id,
+    category,
+    name,
+    description,
+    price,
+    image,
+    modelAR,
+    ingredients,
+    cardColor,
+    cardMessage,
+  } = req.body;
+
   if (!isValidId(id)) {
     return res
       .status(400)
@@ -640,17 +610,29 @@ app.post("/api/admin/items", authMiddleware, (req, res) => {
     return res.status(400).json({ error: "modelAR debe ser un id de modelo valido" });
   }
 
-  if (!isSupabaseEnabled) {
-    return requireSupabaseDataSource(res);
-  }
+  const cardErr = validateCardFields({ cardColor, cardMessage });
+  if (cardErr) return res.status(400).json({ error: cardErr });
 
-  createSupabaseItem({ id, category, name, description, price, image, modelAR, ingredients })
+  if (!isSupabaseEnabled) return requireSupabaseDataSource(res);
+
+  createSupabaseItem({
+    id,
+    category,
+    name,
+    description,
+    price,
+    image,
+    modelAR,
+    ingredients,
+    cardColor,
+    cardMessage,
+  })
     .then((newItem) => res.status(201).json(newItem))
     .catch((error) => handleSupabaseRouteError(res, error));
 });
 
 app.put("/api/admin/items/:id", authMiddleware, (req, res) => {
-  const { image, modelAR } = req.body || {};
+  const { image, modelAR, cardColor, cardMessage } = req.body || {};
 
   if (image !== undefined && image && !isSafeImageRef(image)) {
     return res.status(400).json({ error: "Imagen no permitida" });
@@ -659,9 +641,10 @@ app.put("/api/admin/items/:id", authMiddleware, (req, res) => {
     return res.status(400).json({ error: "modelAR debe ser un id de modelo valido" });
   }
 
-  if (!isSupabaseEnabled) {
-    return requireSupabaseDataSource(res);
-  }
+  const cardErr = validateCardFields({ cardColor, cardMessage });
+  if (cardErr) return res.status(400).json({ error: cardErr });
+
+  if (!isSupabaseEnabled) return requireSupabaseDataSource(res);
 
   updateSupabaseItem(req.params.id, req.body || {})
     .then((updatedItem) => res.json(updatedItem))
@@ -669,16 +652,14 @@ app.put("/api/admin/items/:id", authMiddleware, (req, res) => {
 });
 
 app.delete("/api/admin/items/:id", authMiddleware, (req, res) => {
-  if (!isSupabaseEnabled) {
-    return requireSupabaseDataSource(res);
-  }
+  if (!isSupabaseEnabled) return requireSupabaseDataSource(res);
 
   deleteSupabaseItem(req.params.id)
     .then(() => res.json({ message: "Item eliminado" }))
     .catch((error) => handleSupabaseRouteError(res, error));
 });
 
-// --- Cambiar Contraseña ---
+// Contraseña
 app.put("/api/admin/password", authMiddleware, loginLimiter, (req, res) => {
   const { currentPassword, newPassword } = req.body;
   if (!currentPassword || !newPassword) {
@@ -698,18 +679,15 @@ app.put("/api/admin/password", authMiddleware, loginLimiter, (req, res) => {
   res.json({ message: "Contraseña actualizada" });
 });
 
-// SPA fallback: servir la app React para rutas que no sean de la API
+// SPA fallback
 app.get("/{*splat}", (_req, res) => {
   res.sendFile(path.join(frontendPath, "index.html"));
 });
 
-// Manejador centralizado de errores (debe ir al final)
 app.use(errorHandler);
 
-// --- Inicio ---
 initAdmin();
 
-// Exportar app para testing
 module.exports = app;
 
 if (require.main === module) {

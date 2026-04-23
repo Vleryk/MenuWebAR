@@ -26,6 +26,8 @@ create table if not exists public.platos (
     imagen int4,
     modelo int4,
     ingredientes text[] not null default '{}',
+    "cardColor" varchar(7) default '#152238',
+    "cardMessage" varchar(40),
     constraint fk_platos_categoria
         foreign key (categoria)
         references public.categorias (id_categ)
@@ -37,7 +39,8 @@ create table if not exists public.platos (
     constraint fk_platos_modelo
         foreign key (modelo)
         references public.modelos (id_model)
-        on delete set null
+        on delete set null,
+    constraint card_color_hex check ("cardColor" ~ '^#[0-9A-Fa-f]{6}$')
 );
 
 create index if not exists idx_platos_categoria on public.platos (categoria);

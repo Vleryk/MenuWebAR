@@ -1,6 +1,6 @@
 const { createClient } = require("@supabase/supabase-js");
 
-const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
+const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 const isSupabaseEnabled = Boolean(SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY);
@@ -11,750 +11,419 @@ const supabase = isSupabaseEnabled
     })
   : null;
 
-function createHttpError(status, message) {
-  const error = new Error(message);
-  error.status = status;
-  return error;
+if (!isSupabaseEnabled) {
+  console.warn(
+    "WARNING: Supabase no configurado (falta SUPABASE_URL o SUPABASE_SERVICE_ROLE_KEY).",
+  );
 }
 
-function parseIntId(value) {
-  if (value === undefined || value === null || value === "") return null;
-  const parsed = Number.parseInt(String(value), 10);
-  return Number.isInteger(parsed) ? parsed : null;
+// =====================================================
+// HELPERS
+// =====================================================
+
+function httpError(status, message) {
+  const err = new Error(message);
+  err.status = status;
+  return err;
 }
 
-function parsePriceToInt(value) {
-  if (typeof value === "number" && Number.isFinite(value)) {
-    return Math.round(value);
+function requireClient() {
+  if (!supabase) {
+    throw httpError(503, "Supabase no esta configurado");
   }
-
-  if (typeof value !== "string") return null;
-
-  const digits = value.replace(/[^\d]/g, "");
-  if (!digits) return null;
-
-  const parsed = Number.parseInt(digits, 10);
-  if (!Number.isFinite(parsed) || parsed <= 0) return null;
-
-  return parsed;
 }
 
-function formatPrice(price) {
-  if (!Number.isFinite(price)) return "$0";
-  return `$${new Intl.NumberFormat("es-CL").format(price)}`;
+// Los IDs del frontend son strings tipo "item-1", "cat-bebidas".
+// La BD usa integer. Estas funciones extraen el numero del id string.
+function parseIntId(stringId) {
+  if (typeof stringId !== "string") return null;
+  const match = stringId.match(/(\d+)$/);
+  return match ? parseInt(match[1], 10) : null;
 }
 
-function safeTrim(value) {
-  return typeof value === "string" ? value.trim() : "";
+function formatItemId(intId) {
+  return `item-${intId}`;
 }
 
-function normalizeIngredientsInput(ingredientsInput) {
-  if (ingredientsInput === undefined || ingredientsInput === null) return [];
-
-  const rawList = [];
-
-  if (Array.isArray(ingredientsInput)) {
-    for (const entry of ingredientsInput) {
-      rawList.push(...String(entry).split(","));
-    }
-  } else if (typeof ingredientsInput === "string" || typeof ingredientsInput === "number") {
-    rawList.push(...String(ingredientsInput).split(","));
-  }
-
-  const normalized = [];
-  const seen = new Set();
-
-  for (const entry of rawList) {
-    const candidate = safeTrim(entry);
-    if (!candidate) continue;
-
-    const dedupeKey = candidate.toLowerCase();
-    if (seen.has(dedupeKey)) continue;
-
-    seen.add(dedupeKey);
-    normalized.push(candidate);
-  }
-
-  return normalized;
+function formatCategoryId(intId) {
+  return `cat-${intId}`;
 }
+
+function formatImagenId(intId) {
+  return `img-${intId}`;
+}
+
+function formatModeloId(intId) {
+  return `mod-${intId}`;
+}
+
+// =====================================================
+// MAPEOS BD -> FRONTEND
+// =====================================================
 
 function mapCategoryRow(row) {
   return {
-    id: String(row.id_categ),
+    id: formatCategoryId(row.id_categ),
     label: row.nombre_categ,
-  };
-}
-
-function mapModeloRow(row) {
-  return {
-    id: String(row.id_model),
-    label: row.nombre_model,
-    src: row.url_model,
   };
 }
 
 function mapImagenRow(row) {
   return {
-    id: String(row.id_image),
+    id: formatImagenId(row.id_image),
     label: row.nombre_image,
     src: row.url_image,
   };
 }
 
-function mapItemRow(row, lookups) {
-  const imageSrc = lookups.imagenesById.get(row.imagen) || "/assets/IMG/comida.jfif";
-  const ingredients = normalizeIngredientsInput(row.ingredientes);
+function mapModeloRow(row) {
+  return {
+    id: formatModeloId(row.id_model),
+    label: row.nombre_model,
+    src: row.url_model,
+  };
+}
+
+function mapItemRow(row, { categoriesById, imagenesById, modelosById }) {
+  const category = categoriesById.get(row.categoria);
+  const imagen = row.imagen != null ? imagenesById.get(row.imagen) : null;
+  const modelo = row.modelo != null ? modelosById.get(row.modelo) : null;
 
   return {
-    id: String(row.id),
-    category: row.categoria !== null && row.categoria !== undefined ? String(row.categoria) : "",
-    name: row.nombre || "",
+    id: formatItemId(row.id),
+    name: row.nombre,
     description: row.descripcion || "",
-    price: formatPrice(row.precio),
-    image: imageSrc,
-    modelAR: row.modelo !== null && row.modelo !== undefined ? String(row.modelo) : "",
-    ingredients,
+    price: String(row.precio),
+    category: category ? category.id : null,
+    image: imagen ? imagen.src : "",
+    modelAR: modelo ? modelo.id : "",
+    ingredients: Array.isArray(row.ingredientes) ? row.ingredientes : [],
+    cardColor: row.cardColor || "#152238",
+    cardMessage: row.cardMessage || null,
   };
 }
 
-async function selectTable(table, columns, orderBy) {
-  const query = supabase.from(table).select(columns);
-  const response = orderBy ? await query.order(orderBy, { ascending: true }) : await query;
-
-  if (response.error) {
-    throw createHttpError(500, `Error consultando tabla ${table}: ${response.error.message}`);
-  }
-
-  return response.data || [];
-}
-
-async function getLookups() {
-  const [modelosRows, imagenesRows] = await Promise.all([
-    selectTable("modelos", "id_model,nombre_model,url_model", "id_model"),
-    selectTable("imagenes", "id_image,nombre_image,url_image", "id_image"),
-  ]);
-
-  const modelosById = new Map(modelosRows.map((row) => [row.id_model, row.url_model]));
-  const imagenesById = new Map(imagenesRows.map((row) => [row.id_image, row.url_image]));
-
-  return {
-    modelosRows,
-    imagenesRows,
-    modelosById,
-    imagenesById,
-  };
-}
-
-async function getNextId(table, column) {
-  const { data, error } = await supabase
-    .from(table)
-    .select(column)
-    .order(column, { ascending: false })
-    .limit(1);
-
-  if (error) {
-    throw createHttpError(500, `No se pudo calcular siguiente id para ${table}: ${error.message}`);
-  }
-
-  const current = data && data.length > 0 ? data[0][column] : 0;
-  return (current || 0) + 1;
-}
-
-async function ensureCategoriaExists(categoriaId) {
-  const { data, error } = await supabase
-    .from("categorias")
-    .select("id_categ")
-    .eq("id_categ", categoriaId)
-    .maybeSingle();
-
-  if (error) {
-    throw createHttpError(500, `Error validando categoria: ${error.message}`);
-  }
-
-  if (!data) {
-    throw createHttpError(400, "Categoria no encontrada");
-  }
-}
-
-async function ensureModeloId(modelValue) {
-  if (modelValue === undefined || modelValue === null || modelValue === "") {
-    return null;
-  }
-
-  const modelId = parseIntId(modelValue);
-
-  if (modelId !== null) {
-    const { data, error } = await supabase
-      .from("modelos")
-      .select("id_model")
-      .eq("id_model", modelId)
-      .maybeSingle();
-
-    if (error) {
-      throw createHttpError(500, `Error validando modelo: ${error.message}`);
-    }
-
-    if (!data) {
-      throw createHttpError(400, "Modelo AR no encontrado");
-    }
-
-    return modelId;
-  }
-
-  const trimmed = safeTrim(modelValue);
-
-  const queryByName = await supabase
-    .from("modelos")
-    .select("id_model")
-    .eq("nombre_model", trimmed)
-    .maybeSingle();
-
-  if (queryByName.error) {
-    throw createHttpError(500, `Error validando modelo por nombre: ${queryByName.error.message}`);
-  }
-
-  if (queryByName.data) {
-    return queryByName.data.id_model;
-  }
-
-  const queryByUrl = await supabase
-    .from("modelos")
-    .select("id_model")
-    .eq("url_model", trimmed)
-    .maybeSingle();
-
-  if (queryByUrl.error) {
-    throw createHttpError(500, `Error validando modelo por URL: ${queryByUrl.error.message}`);
-  }
-
-  if (queryByUrl.data) {
-    return queryByUrl.data.id_model;
-  }
-
-  throw createHttpError(400, "Modelo AR no encontrado");
-}
-
-function deriveNameFromUrl(url, fallbackPrefix, fallbackId) {
-  const candidate = safeTrim(url);
-  if (!candidate) return `${fallbackPrefix} ${fallbackId}`;
-
-  try {
-    if (candidate.startsWith("http://") || candidate.startsWith("https://")) {
-      const parsed = new URL(candidate);
-      const segment = parsed.pathname.split("/").filter(Boolean).pop();
-      if (segment) return segment;
-    }
-  } catch {
-    // Ignorado: se usa fallback
-  }
-
-  const parts = candidate.split("/").filter(Boolean);
-  const last = parts.pop();
-  return last || `${fallbackPrefix} ${fallbackId}`;
-}
-
-async function ensureImagenId(imageValue) {
-  const normalized = safeTrim(imageValue) || "/assets/IMG/comida.jfif";
-
-  const parsedId = parseIntId(normalized);
-  if (parsedId !== null) {
-    const { data, error } = await supabase
-      .from("imagenes")
-      .select("id_image")
-      .eq("id_image", parsedId)
-      .maybeSingle();
-
-    if (error) {
-      throw createHttpError(500, `Error validando imagen: ${error.message}`);
-    }
-
-    if (!data) {
-      throw createHttpError(400, "Imagen no encontrada");
-    }
-
-    return parsedId;
-  }
-
-  const existing = await supabase
-    .from("imagenes")
-    .select("id_image")
-    .eq("url_image", normalized)
-    .maybeSingle();
-
-  if (existing.error) {
-    throw createHttpError(500, `Error validando imagen por URL: ${existing.error.message}`);
-  }
-
-  if (existing.data) {
-    return existing.data.id_image;
-  }
-
-  const newId = await getNextId("imagenes", "id_image");
-  const newName = deriveNameFromUrl(normalized, "Imagen", newId);
-
-  const inserted = await supabase
-    .from("imagenes")
-    .insert({
-      id_image: newId,
-      nombre_image: newName,
-      url_image: normalized,
-    })
-    .select("id_image")
-    .single();
-
-  if (inserted.error) {
-    throw createHttpError(500, `No se pudo crear imagen referenciada: ${inserted.error.message}`);
-  }
-
-  return inserted.data.id_image;
-}
+// =====================================================
+// LOAD ALL DATA
+// =====================================================
 
 async function loadSupabaseData() {
-  const [categoriesRows, platosRows, lookups] = await Promise.all([
-    selectTable("categorias", "id_categ,nombre_categ", "id_categ"),
-    selectTable(
-      "platos",
-      "id,nombre,descripcion,precio,categoria,imagen,modelo,ingredientes",
-      "id",
-    ),
-    getLookups(),
+  requireClient();
+
+  const [catsRes, imgsRes, modsRes, itemsRes] = await Promise.all([
+    supabase.from("categorias").select("*").order("id_categ"),
+    supabase.from("imagenes").select("*").order("id_image"),
+    supabase.from("modelos").select("*").order("id_model"),
+    supabase.from("platos").select("*").order("id"),
   ]);
 
-  const categories = categoriesRows.map(mapCategoryRow);
-  const modelos = lookups.modelosRows.map(mapModeloRow);
-  const imagenes = lookups.imagenesRows.map(mapImagenRow);
-  const menuItems = platosRows.map((row) => mapItemRow(row, lookups));
-  const uniqueIngredients = Array.from(new Set(menuItems.flatMap((item) => item.ingredients)));
+  if (catsRes.error) throw httpError(500, `Error cargando categorias: ${catsRes.error.message}`);
+  if (imgsRes.error) throw httpError(500, `Error cargando imagenes: ${imgsRes.error.message}`);
+  if (modsRes.error) throw httpError(500, `Error cargando modelos: ${modsRes.error.message}`);
+  if (itemsRes.error) throw httpError(500, `Error cargando platos: ${itemsRes.error.message}`);
 
-  return {
-    categories,
-    modelos,
-    imagenes,
-    menuItems,
-    ingredientes: uniqueIngredients.map((label, index) => ({
-      id: String(index + 1),
-      label,
-    })),
-  };
+  const categories = catsRes.data.map(mapCategoryRow);
+  const imagenes = imgsRes.data.map(mapImagenRow);
+  const modelos = modsRes.data.map(mapModeloRow);
+
+  // Indices por id numerico para resolver FKs
+  const categoriesById = new Map(catsRes.data.map((r) => [r.id_categ, mapCategoryRow(r)]));
+  const imagenesById = new Map(imgsRes.data.map((r) => [r.id_image, mapImagenRow(r)]));
+  const modelosById = new Map(modsRes.data.map((r) => [r.id_model, mapModeloRow(r)]));
+
+  const menuItems = itemsRes.data.map((row) =>
+    mapItemRow(row, { categoriesById, imagenesById, modelosById }),
+  );
+
+  return { categories, imagenes, modelos, menuItems };
 }
 
-async function createModeloAsset(payload) {
-  const modelSrc = safeTrim(payload.url || payload.src || payload.secure_url || payload.secureUrl);
-  const modelLabel = safeTrim(payload.label || payload.name || "");
+// =====================================================
+// CATEGORIES
+// =====================================================
 
-  if (!modelSrc) {
-    throw createHttpError(400, "url es requerida");
-  }
+async function createCategory({ label }) {
+  requireClient();
 
-  if (!modelLabel) {
-    throw createHttpError(400, "label es requerido");
-  }
+  const { data, error } = await supabase
+    .from("categorias")
+    .insert({ nombre_categ: label })
+    .select()
+    .single();
 
-  const requestedId = parseIntId(payload.id || payload.name);
-  const modelId = requestedId !== null ? requestedId : await getNextId("modelos", "id_model");
+  if (error) throw httpError(500, error.message);
+  return mapCategoryRow(data);
+}
 
-  const exists = await supabase
+async function updateCategory(stringId, { label }) {
+  requireClient();
+  const intId = parseIntId(stringId);
+  if (intId == null) throw httpError(400, "id de categoria invalido");
+
+  const payload = {};
+  if (label !== undefined) payload.nombre_categ = label;
+
+  const { data, error } = await supabase
+    .from("categorias")
+    .update(payload)
+    .eq("id_categ", intId)
+    .select()
+    .single();
+
+  if (error) throw httpError(500, error.message);
+  if (!data) throw httpError(404, "Categoria no encontrada");
+  return mapCategoryRow(data);
+}
+
+async function deleteCategory(stringId) {
+  requireClient();
+  const intId = parseIntId(stringId);
+  if (intId == null) throw httpError(400, "id de categoria invalido");
+
+  // Borrar platos asociados primero
+  const { error: platosErr } = await supabase.from("platos").delete().eq("categoria", intId);
+  if (platosErr) throw httpError(500, platosErr.message);
+
+  const { error } = await supabase.from("categorias").delete().eq("id_categ", intId);
+  if (error) throw httpError(500, error.message);
+
+  return { deleted: true };
+}
+
+// =====================================================
+// IMAGENES
+// =====================================================
+
+async function createImagenAsset({ label, url }) {
+  requireClient();
+
+  const { data, error } = await supabase
+    .from("imagenes")
+    .insert({ nombre_image: label, url_image: url })
+    .select()
+    .single();
+
+  if (error) throw httpError(500, error.message);
+  return mapImagenRow(data);
+}
+
+async function deleteImagenAsset(stringId) {
+  requireClient();
+  const intId = parseIntId(stringId);
+  if (intId == null) throw httpError(400, "id de imagen invalido");
+
+  const { data: existing, error: fetchErr } = await supabase
+    .from("imagenes")
+    .select("url_image")
+    .eq("id_image", intId)
+    .single();
+
+  if (fetchErr) throw httpError(404, "Imagen no encontrada");
+
+  // Limpiar referencias en platos
+  const { error: refErr } = await supabase
+    .from("platos")
+    .update({ imagen: null })
+    .eq("imagen", intId);
+  if (refErr) throw httpError(500, refErr.message);
+
+  const { error } = await supabase.from("imagenes").delete().eq("id_image", intId);
+  if (error) throw httpError(500, error.message);
+
+  return { deleted: true, url: existing.url_image };
+}
+
+// =====================================================
+// MODELOS
+// =====================================================
+
+async function createModeloAsset({ label, url }) {
+  requireClient();
+
+  const { data, error } = await supabase
     .from("modelos")
-    .select("id_model")
-    .eq("id_model", modelId)
-    .maybeSingle();
-
-  if (exists.error) {
-    throw createHttpError(500, `Error validando id de modelo: ${exists.error.message}`);
-  }
-
-  if (exists.data) {
-    throw createHttpError(409, "Modelo con ese id ya existe");
-  }
-
-  const inserted = await supabase
-    .from("modelos")
-    .insert({
-      id_model: modelId,
-      nombre_model: modelLabel,
-      url_model: modelSrc,
-    })
-    .select("id_model,nombre_model,url_model")
+    .insert({ nombre_model: label, url_model: url })
+    .select()
     .single();
 
-  if (inserted.error) {
-    throw createHttpError(500, `No se pudo crear modelo: ${inserted.error.message}`);
-  }
-
-  return mapModeloRow(inserted.data);
+  if (error) throw httpError(500, error.message);
+  return mapModeloRow(data);
 }
 
-async function createImagenAsset(payload) {
-  const imageSrc = safeTrim(payload.url || payload.src || payload.secure_url || payload.secureUrl);
-  const imageLabel = safeTrim(payload.label || payload.name || "");
+// =====================================================
+// ITEMS (PLATOS)
+// =====================================================
 
-  if (!imageSrc) {
-    throw createHttpError(400, "url es requerida");
+async function resolveItemFks({ category, image, modelAR }) {
+  const result = {};
+
+  if (category !== undefined) {
+    const catIntId = parseIntId(category);
+    if (catIntId == null) throw httpError(400, "category id invalido");
+    result.categoria = catIntId;
   }
 
-  if (!imageLabel) {
-    throw createHttpError(400, "label es requerido");
+  if (image !== undefined) {
+    if (!image) {
+      result.imagen = null;
+    } else {
+      // image viene como URL; resolver id_image por url_image
+      const { data, error } = await supabase
+        .from("imagenes")
+        .select("id_image")
+        .eq("url_image", image)
+        .maybeSingle();
+      if (error) throw httpError(500, error.message);
+      if (!data) throw httpError(400, "Imagen no registrada en BD");
+      result.imagen = data.id_image;
+    }
   }
 
-  const requestedId = parseIntId(payload.id || payload.name);
-  const imageId = requestedId !== null ? requestedId : await getNextId("imagenes", "id_image");
-
-  const exists = await supabase
-    .from("imagenes")
-    .select("id_image")
-    .eq("id_image", imageId)
-    .maybeSingle();
-
-  if (exists.error) {
-    throw createHttpError(500, `Error validando id de imagen: ${exists.error.message}`);
+  if (modelAR !== undefined) {
+    if (!modelAR) {
+      result.modelo = null;
+    } else {
+      const modIntId = parseIntId(modelAR);
+      if (modIntId == null) throw httpError(400, "modelAR id invalido");
+      result.modelo = modIntId;
+    }
   }
 
-  if (exists.data) {
-    throw createHttpError(409, "Imagen con ese id ya existe");
-  }
-
-  const inserted = await supabase
-    .from("imagenes")
-    .insert({
-      id_image: imageId,
-      nombre_image: imageLabel,
-      url_image: imageSrc,
-    })
-    .select("id_image,nombre_image,url_image")
-    .single();
-
-  if (inserted.error) {
-    throw createHttpError(500, `No se pudo crear imagen: ${inserted.error.message}`);
-  }
-
-  return mapImagenRow(inserted.data);
-}
-
-async function deleteImagenAsset(imageIdParam) {
-  const imageId = parseIntId(imageIdParam);
-  if (imageId === null) {
-    throw createHttpError(400, "Imagen no valida");
-  }
-
-  // Validar que ningun plato este usando esta imagen
-  const inUse = await supabase.from("platos").select("id,nombre").eq("imagen", imageId).limit(5);
-
-  if (inUse.error) {
-    throw createHttpError(500, `Error validando uso de imagen: ${inUse.error.message}`);
-  }
-
-  if (inUse.data && inUse.data.length > 0) {
-    const nombres = inUse.data.map((p) => p.nombre).join(", ");
-    throw createHttpError(
-      409,
-      `No se puede eliminar: imagen en uso por ${inUse.data.length} plato(s): ${nombres}`,
-    );
-  }
-
-  // Obtener URL antes de borrar (para eliminar de Cloudinary despues)
-  const { data: imagen, error: fetchError } = await supabase
-    .from("imagenes")
-    .select("id_image,url_image")
-    .eq("id_image", imageId)
-    .maybeSingle();
-
-  if (fetchError) {
-    throw createHttpError(500, `Error consultando imagen: ${fetchError.message}`);
-  }
-
-  if (!imagen) {
-    throw createHttpError(404, "Imagen no encontrada");
-  }
-
-  const removed = await supabase
-    .from("imagenes")
-    .delete()
-    .eq("id_image", imageId)
-    .select("id_image")
-    .maybeSingle();
-
-  if (removed.error) {
-    throw createHttpError(500, `No se pudo eliminar imagen: ${removed.error.message}`);
-  }
-
-  if (!removed.data) {
-    throw createHttpError(404, "Imagen no encontrada");
-  }
-
-  return { url: imagen.url_image };
-}
-
-async function createCategory(payload) {
-  const categoryLabel = safeTrim(payload.label);
-  if (!categoryLabel) {
-    throw createHttpError(400, "label es requerido");
-  }
-
-  const requestedId = parseIntId(payload.id);
-  const categoryId = requestedId !== null ? requestedId : await getNextId("categorias", "id_categ");
-
-  const exists = await supabase
-    .from("categorias")
-    .select("id_categ")
-    .eq("id_categ", categoryId)
-    .maybeSingle();
-
-  if (exists.error) {
-    throw createHttpError(500, `Error validando id de categoria: ${exists.error.message}`);
-  }
-
-  if (exists.data) {
-    throw createHttpError(409, "Categoria ya existe");
-  }
-
-  const inserted = await supabase
-    .from("categorias")
-    .insert({ id_categ: categoryId, nombre_categ: categoryLabel })
-    .select("id_categ,nombre_categ")
-    .single();
-
-  if (inserted.error) {
-    throw createHttpError(500, `No se pudo crear categoria: ${inserted.error.message}`);
-  }
-
-  return mapCategoryRow(inserted.data);
-}
-
-async function updateCategory(categoryIdParam, payload) {
-  const categoryId = parseIntId(categoryIdParam);
-  if (categoryId === null) {
-    throw createHttpError(400, "Categoria no valida");
-  }
-
-  const categoryLabel = safeTrim(payload.label);
-  if (!categoryLabel) {
-    throw createHttpError(400, "label no puede estar vacio");
-  }
-
-  const updated = await supabase
-    .from("categorias")
-    .update({ nombre_categ: categoryLabel })
-    .eq("id_categ", categoryId)
-    .select("id_categ,nombre_categ")
-    .maybeSingle();
-
-  if (updated.error) {
-    throw createHttpError(500, `No se pudo actualizar categoria: ${updated.error.message}`);
-  }
-
-  if (!updated.data) {
-    throw createHttpError(404, "Categoria no encontrada");
-  }
-
-  return mapCategoryRow(updated.data);
-}
-
-async function deleteCategory(categoryIdParam) {
-  const categoryId = parseIntId(categoryIdParam);
-  if (categoryId === null) {
-    throw createHttpError(400, "Categoria no valida");
-  }
-
-  const removedItems = await supabase.from("platos").delete().eq("categoria", categoryId);
-  if (removedItems.error) {
-    throw createHttpError(
-      500,
-      `No se pudieron eliminar platos de la categoria: ${removedItems.error.message}`,
-    );
-  }
-
-  const removedCategory = await supabase
-    .from("categorias")
-    .delete()
-    .eq("id_categ", categoryId)
-    .select("id_categ")
-    .maybeSingle();
-
-  if (removedCategory.error) {
-    throw createHttpError(500, `No se pudo eliminar categoria: ${removedCategory.error.message}`);
-  }
-
-  if (!removedCategory.data) {
-    throw createHttpError(404, "Categoria no encontrada");
-  }
+  return result;
 }
 
 async function createItem(payload) {
-  const categoryId = parseIntId(payload.category);
-  if (categoryId === null) {
-    throw createHttpError(400, "category es requerido");
-  }
+  requireClient();
 
-  await ensureCategoriaExists(categoryId);
+  const {
+    category,
+    name,
+    description,
+    price,
+    image,
+    modelAR,
+    ingredients,
+    cardColor,
+    cardMessage,
+  } = payload;
 
-  const itemName = safeTrim(payload.name);
-  if (!itemName) {
-    throw createHttpError(400, "name es requerido");
-  }
+  const fks = await resolveItemFks({ category, image, modelAR });
 
-  const itemPrice = parsePriceToInt(payload.price);
-  if (itemPrice === null) {
-    throw createHttpError(400, "price es requerido");
-  }
+  const priceInt = parseInt(String(price).replace(/[^\d]/g, ""), 10);
+  if (Number.isNaN(priceInt)) throw httpError(400, "precio invalido");
 
-  const requestedId = parseIntId(payload.id);
-  const itemId = requestedId !== null ? requestedId : await getNextId("platos", "id");
+  const insertRow = {
+    nombre: name,
+    descripcion: description || "",
+    precio: priceInt,
+    categoria: fks.categoria,
+    imagen: fks.imagen ?? null,
+    modelo: fks.modelo ?? null,
+    ingredientes: Array.isArray(ingredients) ? ingredients : [],
+    cardColor: cardColor || "#152238",
+    cardMessage: cardMessage && cardMessage.trim() ? cardMessage.trim() : null,
+  };
 
-  const exists = await supabase.from("platos").select("id").eq("id", itemId).maybeSingle();
-  if (exists.error) {
-    throw createHttpError(500, `Error validando id de plato: ${exists.error.message}`);
-  }
+  const { data, error } = await supabase.from("platos").insert(insertRow).select().single();
+  if (error) throw httpError(500, error.message);
 
-  if (exists.data) {
-    throw createHttpError(409, "Item con ese id ya existe");
-  }
-
-  const imageId = await ensureImagenId(payload.image);
-  const modelId = await ensureModeloId(payload.modelAR);
-  const ingredients = normalizeIngredientsInput(payload.ingredients);
-
-  const inserted = await supabase
-    .from("platos")
-    .insert({
-      id: itemId,
-      nombre: itemName,
-      descripcion: safeTrim(payload.description),
-      precio: itemPrice,
-      categoria: categoryId,
-      imagen: imageId,
-      modelo: modelId,
-      ingredientes: ingredients,
+  // Recargar con FKs resueltos
+  const all = await loadSupabaseData();
+  const found = all.menuItems.find((i) => i.id === formatItemId(data.id));
+  return (
+    found ||
+    mapItemRow(data, {
+      categoriesById: new Map(),
+      imagenesById: new Map(),
+      modelosById: new Map(),
     })
-    .select("id")
+  );
+}
+
+async function updateItem(stringId, payload) {
+  requireClient();
+  const intId = parseIntId(stringId);
+  if (intId == null) throw httpError(400, "id de plato invalido");
+
+  const updateRow = {};
+
+  if (payload.name !== undefined) updateRow.nombre = payload.name;
+  if (payload.description !== undefined) updateRow.descripcion = payload.description || "";
+  if (payload.price !== undefined) {
+    const priceInt = parseInt(String(payload.price).replace(/[^\d]/g, ""), 10);
+    if (Number.isNaN(priceInt)) throw httpError(400, "precio invalido");
+    updateRow.precio = priceInt;
+  }
+  if (payload.ingredients !== undefined) {
+    updateRow.ingredientes = Array.isArray(payload.ingredients) ? payload.ingredients : [];
+  }
+  if (payload.cardColor !== undefined) {
+    updateRow.cardColor = payload.cardColor || "#152238";
+  }
+  if (payload.cardMessage !== undefined) {
+    updateRow.cardMessage =
+      payload.cardMessage && String(payload.cardMessage).trim()
+        ? String(payload.cardMessage).trim()
+        : null;
+  }
+
+  const fks = await resolveItemFks({
+    category: payload.category,
+    image: payload.image,
+    modelAR: payload.modelAR,
+  });
+  Object.assign(updateRow, fks);
+
+  if (Object.keys(updateRow).length === 0) {
+    throw httpError(400, "Nada que actualizar");
+  }
+
+  const { data, error } = await supabase
+    .from("platos")
+    .update(updateRow)
+    .eq("id", intId)
+    .select()
     .single();
 
-  if (inserted.error) {
-    throw createHttpError(500, `No se pudo crear plato: ${inserted.error.message}`);
-  }
+  if (error) throw httpError(500, error.message);
+  if (!data) throw httpError(404, "Plato no encontrado");
 
-  return getItemById(inserted.data.id);
+  const all = await loadSupabaseData();
+  const found = all.menuItems.find((i) => i.id === formatItemId(data.id));
+  return (
+    found ||
+    mapItemRow(data, {
+      categoriesById: new Map(),
+      imagenesById: new Map(),
+      modelosById: new Map(),
+    })
+  );
 }
 
-async function getItemById(itemId) {
-  const numericId = parseIntId(itemId);
-  if (numericId === null) {
-    throw createHttpError(400, "Item no valido");
-  }
+async function deleteItem(stringId) {
+  requireClient();
+  const intId = parseIntId(stringId);
+  if (intId == null) throw httpError(400, "id de plato invalido");
 
-  const [itemResponse, lookups] = await Promise.all([
-    supabase
-      .from("platos")
-      .select("id,nombre,descripcion,precio,categoria,imagen,modelo,ingredientes")
-      .eq("id", numericId)
-      .maybeSingle(),
-    getLookups(),
-  ]);
+  const { error } = await supabase.from("platos").delete().eq("id", intId);
+  if (error) throw httpError(500, error.message);
 
-  if (itemResponse.error) {
-    throw createHttpError(500, `No se pudo consultar plato: ${itemResponse.error.message}`);
-  }
-
-  if (!itemResponse.data) {
-    throw createHttpError(404, "Item no encontrado");
-  }
-
-  return mapItemRow(itemResponse.data, lookups);
+  return { deleted: true };
 }
 
-async function updateItem(itemIdParam, payload) {
-  const itemId = parseIntId(itemIdParam);
-  if (itemId === null) {
-    throw createHttpError(400, "Item no valido");
-  }
-
-  const existing = await supabase.from("platos").select("id").eq("id", itemId).maybeSingle();
-  if (existing.error) {
-    throw createHttpError(500, `No se pudo validar el item: ${existing.error.message}`);
-  }
-
-  if (!existing.data) {
-    throw createHttpError(404, "Item no encontrado");
-  }
-
-  const updates = {};
-
-  if (payload.category !== undefined) {
-    const categoryId = parseIntId(payload.category);
-    if (categoryId === null) {
-      throw createHttpError(400, "category es requerido");
-    }
-    await ensureCategoriaExists(categoryId);
-    updates.categoria = categoryId;
-  }
-
-  if (payload.name !== undefined) {
-    const itemName = safeTrim(payload.name);
-    if (!itemName) throw createHttpError(400, "name es requerido");
-    updates.nombre = itemName;
-  }
-
-  if (payload.description !== undefined) {
-    updates.descripcion = safeTrim(payload.description);
-  }
-
-  if (payload.price !== undefined) {
-    const parsedPrice = parsePriceToInt(payload.price);
-    if (parsedPrice === null) throw createHttpError(400, "price es requerido");
-    updates.precio = parsedPrice;
-  }
-
-  if (payload.image !== undefined) {
-    updates.imagen = await ensureImagenId(payload.image);
-  }
-
-  if (payload.modelAR !== undefined) {
-    updates.modelo = await ensureModeloId(payload.modelAR);
-  }
-
-  if (payload.ingredients !== undefined) {
-    updates.ingredientes = normalizeIngredientsInput(payload.ingredients);
-  }
-
-  const updated = await supabase.from("platos").update(updates).eq("id", itemId);
-
-  if (updated.error) {
-    throw createHttpError(500, `No se pudo actualizar item: ${updated.error.message}`);
-  }
-
-  return getItemById(itemId);
-}
-
-async function deleteItem(itemIdParam) {
-  const itemId = parseIntId(itemIdParam);
-  if (itemId === null) {
-    throw createHttpError(400, "Item no valido");
-  }
-
-  const removed = await supabase
-    .from("platos")
-    .delete()
-    .eq("id", itemId)
-    .select("id")
-    .maybeSingle();
-
-  if (removed.error) {
-    throw createHttpError(500, `No se pudo eliminar item: ${removed.error.message}`);
-  }
-
-  if (!removed.data) {
-    throw createHttpError(404, "Item no encontrado");
-  }
-}
+// =====================================================
+// EXPORTS
+// =====================================================
 
 module.exports = {
   isSupabaseEnabled,
   loadSupabaseData,
-  createModeloAsset,
-  createImagenAsset,
-  deleteImagenAsset,
   createCategory,
   updateCategory,
   deleteCategory,
+  createImagenAsset,
+  deleteImagenAsset,
+  createModeloAsset,
   createItem,
   updateItem,
   deleteItem,

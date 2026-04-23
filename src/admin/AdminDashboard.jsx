@@ -285,6 +285,8 @@ function generateCategoryId(categoriesList, label) {
   return id;
 }
 
+const DEFAULT_CARD_COLOR = "#152238";
+
 function ItemsPanel({
   items,
   allItems,
@@ -307,6 +309,8 @@ function ItemsPanel({
     image: "",
     modelAR: "Plato3",
     ingredients: [],
+    cardColor: DEFAULT_CARD_COLOR,
+    cardMessage: "",
   });
   const [newIngredient, setNewIngredient] = useState("");
   const [error, setError] = useState("");
@@ -318,7 +322,6 @@ function ItemsPanel({
 
   const itemsList = allItems || items;
 
-  // Sincronizar form cuando cambia editingItem (patron recomendado por React en lugar de useEffect)
   const prevEditingItemRef = useRef(editingItem);
   if (prevEditingItemRef.current !== editingItem) {
     prevEditingItemRef.current = editingItem;
@@ -327,6 +330,8 @@ function ItemsPanel({
         ...editingItem,
         modelAR: editingItem.modelAR || "",
         ingredients: editingItem.ingredients || [],
+        cardColor: editingItem.cardColor || DEFAULT_CARD_COLOR,
+        cardMessage: editingItem.cardMessage || "",
       });
     } else {
       setForm({
@@ -338,6 +343,8 @@ function ItemsPanel({
         image: "",
         modelAR: "Plato3",
         ingredients: [],
+        cardColor: DEFAULT_CARD_COLOR,
+        cardMessage: "",
       });
     }
     setFieldErrors({});
@@ -348,43 +355,43 @@ function ItemsPanel({
     if (name === "category") {
       if (!value) return "Categoria es requerida";
     }
-
     if (name === "name") {
       if (!value.trim()) return "Nombre es requerido";
       if (!/^[a-zA-Z\s\-áéíóúñÁÉÍÓÚÑ]+$/.test(value)) return "Solo letras y espacios";
     }
-
     if (name === "price") {
       if (!value.trim()) return "Precio es requerido";
       if (!/^[\d.]+$/.test(value)) return "Solo numeros y punto";
       if (parseFloat(value) <= 0) return "Precio debe ser mayor a 0";
     }
-
     if (name === "description") {
       if (!value.trim()) return "Descripcion es requerida";
       if (value.length > 500) return "Maximo 500 caracteres";
     }
-
     if (name === "image") {
       if (!value) return "Imagen es requerida";
     }
-
+    if (name === "cardColor") {
+      if (value && !/^#[0-9A-Fa-f]{6}$/.test(value)) return "Formato hex invalido (#RRGGBB)";
+    }
+    if (name === "cardMessage") {
+      if (value.length > 40) return "Maximo 40 caracteres";
+    }
     return "";
   };
 
   const validateAll = () => {
     const errors = {};
-    ["category", "name", "price", "description", "image"].forEach((field) => {
-      const err = getFieldError(field, form[field] || "");
-      if (err) errors[field] = err;
-    });
+    ["category", "name", "price", "description", "image", "cardColor", "cardMessage"].forEach(
+      (field) => {
+        const err = getFieldError(field, form[field] || "");
+        if (err) errors[field] = err;
+      },
+    );
     return errors;
   };
 
-  const isFormValid = () => {
-    const errors = validateAll();
-    return Object.keys(errors).length === 0;
-  };
+  const isFormValid = () => Object.keys(validateAll()).length === 0;
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -392,55 +399,45 @@ function ItemsPanel({
     if (name === "name") {
       if (value !== "" && !/^[a-zA-Z\s\-áéíóúñÁÉÍÓÚÑ]*$/.test(value)) return;
     }
-
     if (name === "price") {
       if (value !== "" && !/^[\d.]*$/.test(value)) return;
     }
-
     if (name === "description") {
       if (value.length > 500) return;
     }
+    if (name === "cardMessage") {
+      if (value.length > 40) return;
+    }
 
     setForm((f) => ({ ...f, [name]: value }));
-
-    const fieldError = getFieldError(name, value);
-    setFieldErrors((errs) => ({ ...errs, [name]: fieldError }));
+    setFieldErrors((errs) => ({ ...errs, [name]: getFieldError(name, value) }));
   };
 
   const handleAddIngredient = () => {
     const nextIngredients = newIngredient
       .split(",")
-      .map((value) => value.trim())
+      .map((v) => v.trim())
       .filter(Boolean);
 
     if (nextIngredients.length === 0) return;
 
     setForm((f) => {
-      const existingKeys = new Set(f.ingredients.map((item) => item.toLowerCase()));
+      const existingKeys = new Set(f.ingredients.map((i) => i.toLowerCase()));
       const merged = [...f.ingredients];
-
       for (const ingredient of nextIngredients) {
         const key = ingredient.toLowerCase();
         if (existingKeys.has(key)) continue;
-
         existingKeys.add(key);
         merged.push(ingredient);
       }
-
-      return {
-        ...f,
-        ingredients: merged,
-      };
+      return { ...f, ingredients: merged };
     });
 
     setNewIngredient("");
   };
 
   const handleRemoveIngredient = (index) => {
-    setForm((f) => ({
-      ...f,
-      ingredients: f.ingredients.filter((_, i) => i !== index),
-    }));
+    setForm((f) => ({ ...f, ingredients: f.ingredients.filter((_, i) => i !== index) }));
   };
 
   const handleSelectImage = (imageUrl) => {
@@ -451,7 +448,6 @@ function ItemsPanel({
 
   const handleDeleteImage = async (imageId) => {
     await deleteImagen(imageId);
-    // Si la imagen borrada estaba seleccionada en el form, limpiar
     const deletedImg = imagenes.find((i) => i.id === imageId);
     if (deletedImg && form.image === deletedImg.src) {
       setForm((f) => ({ ...f, image: "" }));
@@ -471,11 +467,16 @@ function ItemsPanel({
 
     setSaving(true);
     try {
+      const payloadBase = {
+        ...form,
+        cardMessage: form.cardMessage.trim() || null,
+      };
+
       if (editingItem) {
-        await updateItem(editingItem.id, form);
+        await updateItem(editingItem.id, payloadBase);
         setSuccessMessage("EL PLATO SE HA ACTUALIZADO CON EXITO");
       } else {
-        const payload = { ...form, id: generateItemId(itemsList) };
+        const payload = { ...payloadBase, id: generateItemId(itemsList) };
         await createItem(payload);
         setSuccessMessage("EL PLATO SE HA AGREGADO CON EXITO");
       }
@@ -491,6 +492,8 @@ function ItemsPanel({
         image: "",
         modelAR: "Plato3",
         ingredients: [],
+        cardColor: DEFAULT_CARD_COLOR,
+        cardMessage: "",
       });
       setFieldErrors({});
       setNewIngredient("");
@@ -652,6 +655,49 @@ function ItemsPanel({
           </div>
         )}
 
+        <label className={styles.label}>
+          Color de la card
+          <div className={styles.colorPickerRow}>
+            <input
+              type="color"
+              name="cardColor"
+              value={form.cardColor}
+              onChange={handleChange}
+              className={styles.colorSwatch}
+            />
+            <input
+              className={`${styles.input} ${fieldErrors.cardColor ? styles.inputError : ""}`}
+              name="cardColor"
+              value={form.cardColor}
+              onChange={handleChange}
+              placeholder="#152238"
+              maxLength={7}
+            />
+          </div>
+          {fieldErrors.cardColor ? (
+            <span className={styles.helperError}>{fieldErrors.cardColor}</span>
+          ) : (
+            <span className={styles.helperText}>Formato hex: #RRGGBB</span>
+          )}
+        </label>
+
+        <label className={styles.label}>
+          Mensaje de la card (opcional)
+          <input
+            className={`${styles.input} ${fieldErrors.cardMessage ? styles.inputError : ""}`}
+            name="cardMessage"
+            value={form.cardMessage}
+            onChange={handleChange}
+            placeholder="Ej: ¡Nuevo!, Recomendado..."
+            maxLength={40}
+          />
+          {fieldErrors.cardMessage ? (
+            <span className={styles.helperError}>{fieldErrors.cardMessage}</span>
+          ) : (
+            <span className={styles.helperText}>{form.cardMessage.length}/40 caracteres</span>
+          )}
+        </label>
+
         <label className={`${styles.label} ${styles.fullWidth}`}>
           Ingredientes (opcional)
           <div style={{ display: "flex", gap: "0.5rem" }}>
@@ -755,8 +801,10 @@ function ItemsPanel({
               <th>Nombre</th>
               <th>Categoria</th>
               <th>Precio</th>
-              <th>Ingredientes</th>
-              <th>Modelo AR</th>
+              <th>Color</th>
+              <th>Mensaje</th>
+              <th>Ingr.</th>
+              <th>AR</th>
               <th>Acciones</th>
             </tr>
           </thead>
@@ -767,6 +815,14 @@ function ItemsPanel({
                 <td>{item.name}</td>
                 <td>{item.category}</td>
                 <td>{item.price}</td>
+                <td>
+                  <span
+                    className={styles.colorDot}
+                    style={{ backgroundColor: item.cardColor || DEFAULT_CARD_COLOR }}
+                    title={item.cardColor || DEFAULT_CARD_COLOR}
+                  />
+                </td>
+                <td>{item.cardMessage || "—"}</td>
                 <td>
                   {item.ingredients && item.ingredients.length > 0 ? item.ingredients.length : "—"}
                 </td>
@@ -809,7 +865,6 @@ function CategoriesPanel({ categories, editingCategory, setEditingCategory, onRe
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [successMessage, setSuccessMessage] = useState("");
 
-  // Sincronizar form cuando cambia editingCategory
   const prevEditingCategoryRef = useRef(editingCategory);
   if (prevEditingCategoryRef.current !== editingCategory) {
     prevEditingCategoryRef.current = editingCategory;
@@ -826,7 +881,6 @@ function CategoriesPanel({ categories, editingCategory, setEditingCategory, onRe
       if (!value.trim()) return "Nombre visible es requerido";
       if (!/^[a-zA-Z\s\-áéíóúñÁÉÍÓÚÑ]+$/.test(value)) return "Solo letras y espacios";
     }
-
     return "";
   };
 
@@ -839,20 +893,13 @@ function CategoriesPanel({ categories, editingCategory, setEditingCategory, onRe
     return errors;
   };
 
-  const isFormValid = () => {
-    const errors = validateAll();
-    return Object.keys(errors).length === 0;
-  };
+  const isFormValid = () => Object.keys(validateAll()).length === 0;
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-
     if (value !== "" && !/^[a-zA-Z\s\-áéíóúñÁÉÍÓÚÑ]*$/.test(value)) return;
-
     setForm((f) => ({ ...f, [name]: value }));
-
-    const fieldError = getFieldError(name, value);
-    setFieldErrors((errs) => ({ ...errs, [name]: fieldError }));
+    setFieldErrors((errs) => ({ ...errs, [name]: getFieldError(name, value) }));
   };
 
   const handleSubmit = async (e) => {

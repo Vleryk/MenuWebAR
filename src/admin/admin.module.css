@@ -2,7 +2,6 @@
    ADMIN MODULE CSS - COMPLETO
    =========================== */
 
-/* Inicio de sesión */
 .loginPage {
   min-height: 100vh;
   display: flex;
@@ -43,7 +42,6 @@
   margin: 0;
 }
 
-/* Diseño */
 .adminShell {
   min-height: 100vh;
   background: linear-gradient(145deg, #0a101c 0%, #152238 50%, #0f1724 100%);
@@ -125,7 +123,6 @@
   font-size: 1rem;
 }
 
-/* Formularios */
 .label {
   display: flex;
   flex-direction: column;
@@ -231,6 +228,46 @@
   color: #d4aa63;
   font-size: 1.15rem;
   margin: 0;
+}
+
+/* COLOR PICKER */
+.colorPickerRow {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.colorSwatch {
+  width: 50px;
+  height: 42px;
+  padding: 2px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.07);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.colorSwatch::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+.colorSwatch::-webkit-color-swatch {
+  border: none;
+  border-radius: 6px;
+}
+
+.colorPickerRow .input {
+  flex: 1;
+  min-width: 0;
+}
+
+.colorDot {
+  display: inline-block;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  vertical-align: middle;
 }
 
 /* Botones */
@@ -409,10 +446,7 @@
   word-break: break-word;
 }
 
-/* ===========================
-   INPUT FILE PERSONALIZADO
-   =========================== */
-
+/* INPUT FILE PERSONALIZADO */
 input[type="file"] {
   display: none;
 }
@@ -580,10 +614,7 @@ input[type="file"] {
   flex: 1;
 }
 
-/* ===========================
-   MODAL DE ÉXITO
-   =========================== */
-
+/* MODAL DE ÉXITO */
 .modalOverlay {
   position: fixed;
   top: 0;
@@ -671,10 +702,7 @@ input[type="file"] {
   }
 }
 
-/* ===========================
-   ESTILOS PARA PREVIEW DE IMAGEN
-   =========================== */
-
+/* PREVIEW DE IMAGEN */
 .imagePreviewContainer {
   margin-top: 1rem;
   display: flex;
@@ -691,10 +719,7 @@ input[type="file"] {
   box-shadow: 0 4px 12px rgba(212, 170, 99, 0.1);
 }
 
-/* ===========================
-   UPLOAD PANEL CONTAINER
-   =========================== */
-
+/* UPLOAD PANEL */
 .uploadContainer {
   background: rgba(255, 255, 255, 0.04);
   border: 1px solid rgba(255, 255, 255, 0.08);
@@ -706,10 +731,6 @@ input[type="file"] {
   align-items: center;
   justify-content: center;
 }
-
-/* ===========================
-   UPLOADER CENTRADO
-   =========================== */
 
 .uploaderWrapper {
   display: flex;
@@ -817,10 +838,7 @@ input[type="file"] {
   padding: 0 1rem;
 }
 
-/* ===========================
-   IMAGE MODAL
-   =========================== */
-
+/* IMAGE MODAL */
 .imageModalContent {
   background: linear-gradient(135deg, rgba(20, 25, 40, 0.98) 0%, rgba(15, 23, 36, 0.98) 100%);
   border: 1px solid rgba(212, 170, 99, 0.2);
@@ -936,7 +954,6 @@ input[type="file"] {
   height: 100%;
 }
 
-/* Botón X para eliminar imagen */
 .imageDeleteBtn {
   position: absolute;
   top: 6px;
@@ -988,7 +1005,6 @@ input[type="file"] {
   color: #d4aa63;
 }
 
-/* En móvil el botón X siempre visible */
 @media (hover: none) {
   .imageDeleteBtn {
     opacity: 1;
@@ -1116,34 +1132,27 @@ input[type="file"] {
   .uploaderContent {
     max-width: 100%;
   }
-
   .uploaderButtonGroup {
     flex-direction: column;
   }
-
   .uploaderButtonGroup .btnSecondary,
   .uploaderButtonGroup .btnPrimary {
     max-width: 100%;
   }
-
   .previewImage {
     max-width: 100%;
   }
-
   .imageModalContent {
     width: 100%;
     border-radius: 12px;
   }
-
   .imageGrid {
     grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
     gap: 0.75rem;
   }
-
   .gridImage {
     height: 100px;
   }
-
   .imageModalHeader h3 {
     font-size: 1.1rem;
   }
