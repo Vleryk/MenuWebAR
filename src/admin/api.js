@@ -138,6 +138,18 @@ export async function createModeloAsset(payload) {
   return res.json();
 }
 
+export async function deleteModelo(id) {
+  const res = await fetch(`${API_URL}/admin/modelos/${encodeURIComponent(id)}`, {
+    method: "DELETE",
+    headers: getHeaders(),
+  });
+  if (!res.ok) {
+    const err = await res.json();
+    throw new Error(err.error || "Error al eliminar modelo");
+  }
+  return res.json();
+}
+
 export async function createImagenAsset(payload) {
   const res = await fetch(`${API_URL}/admin/imagenes`, {
     method: "POST",

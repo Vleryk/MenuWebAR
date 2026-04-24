@@ -12,6 +12,7 @@ import {
   updateCategory,
   deleteCategory,
   deleteImagen,
+  deleteModelo,
   logout,
   verifyToken,
 } from "./api";
@@ -258,6 +259,84 @@ function ImageModal({ isOpen, imagenes, onSelectImage, onDeleteImage, onClose })
   );
 }
 
+function ModelModal({ isOpen, modelos, onSelectModel, onDeleteModel, onClose }) {
+  const [searchTerm, setSearchTerm] = useState("");
+  const [deletingId, setDeletingId] = useState(null);
+
+  const filteredModels = modelos.filter((m) =>
+    m.label.toLowerCase().includes(searchTerm.toLowerCase()),
+  );
+
+  if (!isOpen) return null;
+
+  const handleDeleteClick = async (e, model) => {
+    e.stopPropagation();
+    if (
+      !window.confirm(
+        `¿Eliminar "${model.label}"?\n\nSe borrará de Cloudinary y no podrá recuperarse.`,
+      )
+    ) {
+      return;
+    }
+    setDeletingId(model.id);
+    try {
+      await onDeleteModel(model.id);
+    } catch (err) {
+      alert(err.message || "Error al eliminar modelo");
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  return (
+    <div className={styles.modalOverlay} onClick={onClose}>
+      <div className={styles.imageModalContent} onClick={(e) => e.stopPropagation()}>
+        <div className={styles.imageModalHeader}>
+          <h3>Seleccionar Modelo AR</h3>
+          <button className={styles.imageModalClose} onClick={onClose} type="button">
+            ✕
+          </button>
+        </div>
+
+        <input
+          type="text"
+          placeholder="Buscar modelo..."
+          className={styles.imageSearchInput}
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+        />
+
+        <div className={styles.imageGrid}>
+          {filteredModels.length > 0 ? (
+            filteredModels.map((model) => (
+              <div key={model.id} className={styles.imageGridItem}>
+                <button
+                  type="button"
+                  className={styles.imageDeleteBtn}
+                  onClick={(e) => handleDeleteClick(e, model)}
+                  disabled={deletingId === model.id}
+                  title="Eliminar modelo"
+                >
+                  {deletingId === model.id ? "..." : "✕"}
+                </button>
+                <div className={styles.imageGridItemInner} onClick={() => onSelectModel(model.id)}>
+                  <div className={styles.modelIconBox}>
+                    <span className={styles.modelIconEmoji}>📦</span>
+                    <span className={styles.modelIconText}>.glb</span>
+                  </div>
+                  <p className={styles.gridLabel}>{model.label}</p>
+                </div>
+              </div>
+            ))
+          ) : (
+            <p className={styles.noImagesText}>No hay modelos que coincidan</p>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function generateItemId(itemsList) {
   const nums = itemsList
     .map((i) => {
@@ -307,7 +386,7 @@ function ItemsPanel({
     description: "",
     price: "",
     image: "",
-    modelAR: "Plato3",
+    modelAR: "",
     ingredients: [],
     cardColor: DEFAULT_CARD_COLOR,
     cardMessage: "",
@@ -319,6 +398,7 @@ function ItemsPanel({
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [successMessage, setSuccessMessage] = useState("");
   const [showImageModal, setShowImageModal] = useState(false);
+  const [showModelModal, setShowModelModal] = useState(false);
 
   const itemsList = allItems || items;
 
@@ -341,7 +421,7 @@ function ItemsPanel({
         description: "",
         price: "",
         image: "",
-        modelAR: "Plato3",
+        modelAR: "",
         ingredients: [],
         cardColor: DEFAULT_CARD_COLOR,
         cardMessage: "",
@@ -455,6 +535,23 @@ function ItemsPanel({
     await onReload();
   };
 
+  const handleSelectModel = (modelId) => {
+    setForm((f) => ({ ...f, modelAR: modelId }));
+    setShowModelModal(false);
+  };
+
+  const handleDeleteModel = async (modelId) => {
+    await deleteModelo(modelId);
+    if (form.modelAR === modelId) {
+      setForm((f) => ({ ...f, modelAR: "" }));
+    }
+    await onReload();
+  };
+
+  const handleClearModel = () => {
+    setForm((f) => ({ ...f, modelAR: "" }));
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
@@ -490,7 +587,7 @@ function ItemsPanel({
         description: "",
         price: "",
         image: "",
-        modelAR: "Plato3",
+        modelAR: "",
         ingredients: [],
         cardColor: DEFAULT_CARD_COLOR,
         cardMessage: "",
@@ -523,6 +620,7 @@ function ItemsPanel({
   };
 
   const formValid = isFormValid();
+  const selectedModel = modelos.find((m) => m.id === form.modelAR);
 
   return (
     <div>
@@ -538,6 +636,14 @@ function ItemsPanel({
         onSelectImage={handleSelectImage}
         onDeleteImage={handleDeleteImage}
         onClose={() => setShowImageModal(false)}
+      />
+
+      <ModelModal
+        isOpen={showModelModal}
+        modelos={modelos}
+        onSelectModel={handleSelectModel}
+        onDeleteModel={handleDeleteModel}
+        onClose={() => setShowModelModal(false)}
       />
 
       <div className={styles.panelHeader}>
@@ -655,6 +761,54 @@ function ItemsPanel({
           </div>
         )}
 
+        <div className={`${styles.label} ${styles.fullWidth}`}>
+          <span>Modelo AR (opcional)</span>
+
+          <button
+            type="button"
+            className={styles.btnImageSelector}
+            onClick={() => setShowModelModal(true)}
+            disabled={saving}
+          >
+            {selectedModel
+              ? `Cambiar modelo (actual: ${selectedModel.label})`
+              : "Seleccionar modelo guardado..."}
+          </button>
+
+          <span className={styles.helperText}>
+            Selecciona un modelo .glb ya subido desde la pestaña &quot;Subir Archivos&quot;.
+          </span>
+
+          {modelos.length === 0 && (
+            <span className={styles.helperError}>
+              No hay modelos registrados. Primero sube un .glb en &quot;Subir Archivos&quot;.
+            </span>
+          )}
+        </div>
+
+        {selectedModel && (
+          <div className={`${styles.fullWidth} ${styles.modelPreviewContainer}`}>
+            <div className={styles.modelPreviewCard}>
+              <div className={styles.modelIconBox}>
+                <span className={styles.modelIconEmoji}>📦</span>
+                <span className={styles.modelIconText}>.glb</span>
+              </div>
+              <div className={styles.modelPreviewInfo}>
+                <p className={styles.modelPreviewLabel}>{selectedModel.label}</p>
+                <p className={styles.modelPreviewId}>{selectedModel.id}</p>
+              </div>
+              <button
+                type="button"
+                className={styles.btnSmallDanger}
+                onClick={handleClearModel}
+                title="Quitar modelo de este plato"
+              >
+                Quitar
+              </button>
+            </div>
+          </div>
+        )}
+
         <label className={styles.label}>
           Color de la card
           <div className={styles.colorPickerRow}>
@@ -743,23 +897,6 @@ function ItemsPanel({
             ))}
           </div>
         )}
-
-        <label className={`${styles.label} ${styles.fullWidth}`}>
-          Modelo AR
-          <select
-            className={styles.input}
-            name="modelAR"
-            value={form.modelAR}
-            onChange={handleChange}
-          >
-            <option value="">Sin modelo</option>
-            {modelos.map((m) => (
-              <option key={m.id} value={m.id}>
-                {m.label}
-              </option>
-            ))}
-          </select>
-        </label>
 
         <div className={styles.formActions}>
           <button className={styles.btnPrimary} type="submit" disabled={saving || !formValid}>
