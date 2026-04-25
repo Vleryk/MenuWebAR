@@ -1,5 +1,14 @@
+// Cliente HTTP del frontend. Todas las llamadas a la API pasan por aca.
+// Asi el resto de los componentes no tienen que saber de fetch, headers,
+// tokens, etc. Si mañana cambiamos de backend solo tocamos este archivo.
+
+// En dev, Vite hace proxy de /api al backend en localhost:3001 (ver
+// vite.config.js). En produccion el frontend y el backend estan en el mismo
+// host, asi que /api apunta al mismo servidor.
 const API_URL = "/api"; // "http://localhost:3001/api" en local, /api en hosting
 
+// Arma los headers de cada request. Si hay token guardado en localStorage,
+// lo agrega como Bearer para que el backend valide la sesion.
 function getHeaders() {
   const token = localStorage.getItem("admin_token");
   return {
@@ -8,6 +17,10 @@ function getHeaders() {
   };
 }
 
+// ---------- AUTENTICACION ----------
+
+// Login. Si es exitoso, guarda el token y el usuario en localStorage para que
+// persistan entre recargas de pagina. El token dura 8h.
 export async function login(username, password) {
   const res = await fetch(`${API_URL}/auth/login`, {
     method: "POST",
@@ -24,6 +37,8 @@ export async function login(username, password) {
   return data;
 }
 
+// Logout simplemente borra el token local. No hay endpoint server porque JWT
+// es stateless, cuando expire deja de valer.
 export function logout() {
   localStorage.removeItem("admin_token");
   localStorage.removeItem("admin_user");
@@ -33,12 +48,17 @@ export function isAuthenticated() {
   return !!localStorage.getItem("admin_token");
 }
 
+// Valida el token contra el server. Se usa al cargar el admin para saber si
+// el token guardado todavia es valido (puede haber expirado mientras el user
+// estaba ausente).
 export async function verifyToken() {
   const res = await fetch(`${API_URL}/auth/verify`, { headers: getHeaders() });
   return res.ok;
 }
 
 // --- Upload de Imágenes ---
+// Endpoint legacy que sube a disco local. En el flujo normal no se usa porque
+// AdminUploader.jsx sube directo a Cloudinary. Queda como fallback.
 export async function uploadImage(file) {
   const formData = new FormData();
   formData.append("image", file);
@@ -47,6 +67,8 @@ export async function uploadImage(file) {
   const res = await fetch(`${API_URL}/admin/upload-image`, {
     method: "POST",
     headers: {
+      // OJO: no incluimos Content-Type. fetch lo pone solo con el boundary
+      // correcto cuando mandamos FormData.
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
     body: formData,
@@ -106,6 +128,8 @@ export async function deleteCategory(id) {
 }
 
 // --- Items del Menú ---
+// Los items (platos) son el nucleo del sistema. Un item tiene nombre, precio,
+// categoria, imagen (URL) y opcionalmente modelAR (id del modelo 3D).
 export async function getItems() {
   const res = await fetch(`${API_URL}/admin/items`, { headers: getHeaders() });
   if (!res.ok) throw new Error("Error al obtener items");
@@ -113,6 +137,8 @@ export async function getItems() {
 }
 
 // --- Modelos AR ---
+// Estos endpoints son publicos (sin auth) porque el menu principal los consume
+// para mostrar los 3D. getImagenes tambien es publico por la misma razon.
 export async function getModelos() {
   const res = await fetch(`${API_URL}/modelos`);
   if (!res.ok) throw new Error("Error al obtener modelos");
@@ -125,6 +151,8 @@ export async function getImagenes() {
   return res.json();
 }
 
+// Registra un modelo en la BD despues de haberlo subido a Cloudinary.
+// El .glb ya esta en Cloudinary, aca solo guardamos label + URL.
 export async function createModeloAsset(payload) {
   const res = await fetch(`${API_URL}/admin/modelos`, {
     method: "POST",
@@ -138,6 +166,8 @@ export async function createModeloAsset(payload) {
   return res.json();
 }
 
+// Borra un modelo. El backend se encarga de borrar tambien el .glb de
+// Cloudinary y de limpiar las referencias de los platos que lo usaban.
 export async function deleteModelo(id) {
   const res = await fetch(`${API_URL}/admin/modelos/${encodeURIComponent(id)}`, {
     method: "DELETE",
@@ -150,6 +180,7 @@ export async function deleteModelo(id) {
   return res.json();
 }
 
+// Misma logica que modelos: registrar en BD lo que ya esta en Cloudinary.
 export async function createImagenAsset(payload) {
   const res = await fetch(`${API_URL}/admin/imagenes`, {
     method: "POST",
@@ -214,6 +245,7 @@ export async function deleteItem(id) {
 }
 
 // --- Contraseña ---
+// Cambio de pass del admin. Pide la actual como confirmacion.
 export async function changePassword(currentPassword, newPassword) {
   const res = await fetch(`${API_URL}/admin/password`, {
     method: "PUT",
@@ -228,6 +260,7 @@ export async function changePassword(currentPassword, newPassword) {
 }
 
 // --- Público ---
+// Endpoint del menu publico. Lo consume App.jsx para armar toda la carta.
 export async function getPublicMenu() {
   const res = await fetch(`${API_URL}/menu`);
   if (!res.ok) throw new Error("Error al obtener menú");

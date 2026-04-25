@@ -1,6 +1,22 @@
+// Card de un plato del menu. Es la pieza visual mas vista del proyecto porque
+// se renderea una por cada plato.
+//
+// Tiene dos modales:
+//   1. AR viewer: abre <model-viewer> en pantalla completa para ver el 3D y
+//      lanzar la AR (escena real con tu camara)
+//   2. Ingredientes: lista los ingredientes del plato
+//
+// El 3D se carga desde Cloudinary como .glb. Usamos model-viewer de Google,
+// que maneja:
+//   - WebXR en Android
+//   - Scene Viewer en Chrome Android
+//   - Quick Look en iOS/Safari
+// Todo lo que el usuario tiene que hacer es tocar el boton de la camara.
+
 import { useEffect, useRef, useState } from "react";
 import styles from "./MenuCard.module.css";
 
+// Icono de camara (SVG inline para evitar una dependencia extra por un icono).
 function CameraIcon() {
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true" className={styles.cameraIcon}>
@@ -9,6 +25,7 @@ function CameraIcon() {
   );
 }
 
+// Icono de lista de ingredientes.
 function IngredientsIcon() {
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true" className={styles.cameraIcon}>
@@ -20,6 +37,8 @@ function IngredientsIcon() {
 function MenuCard({ item }) {
   const [isArOpen, setIsArOpen] = useState(false);
   const [isIngredientsOpen, setIsIngredientsOpen] = useState(false);
+  // Progreso de carga del modelo 3D (0-100). Lo mostramos con una barra
+  // porque los .glb pueden pesar varios MB y tardar en bajar.
   const [loadProgress, setLoadProgress] = useState(0);
   const [isModelLoading, setIsModelLoading] = useState(false);
   const modelViewerRef = useRef(null);
@@ -39,6 +58,8 @@ function MenuCard({ item }) {
   const openIngredientsModal = () => setIsIngredientsOpen(true);
   const closeIngredientsModal = () => setIsIngredientsOpen(false);
 
+  // Permite cerrar cualquiera de los dos modales con la tecla Escape.
+  // Accesibilidad basica.
   useEffect(() => {
     if (!isArOpen && !isIngredientsOpen) return;
     const handleKeyDown = (event) => {
@@ -51,6 +72,8 @@ function MenuCard({ item }) {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [isArOpen, isIngredientsOpen]);
 
+  // Mientras un modal esta abierto, bloqueamos el scroll del body para que
+  // no se vea la pagina de atras scrolleando.
   useEffect(() => {
     if (!isArOpen && !isIngredientsOpen) return;
     const previousBodyOverflow = document.body.style.overflow;
@@ -60,6 +83,12 @@ function MenuCard({ item }) {
     };
   }, [isArOpen, isIngredientsOpen]);
 
+  // Engancha los eventos de model-viewer. <model-viewer> es un web component
+  // que no es de React, asi que necesitamos usar addEventListener manual.
+  //
+  // - progress: disparado mientras se descarga el .glb
+  // - load: cuando termino de cargar y esta listo para mostrar
+  // - error: si algo falla
   useEffect(() => {
     if (!isArOpen || !modelViewerRef.current) return;
 
@@ -90,6 +119,9 @@ function MenuCard({ item }) {
     };
   }, [isArOpen]);
 
+  // Lanza AR directamente en vez de que el user tenga que tocar el boton de
+  // AR de model-viewer. El setTimeout es necesario porque activateAR() falla
+  // si se llama antes de que model-viewer termine de montarse en el DOM.
   const launchAr = () => {
     openModal();
     setTimeout(() => {
@@ -99,13 +131,19 @@ function MenuCard({ item }) {
     }, 50);
   };
 
+  // Color de fondo de la card. Si el admin configuro uno para este plato
+  // especifico, lo usamos. Si no, queda el default del CSS.
   const cardStyle = item.cardColor ? { backgroundColor: item.cardColor } : undefined;
 
   return (
     <>
       <article className={styles.menuCard} style={cardStyle}>
+        {/* Badge con mensaje tipo "Nuevo", "Recomendado", etc. Solo aparece
+            si el admin definio cardMessage para este plato. */}
         {item.cardMessage && <span className={styles.cardBadge}>{item.cardMessage}</span>}
 
+        {/* loading="lazy" para que las imagenes de platos que no estan en
+            viewport no se bajen hasta que el user scrollee. */}
         <img className={styles.menuThumb} src={item.image} alt={item.name} loading="lazy" />
 
         <div className={styles.menuContent}>
@@ -116,6 +154,7 @@ function MenuCard({ item }) {
             <strong>{item.price}</strong>
 
             <div className={styles.cardActions}>
+              {/* Boton de ingredientes: siempre visible */}
               <button
                 type="button"
                 className={styles.btnAction}
@@ -126,6 +165,7 @@ function MenuCard({ item }) {
                 <IngredientsIcon />
               </button>
 
+              {/* Boton de AR: solo si el plato tiene modelo 3D asignado */}
               {item.modelAR ? (
                 <button
                   type="button"
@@ -142,7 +182,10 @@ function MenuCard({ item }) {
         </div>
       </article>
 
+      {/* ==================== Modal de AR / 3D ==================== */}
       {isArOpen ? (
+        // Click en el overlay cierra. Click dentro del modal no cierra
+        // (stopPropagation en el contenido).
         <div className={styles.arModalOverlay} onClick={closeModal}>
           <div className={styles.arModal} onClick={(event) => event.stopPropagation()}>
             <button
@@ -154,6 +197,7 @@ function MenuCard({ item }) {
               x
             </button>
 
+            {/* Barra de progreso mientras carga el .glb */}
             {isModelLoading ? (
               <div
                 className={styles.loaderWrapper}
@@ -168,6 +212,11 @@ function MenuCard({ item }) {
               </div>
             ) : null}
 
+            {/* El corazon del AR. model-viewer se encarga de todo:
+                - Renderiza el .glb con Three.js
+                - auto-rotate hace girar el modelo para mostrarlo
+                - ar-modes define que tecnologias de AR usar en cada plataforma
+                - camera-controls permite rotar con gestos touch */}
             <model-viewer
               ref={modelViewerRef}
               src={item.modelAR}
@@ -184,6 +233,7 @@ function MenuCard({ item }) {
         </div>
       ) : null}
 
+      {/* ==================== Modal de ingredientes ==================== */}
       {isIngredientsOpen ? (
         <div className={styles.ingredientsModalOverlay} onClick={closeIngredientsModal}>
           <div className={styles.ingredientsModal} onClick={(event) => event.stopPropagation()}>
@@ -200,6 +250,9 @@ function MenuCard({ item }) {
               <h2 className={styles.ingredientsTitle}>Ingredientes</h2>
               <p className={styles.ingredientsDish}>{item.name}</p>
 
+              {/* Si hay ingredientes los listamos, si no mostramos un
+                  mensaje generico. Muchos platos todavia no los tienen
+                  cargados en BD. */}
               {item.ingredients && item.ingredients.length > 0 ? (
                 <ul className={styles.ingredientsList}>
                   {item.ingredients.map((ingredient, index) => (

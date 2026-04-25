@@ -1,3 +1,5 @@
+// Carga las variables de entorno desde .env que esta en la raiz del proyecto,
+// no en la carpeta /server. Por eso el path con "..".
 require("dotenv").config({ path: require("path").join(__dirname, "..", ".env") });
 
 const express = require("express");
@@ -10,6 +12,9 @@ const rateLimit = require("express-rate-limit");
 const multer = require("multer");
 const crypto = require("crypto");
 const cloudinary = require("cloudinary").v2;
+
+// Toda la capa de datos vive en supabaseStore. Este archivo solo se encarga
+// de exponer los endpoints HTTP y validar lo que entra.
 const {
   isSupabaseEnabled,
   loadSupabaseData,
@@ -29,6 +34,8 @@ const PORT = process.env.PORT || 3001;
 const JWT_SECRET = process.env.JWT_SECRET;
 const ADMIN_FILE = path.join(__dirname, "data", "admin.json");
 
+// En produccion no dejamos arrancar sin JWT_SECRET. En dev tiramos un warning
+// y usamos un valor por defecto para que el equipo pueda trabajar sin trabas.
 if (!JWT_SECRET) {
   if (process.env.NODE_ENV === "production") {
     console.error("FATAL: JWT_SECRET environment variable is required in production.");
@@ -40,6 +47,9 @@ if (!JWT_SECRET) {
 const jwtSecret = JWT_SECRET || "dev-only-insecure-secret";
 
 // --- Cloudinary ---
+// Configuracion server side. Se usa solo para BORRAR archivos de Cloudinary
+// cuando se elimina una imagen. Los uploads los hace el frontend directo
+// contra Cloudinary con un preset unsigned.
 const cloudinaryEnabled = Boolean(
   process.env.CLOUDINARY_CLOUD_NAME &&
   process.env.CLOUDINARY_API_KEY &&
@@ -57,6 +67,10 @@ if (cloudinaryEnabled) {
   console.warn("WARNING: Cloudinary no configurado. El borrado solo afectara Supabase.");
 }
 
+// Dada una URL de Cloudinary, extrae el "public_id" que es lo que pide la API
+// para borrar el archivo. Ejemplo de URL:
+// https://res.cloudinary.com/xxx/image/upload/v1234/uploads/foto.jpg
+// El public_id seria: uploads/foto
 function extractCloudinaryPublicId(url) {
   if (typeof url !== "string" || !url.includes("res.cloudinary.com")) return null;
   try {
@@ -65,11 +79,14 @@ function extractCloudinaryPublicId(url) {
     const uploadIdx = parts.indexOf("upload");
     if (uploadIdx === -1) return null;
     let afterUpload = parts.slice(uploadIdx + 1);
+    // El primer segmento despues de "upload" puede ser la version (v1234).
+    // La saltamos porque no forma parte del public_id.
     if (afterUpload[0] && /^v\d+$/.test(afterUpload[0])) {
       afterUpload = afterUpload.slice(1);
     }
     if (afterUpload.length === 0) return null;
     const last = afterUpload[afterUpload.length - 1];
+    // Quitamos la extension del archivo
     const lastNoExt = last.replace(/\.[^.]+$/, "");
     return [...afterUpload.slice(0, -1), lastNoExt].join("/");
   } catch {
@@ -78,12 +95,17 @@ function extractCloudinaryPublicId(url) {
 }
 
 // --- Multer ---
+// Multer se usa SOLO para el endpoint /api/admin/upload-image, que guarda
+// imagenes localmente en /public/assets/IMG. Para Cloudinary, el frontend sube
+// directo y este backend solo recibe la URL.
 const uploadDir = path.join(__dirname, "..", "public", "assets", "IMG");
 
 if (!fs.existsSync(uploadDir)) {
   fs.mkdirSync(uploadDir, { recursive: true });
 }
 
+// Le damos a cada archivo un nombre unico con timestamp + bytes aleatorios,
+// asi si suben dos archivos con el mismo nombre no se pisan.
 const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, uploadDir),
   filename: (req, file, cb) => {
@@ -105,10 +127,16 @@ const fileFilter = (req, file, cb) => {
 const upload = multer({
   storage,
   fileFilter,
-  limits: { fileSize: 5 * 1024 * 1024 },
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5 MB tope
 });
 
 // --- Validación ---
+// Estos regex y helpers son la primera linea de defensa. Validamos en el server
+// aunque el frontend ya valide, porque nunca confiamos en el cliente.
+
+// Solo aceptamos paths locales que empiecen con /assets/modelosAR/ o /assets/IMG/.
+// Cualquier otro path se rechaza para evitar que alguien nos haga servir
+// archivos fuera de esas carpetas.
 const SAFE_PATH_RE = /^\/assets\/(modelosAR|IMG)\//;
 const CLOUDINARY_HOST = "res.cloudinary.com";
 const HEX_COLOR_RE = /^#[0-9A-Fa-f]{6}$/;
@@ -117,11 +145,15 @@ const CARD_MESSAGE_MAX = 40;
 function isSafePath(p) {
   if (!p) return true;
   if (typeof p !== "string") return false;
+  // ".." podria servir para escapar de la carpeta permitida
   if (p.includes("..")) return false;
   if (!p.startsWith("/")) return false;
   return SAFE_PATH_RE.test(p);
 }
 
+// Verifica que una URL sea realmente de Cloudinary y del tipo de recurso
+// esperado (image, raw, etc). Asi evitamos que alguien guarde un link a
+// cualquier otro servidor disfrazado de imagen.
 function isCloudinaryUploadUrl(value, resourceType) {
   if (typeof value !== "string" || !value.trim()) return false;
   try {
@@ -142,6 +174,8 @@ function isSafeImageRef(value) {
   return isSafePath(value) || isCloudinaryUploadUrl(value, "image");
 }
 
+// Los .glb se suben a Cloudinary como "raw". Aunque tambien aceptamos "image"
+// porque en algunas configuraciones Cloudinary los clasifica asi.
 function isSafeModelSrc(value) {
   return (
     isSafePath(value) ||
@@ -154,6 +188,8 @@ function isNonEmptyString(val) {
   return typeof val === "string" && val.trim().length > 0;
 }
 
+// Los ids que llegan del frontend son strings tipo "item-12" o "cat-bebidas".
+// Esto valida que solo tengan letras, numeros, guion y guion bajo.
 function isValidId(val) {
   return typeof val === "string" && /^[a-zA-Z0-9_-]+$/.test(val);
 }
@@ -166,6 +202,8 @@ function isValidModeloId(id) {
   return typeof id === "string" && /^[a-zA-Z0-9_-]+$/.test(id);
 }
 
+// Valida los campos cardColor (color hex de la card) y cardMessage (badge)
+// que son opcionales pero si vienen tienen que tener el formato correcto.
 function validateCardFields({ cardColor, cardMessage }) {
   if (cardColor !== undefined && cardColor !== null && cardColor !== "") {
     if (typeof cardColor !== "string" || !HEX_COLOR_RE.test(cardColor)) {
@@ -183,6 +221,9 @@ function validateCardFields({ cardColor, cardMessage }) {
   return null;
 }
 
+// El frontend solo trabaja con ids de modelos (mod-1, mod-2). Cuando servimos
+// el menu publico tenemos que convertir ese id al URL real del .glb para que
+// <model-viewer> lo pueda cargar.
 function resolveModelAR(modeloId, modelos) {
   if (!modeloId) return "";
   const modelo = (modelos || []).find((m) => m.id === modeloId);
@@ -196,11 +237,14 @@ function resolveMenuItems(items, modelos) {
   }));
 }
 
-// Archivos estáticos
+// Servimos el bundle del frontend (salida de `npm run build`) desde /dist,
+// y los assets estaticos (imagenes subidas localmente) desde /public/assets.
 const frontendPath = path.join(__dirname, "../dist");
 app.use(express.static(frontendPath));
 app.use("/assets", express.static(path.join(__dirname, "..", "public", "assets")));
 
+// Crea el usuario admin la primera vez que corre el servidor. Si ya existe,
+// no hace nada. La pass por defecto viene del .env y se hashea con bcrypt.
 function initAdmin() {
   let needsInit = false;
 
@@ -213,6 +257,7 @@ function initAdmin() {
         needsInit = true;
       }
     } catch {
+      // Si el JSON esta corrupto, lo regeneramos
       needsInit = true;
     }
   }
@@ -238,6 +283,9 @@ function initAdmin() {
   }
 }
 
+// Cuando algo falla en supabaseStore, tira un error con .status (ej 404, 400).
+// Esta funcion lo traduce al response HTTP, y loguea solo los errores 500+
+// para no llenar los logs de errores de validacion.
 function handleSupabaseRouteError(res, error) {
   const statusCode = Number.isInteger(error?.status) ? error.status : 500;
 
@@ -248,6 +296,8 @@ function handleSupabaseRouteError(res, error) {
   return res.status(statusCode).json({ error: error?.message || "Error de datos en Supabase" });
 }
 
+// Si alguien llama a una ruta de datos sin tener Supabase configurado, le
+// decimos 503 en lugar de fallar con error raro.
 function requireSupabaseDataSource(res) {
   if (isSupabaseEnabled) return true;
 
@@ -261,6 +311,8 @@ function requireSupabaseDataSource(res) {
 app.use(cors());
 app.use(express.json({ limit: "10mb" }));
 
+// Limite agresivo para login: 15 intentos cada 15 min por IP.
+// Esto frena ataques de fuerza bruta a la contraseña del admin.
 const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 15,
@@ -269,6 +321,7 @@ const loginLimiter = rateLimit({
   message: { error: "Demasiados intentos de login. Intenta de nuevo en 15 minutos." },
 });
 
+// Limite general para el resto de la API.
 const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 200,
@@ -279,6 +332,8 @@ const apiLimiter = rateLimit({
 
 app.use("/api/", apiLimiter);
 
+// Middleware que valida el token JWT. Se usa en todas las rutas /api/admin/*.
+// Si el token es valido, guarda los datos decodificados en req.user.
 function authMiddleware(req, res, next) {
   const header = req.headers.authorization;
   if (!header || !header.startsWith("Bearer ")) {
@@ -294,6 +349,7 @@ function authMiddleware(req, res, next) {
   }
 }
 
+// Handler de errores global. En dev muestra el stack, en prod solo el mensaje.
 // eslint-disable-next-line no-unused-vars
 function errorHandler(err, _req, res, _next) {
   if (process.env.NODE_ENV !== "production") {
@@ -307,7 +363,7 @@ function errorHandler(err, _req, res, _next) {
 // ========================
 // HEALTH
 // ========================
-
+// Ruta basica para chequear que el server esta vivo (util para uptime monitors).
 app.get("/api/health", (_req, res) => {
   res.json({ status: "ok", timestamp: new Date().toISOString() });
 });
@@ -315,13 +371,20 @@ app.get("/api/health", (_req, res) => {
 // ========================
 // RUTAS PÚBLICAS
 // ========================
+// Estas rutas NO requieren auth. Las consume el menu publico que ven los
+// clientes del restaurante.
 
+// Endpoint principal: devuelve TODO lo que necesita el menu de una sola vez
+// (categorias, platos, imagenes, modelos). El frontend hace fetch a esto
+// cuando carga la pagina.
 app.get("/api/menu", async (_req, res) => {
   if (!isSupabaseEnabled) return requireSupabaseDataSource(res);
   try {
     const data = await loadSupabaseData();
     return res.json({
       ...data,
+      // Los platos guardan el id del modelo, pero el frontend necesita la URL
+      // final para cargar el .glb. Resolvemos aca.
       menuItems: resolveMenuItems(data.menuItems, data.modelos),
     });
   } catch (error) {
@@ -373,6 +436,8 @@ app.get("/api/menu-items", async (_req, res) => {
 // AUTENTICACIÓN
 // ========================
 
+// Login: compara la pass contra el hash bcrypt guardado en admin.json.
+// Si matchea, devuelve un JWT valido por 8 horas.
 app.post("/api/auth/login", loginLimiter, (req, res) => {
   const { username, password } = req.body;
   if (!username || !password) {
@@ -388,6 +453,8 @@ app.post("/api/auth/login", loginLimiter, (req, res) => {
   res.json({ token, username });
 });
 
+// Verifica si el token sigue siendo valido. El frontend lo llama al cargar
+// para saber si puede mostrar el admin sin pedir login de nuevo.
 app.get("/api/auth/verify", authMiddleware, (req, res) => {
   res.json({ valid: true, username: req.user.username });
 });
@@ -395,7 +462,11 @@ app.get("/api/auth/verify", authMiddleware, (req, res) => {
 // ========================
 // ADMIN
 // ========================
+// Todas estas rutas requieren JWT valido (authMiddleware).
 
+// Upload de imagenes LOCAL (no Cloudinary). Queda como legacy por si hay
+// deploys sin Cloudinary configurado, pero el flujo normal del admin usa
+// Cloudinary directo desde el frontend.
 app.post("/api/admin/upload-image", authMiddleware, (req, res) => {
   upload.single("image")(req, res, (err) => {
     if (err) {
@@ -417,9 +488,14 @@ app.post("/api/admin/upload-image", authMiddleware, (req, res) => {
   });
 });
 
+// Guarda la metadata de un modelo AR en Supabase. OJO: el archivo .glb ya fue
+// subido a Cloudinary desde el frontend, aca solo registramos la URL en BD
+// para poder listarlo despues.
 app.post("/api/admin/modelos", authMiddleware, (req, res) => {
   const { id, name, label, url, src, secure_url, secureUrl } = req.body || {};
 
+  // Aceptamos varios nombres de campo por compatibilidad con distintos
+  // clientes (Cloudinary devuelve secure_url, nosotros usamos src o url).
   const modeloId = typeof (id || name) === "string" ? (id || name).trim() : "";
   const modeloSrc =
     typeof (url || src || secure_url || secureUrl) === "string"
@@ -450,6 +526,7 @@ app.post("/api/admin/modelos", authMiddleware, (req, res) => {
     .catch((error) => handleSupabaseRouteError(res, error));
 });
 
+// Misma logica que modelos pero para imagenes.
 app.post("/api/admin/imagenes", authMiddleware, (req, res) => {
   const { id, name, label, url, src, secure_url, secureUrl } = req.body || {};
 
@@ -483,6 +560,11 @@ app.post("/api/admin/imagenes", authMiddleware, (req, res) => {
     .catch((error) => handleSupabaseRouteError(res, error));
 });
 
+// Borrado de imagen: hace DOS cosas.
+// 1. Borra la fila en Supabase (y limpia las referencias en platos).
+// 2. Si la URL era de Cloudinary, tambien borra el archivo alla para no dejar
+//    basura. Si Cloudinary falla, igual devolvemos OK porque lo importante
+//    ya se elimino de la BD.
 app.delete("/api/admin/imagenes/:id", authMiddleware, async (req, res) => {
   if (!isSupabaseEnabled) return requireSupabaseDataSource(res);
 
@@ -556,6 +638,8 @@ app.put("/api/admin/categories/:id", authMiddleware, (req, res) => {
     .catch((error) => handleSupabaseRouteError(res, error));
 });
 
+// Borrar una categoria tambien borra todos sus platos en cascada (lo hace la
+// FK de la BD con ON DELETE CASCADE).
 app.delete("/api/admin/categories/:id", authMiddleware, (req, res) => {
   if (!isSupabaseEnabled) return requireSupabaseDataSource(res);
 
@@ -564,7 +648,7 @@ app.delete("/api/admin/categories/:id", authMiddleware, (req, res) => {
     .catch((error) => handleSupabaseRouteError(res, error));
 });
 
-// Menu Items
+// Menu Items (platos)
 app.get("/api/admin/items", authMiddleware, async (_req, res) => {
   if (!isSupabaseEnabled) return requireSupabaseDataSource(res);
   try {
@@ -634,6 +718,8 @@ app.post("/api/admin/items", authMiddleware, (req, res) => {
 app.put("/api/admin/items/:id", authMiddleware, (req, res) => {
   const { image, modelAR, cardColor, cardMessage } = req.body || {};
 
+  // En update solo validamos los campos que vengan en el body. Cualquier campo
+  // omitido queda como estaba en la BD.
   if (image !== undefined && image && !isSafeImageRef(image)) {
     return res.status(400).json({ error: "Imagen no permitida" });
   }
@@ -659,7 +745,8 @@ app.delete("/api/admin/items/:id", authMiddleware, (req, res) => {
     .catch((error) => handleSupabaseRouteError(res, error));
 });
 
-// Contraseña
+// Cambio de contraseña. Pide la actual para confirmar, valida minimo 6
+// caracteres y reescribe admin.json con el nuevo hash.
 app.put("/api/admin/password", authMiddleware, loginLimiter, (req, res) => {
   const { currentPassword, newPassword } = req.body;
   if (!currentPassword || !newPassword) {
@@ -679,7 +766,9 @@ app.put("/api/admin/password", authMiddleware, loginLimiter, (req, res) => {
   res.json({ message: "Contraseña actualizada" });
 });
 
-// SPA fallback
+// Fallback para que funcione React Router en rutas tipo /admin o /ar/xxx.
+// Cualquier path que no sea /api/* devuelve el index.html y el router del
+// frontend se encarga de renderizar la vista correspondiente.
 app.get("/{*splat}", (_req, res) => {
   res.sendFile(path.join(frontendPath, "index.html"));
 });
@@ -690,6 +779,8 @@ initAdmin();
 
 module.exports = app;
 
+// Cuando se ejecuta directo con `node server.js` arranca el server.
+// Cuando se importa desde los tests, no arranca (se exporta app nomas).
 if (require.main === module) {
   app.listen(PORT, () => {
     console.log(`Server running on http://localhost:${PORT}`);

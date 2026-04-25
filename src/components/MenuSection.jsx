@@ -1,3 +1,10 @@
+// Seccion de platos. Recibe un titulo (label de la categoria activa) y la
+// lista filtrada de items, y los renderea en un grid.
+//
+// Detalle: usamos `key={title}` en el div del grid para forzar a React a
+// remontarlo cuando cambia la categoria. Eso reinicia la animacion fadeIn
+// asi cada vez que el user cambia de tab se ven los platos aparecer.
+
 import MenuCard from "./MenuCard";
 import styles from "./MenuSection.module.css";
 

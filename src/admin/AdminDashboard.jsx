@@ -1,3 +1,19 @@
+// Dashboard principal del admin. Es el componente mas grande del proyecto
+// porque contiene todo el CRUD: platos, categorias, subida de archivos,
+// selector de imagenes, selector de modelos 3D, etc.
+//
+// Esta dividido en varios componentes internos:
+//   - AdminDashboard  -> shell, auth, tabs, carga de datos
+//   - ItemsPanel      -> formulario y tabla de platos
+//   - CategoriesPanel -> formulario y tabla de categorias
+//   - UploadPanel     -> wrapper del uploader a Cloudinary
+//   - ImageModal      -> modal para elegir/borrar imagenes guardadas
+//   - ModelModal      -> modal para elegir/borrar modelos 3D guardados
+//   - SuccessModal    -> modal verde de confirmacion (auto-cierra en 3s)
+//
+// La auth funciona asi: al cargar se llama verifyToken(). Si el token sigue
+// valido, muestra el dashboard. Si no, muestra AdminLogin.
+
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
@@ -25,16 +41,22 @@ export default function AdminDashboard() {
   const [authenticated, setAuthenticated] = useState(false);
   const [checking, setChecking] = useState(true);
 
+  // Todos los datos que consume el admin viven en este componente. Se pasan
+  // por props a los paneles hijos. No usamos context porque el arbol es chico.
   const [categories, setCategories] = useState([]);
   const [items, setItems] = useState([]);
   const [modelos, setModelos] = useState([]);
   const [imagenes, setImagenes] = useState([]);
   const [activeTab, setActiveTab] = useState("items");
 
+  // Item/categoria que se esta editando. Si es null, el form esta en modo
+  // "crear nuevo". Si tiene valor, el form se pre-llena para editar.
   const [editingItem, setEditingItem] = useState(null);
   const [editingCategory, setEditingCategory] = useState(null);
   const [filterCategory, setFilterCategory] = useState("");
 
+  // Recarga todos los datos. Se llama despues de cada create/update/delete
+  // para mantener la UI sincronizada con la BD.
   const loadData = async () => {
     try {
       const [cats, itms, mods, imgs] = await Promise.all([
@@ -48,10 +70,13 @@ export default function AdminDashboard() {
       setModelos(mods);
       setImagenes(imgs);
     } catch {
+      // Si las llamadas autenticadas fallan, probablemente expiro el token.
+      // Forzamos logout para volver a la pantalla de login.
       setAuthenticated(false);
     }
   };
 
+  // Primer chequeo al montar: verificamos si hay un token valido.
   useEffect(() => {
     verifyToken().then((valid) => {
       setAuthenticated(valid);
@@ -59,6 +84,9 @@ export default function AdminDashboard() {
     });
   }, []);
 
+  // Una vez autenticado, cargamos los datos iniciales. Usamos la bandera
+  // `cancelled` para evitar setear state si el componente se desmonto antes
+  // de que resuelvan las promesas (por ej, si el user hace logout rapido).
   useEffect(() => {
     if (!authenticated) return;
     let cancelled = false;
@@ -98,6 +126,9 @@ export default function AdminDashboard() {
     return <AdminLogin onLogin={() => setAuthenticated(true)} />;
   }
 
+  // El filtro por categoria se aplica aca antes de pasar al ItemsPanel.
+  // allItems se pasa tambien para que el panel pueda generar ids unicos
+  // aunque este viendo una vista filtrada.
   const filteredItems = filterCategory ? items.filter((i) => i.category === filterCategory) : items;
 
   return (
@@ -164,6 +195,8 @@ export default function AdminDashboard() {
   );
 }
 
+// Modal verde que aparece despues de guardar algo con exito. Se cierra solo
+// despues de 3 segundos o cuando se llama a onClose.
 function SuccessModal({ isOpen, message, onClose }) {
   useEffect(() => {
     if (isOpen) {
@@ -184,6 +217,8 @@ function SuccessModal({ isOpen, message, onClose }) {
   );
 }
 
+// Modal para elegir una imagen ya subida. Muestra un grid con thumbnails,
+// permite buscar por nombre y borrar imagenes (borra tambien de Cloudinary).
 function ImageModal({ isOpen, imagenes, onSelectImage, onDeleteImage, onClose }) {
   const [searchTerm, setSearchTerm] = useState("");
   const [deletingId, setDeletingId] = useState(null);
@@ -195,6 +230,8 @@ function ImageModal({ isOpen, imagenes, onSelectImage, onDeleteImage, onClose })
   if (!isOpen) return null;
 
   const handleDeleteClick = async (e, img) => {
+    // stopPropagation para que el click en la X no dispare el onClick del
+    // contenedor padre (que seleccionaria la imagen).
     e.stopPropagation();
     if (
       !window.confirm(
@@ -215,6 +252,7 @@ function ImageModal({ isOpen, imagenes, onSelectImage, onDeleteImage, onClose })
 
   return (
     <div className={styles.modalOverlay} onClick={onClose}>
+      {/* stopPropagation para que click DENTRO del modal no cierre el modal */}
       <div className={styles.imageModalContent} onClick={(e) => e.stopPropagation()}>
         <div className={styles.imageModalHeader}>
           <h3>Seleccionar Imagen</h3>
@@ -259,6 +297,8 @@ function ImageModal({ isOpen, imagenes, onSelectImage, onDeleteImage, onClose })
   );
 }
 
+// Modal analogo al de imagenes pero para modelos 3D. Los .glb no se pueden
+// previsualizar directamente asi que mostramos un icono generico con el label.
 function ModelModal({ isOpen, modelos, onSelectModel, onDeleteModel, onClose }) {
   const [searchTerm, setSearchTerm] = useState("");
   const [deletingId, setDeletingId] = useState(null);
@@ -337,6 +377,9 @@ function ModelModal({ isOpen, modelos, onSelectModel, onDeleteModel, onClose }) 
   );
 }
 
+// Genera el proximo id de item mirando los existentes y sumando 1 al mayor.
+// Nota: la BD ya tiene identity autoincrement asi que este id se ignora en
+// el server. Lo dejamos para no romper la interfaz historica.
 function generateItemId(itemsList) {
   const nums = itemsList
     .map((i) => {
@@ -348,12 +391,15 @@ function generateItemId(itemsList) {
   return `item-${next}`;
 }
 
+// Genera un id slug-like a partir del label de la categoria. Ej: "Bebidas y
+// Jugos" -> "bebidas-y-jugos". Si ese id ya existe, agrega un numero
+// incremental al final.
 function generateCategoryId(categoriesList, label) {
   const base =
     label
       .toLowerCase()
       .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[\u0300-\u036f]/g, "") // quita tildes
       .replace(/[^a-z0-9]+/g, "-")
       .replace(/^-+|-+$/g, "") || "cat";
   let id = base;
@@ -366,6 +412,8 @@ function generateCategoryId(categoriesList, label) {
 
 const DEFAULT_CARD_COLOR = "#152238";
 
+// Panel principal: formulario de plato arriba y tabla listando los platos
+// abajo. El form sirve para crear o editar segun si editingItem es null.
 function ItemsPanel({
   items,
   allItems,
@@ -379,6 +427,7 @@ function ItemsPanel({
   onReload,
 }) {
   const formRef = useRef(null);
+  // Estado del formulario. Tiene todos los campos que se guardan en BD.
   const [form, setForm] = useState({
     id: "",
     category: "",
@@ -394,6 +443,7 @@ function ItemsPanel({
   const [newIngredient, setNewIngredient] = useState("");
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
+  // Errores campo por campo para mostrar en rojo debajo de cada input.
   const [fieldErrors, setFieldErrors] = useState({});
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [successMessage, setSuccessMessage] = useState("");
@@ -402,10 +452,15 @@ function ItemsPanel({
 
   const itemsList = allItems || items;
 
+  // Patron para sincronizar el form con editingItem. No usamos useEffect
+  // porque dispararia un render extra y haria parpadear el form. En su lugar,
+  // detectamos el cambio con un ref y actualizamos el state en el mismo
+  // render. Es un workaround valido documentado en la doc de React.
   const prevEditingItemRef = useRef(editingItem);
   if (prevEditingItemRef.current !== editingItem) {
     prevEditingItemRef.current = editingItem;
     if (editingItem) {
+      // Modo editar: pre-llenamos con los datos del item clickeado.
       setForm({
         ...editingItem,
         modelAR: editingItem.modelAR || "",
@@ -414,6 +469,7 @@ function ItemsPanel({
         cardMessage: editingItem.cardMessage || "",
       });
     } else {
+      // Modo crear: reseteamos a valores por defecto.
       setForm({
         id: "",
         category: categories[0]?.id || "",
@@ -431,6 +487,8 @@ function ItemsPanel({
     setNewIngredient("");
   }
 
+  // Reglas de validacion. Cada campo tiene su regla, se usan tanto al
+  // escribir (validacion en vivo) como al hacer submit.
   const getFieldError = (name, value) => {
     if (name === "category") {
       if (!value) return "Categoria es requerida";
@@ -473,9 +531,14 @@ function ItemsPanel({
 
   const isFormValid = () => Object.keys(validateAll()).length === 0;
 
+  // Maneja cambios en los inputs. Ademas de setear el valor, aplica algunos
+  // filtros (por ejemplo, bloquea caracteres no permitidos antes de que
+  // entren al state). Eso da mejor UX que solo mostrar error.
   const handleChange = (e) => {
     const { name, value } = e.target;
 
+    // "Bloqueos" de entrada: si el nuevo valor tiene caracteres invalidos,
+    // ni siquiera dejamos que se escriban.
     if (name === "name") {
       if (value !== "" && !/^[a-zA-Z\s\-áéíóúñÁÉÍÓÚÑ]*$/.test(value)) return;
     }
@@ -493,6 +556,8 @@ function ItemsPanel({
     setFieldErrors((errs) => ({ ...errs, [name]: getFieldError(name, value) }));
   };
 
+  // Agrega ingredientes. Acepta varios separados por coma en un solo input
+  // ("tomate, cebolla, palta") y evita duplicados ignorando mayusculas.
   const handleAddIngredient = () => {
     const nextIngredients = newIngredient
       .split(",")
@@ -520,6 +585,7 @@ function ItemsPanel({
     setForm((f) => ({ ...f, ingredients: f.ingredients.filter((_, i) => i !== index) }));
   };
 
+  // Al seleccionar una imagen del modal, la guardamos en el form y cerramos.
   const handleSelectImage = (imageUrl) => {
     setForm((f) => ({ ...f, image: imageUrl }));
     setFieldErrors((errs) => ({ ...errs, image: "" }));
@@ -528,6 +594,8 @@ function ItemsPanel({
 
   const handleDeleteImage = async (imageId) => {
     await deleteImagen(imageId);
+    // Si la imagen borrada era la que estaba seleccionada en el form, la
+    // limpiamos para no quedarnos con una URL muerta.
     const deletedImg = imagenes.find((i) => i.id === imageId);
     if (deletedImg && form.image === deletedImg.src) {
       setForm((f) => ({ ...f, image: "" }));
@@ -548,6 +616,8 @@ function ItemsPanel({
     await onReload();
   };
 
+  // Quita el modelo del form sin borrarlo de Cloudinary (para cuando no lo
+  // queremos en ESTE plato pero si dejarlo disponible para otros).
   const handleClearModel = () => {
     setForm((f) => ({ ...f, modelAR: "" }));
   };
@@ -556,6 +626,7 @@ function ItemsPanel({
     e.preventDefault();
     setError("");
 
+    // Validacion final antes de mandar al server.
     const errors = validateAll();
     if (Object.keys(errors).length > 0) {
       setFieldErrors(errors);
@@ -564,6 +635,7 @@ function ItemsPanel({
 
     setSaving(true);
     try {
+      // cardMessage vacio se manda como null para que la BD no guarde "".
       const payloadBase = {
         ...form,
         cardMessage: form.cardMessage.trim() || null,
@@ -573,6 +645,8 @@ function ItemsPanel({
         await updateItem(editingItem.id, payloadBase);
         setSuccessMessage("EL PLATO SE HA ACTUALIZADO CON EXITO");
       } else {
+        // Al crear, generamos el id temporal. El server igual lo ignora pero
+        // mantiene compatibilidad con codigo viejo.
         const payload = { ...payloadBase, id: generateItemId(itemsList) };
         await createItem(payload);
         setSuccessMessage("EL PLATO SE HA AGREGADO CON EXITO");
@@ -580,6 +654,7 @@ function ItemsPanel({
       setShowSuccessModal(true);
       setEditingItem(null);
 
+      // Reset completo del form despues de guardar.
       setForm({
         id: "",
         category: categories[0]?.id || "",
@@ -596,6 +671,8 @@ function ItemsPanel({
       setNewIngredient("");
       setSaving(false);
 
+      // Esperamos 1.5s antes de recargar para que el user alcance a ver el
+      // modal de exito. Si recargaramos inmediato, la tabla pestañearia.
       setTimeout(async () => {
         try {
           await onReload();
@@ -728,6 +805,7 @@ function ItemsPanel({
           </div>
         </label>
 
+        {/* Selector de imagen: abre el modal con todas las imagenes guardadas */}
         <div className={`${styles.label} ${styles.fullWidth}`}>
           <span>Imagen</span>
 
@@ -755,12 +833,14 @@ function ItemsPanel({
           )}
         </div>
 
+        {/* Preview de la imagen seleccionada (si existe) */}
         {form.image && (form.image.startsWith("/assets/") || form.image.startsWith("https://")) && (
           <div className={`${styles.fullWidth} ${styles.imagePreviewContainer}`}>
             <img src={form.image} alt="Vista previa" className={styles.imagePreview} />
           </div>
         )}
 
+        {/* Selector de modelo 3D: mismo patron que el de imagen */}
         <div className={`${styles.label} ${styles.fullWidth}`}>
           <span>Modelo AR (opcional)</span>
 
@@ -786,6 +866,7 @@ function ItemsPanel({
           )}
         </div>
 
+        {/* Card con info del modelo seleccionado y boton para quitarlo */}
         {selectedModel && (
           <div className={`${styles.fullWidth} ${styles.modelPreviewContainer}`}>
             <div className={styles.modelPreviewCard}>
@@ -861,6 +942,7 @@ function ItemsPanel({
               value={newIngredient}
               onChange={(e) => setNewIngredient(e.target.value)}
               onKeyPress={(e) => {
+                // Enter agrega el ingrediente sin enviar el form entero.
                 if (e.key === "Enter") {
                   e.preventDefault();
                   handleAddIngredient();
@@ -880,6 +962,7 @@ function ItemsPanel({
           </div>
         </label>
 
+        {/* Lista de ingredientes ya agregados, cada uno con boton para quitarlo */}
         {form.ingredients.length > 0 && (
           <div className={`${styles.ingredientsList} ${styles.fullWidth}`}>
             {form.ingredients.map((ing, idx) => (
@@ -914,6 +997,7 @@ function ItemsPanel({
         </div>
       </form>
 
+      {/* Tabla con todos los platos y filtro por categoria */}
       <div className={styles.tableHeader}>
         <h2>Platos ({items.length})</h2>
         <select
@@ -969,6 +1053,8 @@ function ItemsPanel({
                     className={styles.btnSmall}
                     onClick={() => {
                       setEditingItem(item);
+                      // Scroll al form para que se vea la edicion. El timeout
+                      // asegura que el form ya se rellenó antes de scrollear.
                       setTimeout(
                         () =>
                           formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }),
@@ -994,6 +1080,8 @@ function ItemsPanel({
   );
 }
 
+// Panel de categorias. Mucho mas simple que el de platos: solo tiene un campo
+// (label). El id se genera automaticamente a partir del label.
 function CategoriesPanel({ categories, editingCategory, setEditingCategory, onReload }) {
   const [form, setForm] = useState({ id: "", label: "" });
   const [error, setError] = useState("");
@@ -1002,6 +1090,7 @@ function CategoriesPanel({ categories, editingCategory, setEditingCategory, onRe
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [successMessage, setSuccessMessage] = useState("");
 
+  // Mismo patron que ItemsPanel para sincronizar el form con editingCategory.
   const prevEditingCategoryRef = useRef(editingCategory);
   if (prevEditingCategoryRef.current !== editingCategory) {
     prevEditingCategoryRef.current = editingCategory;
@@ -1034,6 +1123,7 @@ function CategoriesPanel({ categories, editingCategory, setEditingCategory, onRe
 
   const handleChange = (e) => {
     const { name, value } = e.target;
+    // Bloqueo de entrada: solo permitimos letras/espacios.
     if (value !== "" && !/^[a-zA-Z\s\-áéíóúñÁÉÍÓÚÑ]*$/.test(value)) return;
     setForm((f) => ({ ...f, [name]: value }));
     setFieldErrors((errs) => ({ ...errs, [name]: getFieldError(name, value) }));
@@ -1055,6 +1145,7 @@ function CategoriesPanel({ categories, editingCategory, setEditingCategory, onRe
         await updateCategory(editingCategory.id, { label: form.label });
         setSuccessMessage("LA CATEGORIA SE HA ACTUALIZADO CON EXITO");
       } else {
+        // En crear, el id se deriva del label (ej: "Bebidas" -> "bebidas").
         const payload = { id: generateCategoryId(categories, form.label), label: form.label };
         await createCategory(payload);
         setSuccessMessage("LA CATEGORIA SE HA AGREGADO CON EXITO");
@@ -1078,6 +1169,8 @@ function CategoriesPanel({ categories, editingCategory, setEditingCategory, onRe
     }
   };
 
+  // OJO: eliminar una categoria tambien borra todos los platos de esa
+  // categoria (ON DELETE CASCADE en la BD). El confirm avisa al user.
   const handleDelete = async (id) => {
     if (!window.confirm("Eliminar esta categoria y todos sus platos?")) return;
     try {
@@ -1172,6 +1265,8 @@ function CategoriesPanel({ categories, editingCategory, setEditingCategory, onRe
   );
 }
 
+// Wrapper simple del AdminUploader. Cuando se sube algo nuevo, recarga todos
+// los datos del dashboard para que aparezca en los selectores.
 function UploadPanel({ onReload }) {
   return (
     <div>

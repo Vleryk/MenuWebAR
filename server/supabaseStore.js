@@ -1,10 +1,25 @@
+// Esta es la capa de acceso a datos. Todo lo que tenga que ver con leer o
+// escribir en Supabase pasa por aca. El server.js solo sabe de endpoints HTTP
+// y llama a estas funciones.
+//
+// Hay una particularidad importante: el frontend trabaja con ids tipo string
+// ("item-12", "cat-bebidas", "img-3") pero la BD usa integers autoincrement.
+// Las funciones parseIntId / formatItemId se encargan de traducir en los dos
+// sentidos.
+
 const { createClient } = require("@supabase/supabase-js");
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
+// El store se puede deshabilitar si faltan las env vars. El server chequea
+// este flag antes de llamar cualquier funcion para devolver 503 en vez de
+// crashear.
 const isSupabaseEnabled = Boolean(SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY);
 
+// Service role key es la KEY DE ADMIN de Supabase. No persistimos sesion ni
+// auto-refresh porque no hay usuario logueado, este cliente es server-side
+// puro.
 const supabase = isSupabaseEnabled
   ? createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
       auth: { persistSession: false, autoRefreshToken: false },
@@ -21,6 +36,8 @@ if (!isSupabaseEnabled) {
 // HELPERS
 // =====================================================
 
+// Los errores que tiran estas funciones llevan un .status que el server.js usa
+// para devolver el codigo HTTP correcto.
 function httpError(status, message) {
   const err = new Error(message);
   err.status = status;
@@ -33,14 +50,15 @@ function requireClient() {
   }
 }
 
-// Los IDs del frontend son strings tipo "item-1", "cat-bebidas".
-// La BD usa integer. Estas funciones extraen el numero del id string.
+// El frontend manda ids como "item-12", "cat-5", "img-3". En la BD son numeros.
+// Esta funcion extrae el numero final del string.
 function parseIntId(stringId) {
   if (typeof stringId !== "string") return null;
   const match = stringId.match(/(\d+)$/);
   return match ? parseInt(match[1], 10) : null;
 }
 
+// Funciones inversas: de numero de BD a string que espera el frontend.
 function formatItemId(intId) {
   return `item-${intId}`;
 }
@@ -60,6 +78,8 @@ function formatModeloId(intId) {
 // =====================================================
 // MAPEOS BD -> FRONTEND
 // =====================================================
+// La BD tiene nombres en español (nombre_categ, url_image, etc). El frontend
+// usa nombres en ingles (label, src). Estos mappers normalizan la forma.
 
 function mapCategoryRow(row) {
   return {
@@ -84,6 +104,9 @@ function mapModeloRow(row) {
   };
 }
 
+// El mapper de platos es mas complicado porque tiene FKs a 3 tablas
+// (categoria, imagen, modelo). Le pasamos los indices ya armados para no
+// tener que hacer .find() lineal por cada plato.
 function mapItemRow(row, { categoriesById, imagenesById, modelosById }) {
   const category = categoriesById.get(row.categoria);
   const imagen = row.imagen != null ? imagenesById.get(row.imagen) : null;
@@ -107,6 +130,10 @@ function mapItemRow(row, { categoriesById, imagenesById, modelosById }) {
 // LOAD ALL DATA
 // =====================================================
 
+// Carga TODO de una vez (las 4 tablas en paralelo) y arma los objetos que
+// espera el frontend. Se usa tanto para el menu publico como para el admin.
+// Es un poco pesado pero el dataset es chico (pocas decenas de platos) asi
+// que no vale la pena optimizar todavia.
 async function loadSupabaseData() {
   requireClient();
 
@@ -126,7 +153,8 @@ async function loadSupabaseData() {
   const imagenes = imgsRes.data.map(mapImagenRow);
   const modelos = modsRes.data.map(mapModeloRow);
 
-  // Indices por id numerico para resolver FKs
+  // Para resolver las FKs en los platos armamos Maps por id numerico.
+  // Esto convierte un .find() O(n) en un .get() O(1).
   const categoriesById = new Map(catsRes.data.map((r) => [r.id_categ, mapCategoryRow(r)]));
   const imagenesById = new Map(imgsRes.data.map((r) => [r.id_image, mapImagenRow(r)]));
   const modelosById = new Map(modsRes.data.map((r) => [r.id_model, mapModeloRow(r)]));
@@ -145,6 +173,7 @@ async function loadSupabaseData() {
 async function createCategory({ label }) {
   requireClient();
 
+  // Insertamos sin id, la BD lo genera sola (identity autoincrement).
   const { data, error } = await supabase
     .from("categorias")
     .insert({ nombre_categ: label })
@@ -160,6 +189,8 @@ async function updateCategory(stringId, { label }) {
   const intId = parseIntId(stringId);
   if (intId == null) throw httpError(400, "id de categoria invalido");
 
+  // Construimos el payload solo con los campos que vinieron. Si label viene
+  // undefined no lo incluimos.
   const payload = {};
   if (label !== undefined) payload.nombre_categ = label;
 
@@ -180,7 +211,9 @@ async function deleteCategory(stringId) {
   const intId = parseIntId(stringId);
   if (intId == null) throw httpError(400, "id de categoria invalido");
 
-  // Borrar platos asociados primero
+  // Borramos los platos asociados ANTES de borrar la categoria. Tecnicamente
+  // la FK tiene ON DELETE CASCADE, pero lo hacemos explicito para mas control
+  // y por si hay que hacer algo extra con los platos en el futuro.
   const { error: platosErr } = await supabase.from("platos").delete().eq("categoria", intId);
   if (platosErr) throw httpError(500, platosErr.message);
 
@@ -207,11 +240,16 @@ async function createImagenAsset({ label, url }) {
   return mapImagenRow(data);
 }
 
+// Borrar una imagen es un poco delicado: si algun plato la estaba usando, hay
+// que dejar esa columna en null para no romper la FK. Despues borramos la fila
+// de imagenes y devolvemos la URL para que el server.js pueda borrar tambien
+// de Cloudinary.
 async function deleteImagenAsset(stringId) {
   requireClient();
   const intId = parseIntId(stringId);
   if (intId == null) throw httpError(400, "id de imagen invalido");
 
+  // Primero sacamos la URL antes de borrar, la necesitamos para devolverla.
   const { data: existing, error: fetchErr } = await supabase
     .from("imagenes")
     .select("url_image")
@@ -220,7 +258,7 @@ async function deleteImagenAsset(stringId) {
 
   if (fetchErr) throw httpError(404, "Imagen no encontrada");
 
-  // Limpiar referencias en platos
+  // Limpiar las referencias en platos que usaban esta imagen.
   const { error: refErr } = await supabase
     .from("platos")
     .update({ imagen: null })
@@ -254,6 +292,12 @@ async function createModeloAsset({ label, url }) {
 // ITEMS (PLATOS)
 // =====================================================
 
+// Resuelve las FKs de un plato. El frontend manda strings (category="cat-5",
+// image="https://...", modelAR="mod-3") y la BD necesita integers
+// (categoria=5, imagen=12, modelo=3). Esta funcion hace la traduccion.
+//
+// Para imagen es un caso especial: el frontend no manda el id de la imagen,
+// manda la URL. Hacemos un lookup por url_image para encontrar el id_image.
 async function resolveItemFks({ category, image, modelAR }) {
   const result = {};
 
@@ -267,7 +311,8 @@ async function resolveItemFks({ category, image, modelAR }) {
     if (!image) {
       result.imagen = null;
     } else {
-      // image viene como URL; resolver id_image por url_image
+      // El frontend guarda la URL de Cloudinary directamente, no el id.
+      // Buscamos por url_image.
       const { data, error } = await supabase
         .from("imagenes")
         .select("id_image")
@@ -309,6 +354,8 @@ async function createItem(payload) {
 
   const fks = await resolveItemFks({ category, image, modelAR });
 
+  // El precio viene como string ("$12.990"), lo convertimos a int quitando
+  // todo lo que no sea digito.
   const priceInt = parseInt(String(price).replace(/[^\d]/g, ""), 10);
   if (Number.isNaN(priceInt)) throw httpError(400, "precio invalido");
 
@@ -327,7 +374,9 @@ async function createItem(payload) {
   const { data, error } = await supabase.from("platos").insert(insertRow).select().single();
   if (error) throw httpError(500, error.message);
 
-  // Recargar con FKs resueltos
+  // Para devolver el plato con las relaciones resueltas (no solo los int ids)
+  // recargamos todo y buscamos el recien creado. Es un poco costoso pero
+  // mantiene la consistencia del formato de respuesta.
   const all = await loadSupabaseData();
   const found = all.menuItems.find((i) => i.id === formatItemId(data.id));
   return (
@@ -345,6 +394,8 @@ async function updateItem(stringId, payload) {
   const intId = parseIntId(stringId);
   if (intId == null) throw httpError(400, "id de plato invalido");
 
+  // Armamos el update solo con los campos que vinieron. Asi podemos hacer
+  // updates parciales sin pisar datos.
   const updateRow = {};
 
   if (payload.name !== undefined) updateRow.nombre = payload.name;
@@ -388,6 +439,7 @@ async function updateItem(stringId, payload) {
   if (error) throw httpError(500, error.message);
   if (!data) throw httpError(404, "Plato no encontrado");
 
+  // Misma logica que en create: recargamos para devolver con relaciones.
   const all = await loadSupabaseData();
   const found = all.menuItems.find((i) => i.id === formatItemId(data.id));
   return (

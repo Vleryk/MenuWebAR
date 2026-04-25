@@ -1,3 +1,15 @@
+// Visor AR directo via URL. La idea: imprimir un QR por plato apuntando a
+// /ar/:itemId y que el cliente lo escanee desde la mesa. El QR abre esta
+// vista en pantalla completa con el modelo 3D listo para AR sin tener que
+// navegar por el menu.
+//
+// La ruta esta registrada en main.jsx como: /ar/:itemId
+//
+// El itemId puede ser:
+//   - El id del plato ("item-12")
+//   - O el nombre del plato slugificado ("hamburguesa-clasica")
+// Asi el QR puede tener URLs mas legibles si el restaurante quiere.
+
 import { useEffect, useState, useRef } from "react";
 import { useParams } from "react-router-dom";
 
@@ -8,11 +20,14 @@ function DirectARViewer() {
   const modelViewerRef = useRef(null);
 
   useEffect(() => {
-    // Reutilizamos tu lógica de App.jsx para obtener los datos
+    // Reutilizamos el endpoint /api/menu igual que App.jsx. Es un poco
+    // wasteful traer todo el menu solo para un plato, pero asi mantenemos
+    // un solo endpoint publico y el caching del browser ayuda.
     fetch("/api/menu")
       .then((res) => res.json())
       .then((data) => {
-        // Buscamos el plato específico. Asumiendo que tus items tienen una propiedad 'id' o 'name'
+        // Buscamos el plato matcheando por id directo o por nombre
+        // slugificado (todo en minusculas, espacios -> guiones).
         const foundItem = data.menuItems?.find(
           (m) => m.id === itemId || m.name.toLowerCase().replace(/\s+/g, "-") === itemId,
         );
@@ -25,6 +40,7 @@ function DirectARViewer() {
       });
   }, [itemId]);
 
+  // Lanza la AR programaticamente. Usamos la misma API que en MenuCard.jsx.
   const launchAr = () => {
     if (modelViewerRef.current) {
       modelViewerRef.current.activateAR(); // Misma función que usas en MenuCard.jsx
@@ -32,6 +48,7 @@ function DirectARViewer() {
   };
 
   if (loading) return <div style={styles.center}>Cargando experiencia AR...</div>;
+  // Si el plato no existe o no tiene modelo, mostramos un mensaje simple.
   if (!item || !item.modelAR) return <div style={styles.center}>Modelo no encontrado</div>;
 
   return (
@@ -45,7 +62,9 @@ function DirectARViewer() {
         auto-rotate
         style={styles.viewer}
       >
-        {/* Botón HTML superpuesto para invitar a interactuar al usuario e iniciar AR */}
+        {/* slot="ar-button" reemplaza el boton AR default de model-viewer.
+            Nuestro boton es mas grande y llamativo, optimizado para que el
+            cliente lo vea claramente en mobile despues de escanear el QR. */}
         <button slot="ar-button" style={styles.arButton} onClick={launchAr}>
           Ver en mi mesa
         </button>
@@ -54,6 +73,8 @@ function DirectARViewer() {
   );
 }
 
+// Estilos inline porque este componente es full-screen y no comparte nada
+// con el resto del menu. Mantenerlo aislado simplifica.
 const styles = {
   fullScreenContainer: {
     width: "100vw",
