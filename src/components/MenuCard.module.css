@@ -31,8 +31,8 @@
 
 .menuThumb {
   flex: 0 0 100px;
-  width: 100px;
-  height: 100px;
+  width: 150px;
+  height: 150px;
   border-radius: 12px;
   object-fit: cover;
   border: 2px solid rgba(212, 170, 99, 0.4);

@@ -455,12 +455,9 @@ function ItemsPanel({
   // Patron para sincronizar el form con editingItem. No usamos useEffect
   // porque dispararia un render extra y haria parpadear el form. En su lugar,
   // detectamos el cambio con un ref y actualizamos el state en el mismo
-  // render. Es un workaround valido documentado en la doc de React.
-  const prevEditingItemRef = useRef(editingItem);
-  if (prevEditingItemRef.current !== editingItem) {
-    prevEditingItemRef.current = editingItem;
+  // Sincroniza el form con editingItem usando useEffect (cumple con react-hooks/refs).
+  useEffect(() => {
     if (editingItem) {
-      // Modo editar: pre-llenamos con los datos del item clickeado.
       setForm({
         ...editingItem,
         modelAR: editingItem.modelAR || "",
@@ -469,7 +466,6 @@ function ItemsPanel({
         cardMessage: editingItem.cardMessage || "",
       });
     } else {
-      // Modo crear: reseteamos a valores por defecto.
       setForm({
         id: "",
         category: categories[0]?.id || "",
@@ -485,7 +481,8 @@ function ItemsPanel({
     }
     setFieldErrors({});
     setNewIngredient("");
-  }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editingItem]);
 
   // Reglas de validacion. Cada campo tiene su regla, se usan tanto al
   // escribir (validacion en vivo) como al hacer submit.
@@ -1092,15 +1089,16 @@ function CategoriesPanel({ categories, editingCategory, setEditingCategory, onRe
 
   // Mismo patron que ItemsPanel para sincronizar el form con editingCategory.
   const prevEditingCategoryRef = useRef(editingCategory);
-  if (prevEditingCategoryRef.current !== editingCategory) {
-    prevEditingCategoryRef.current = editingCategory;
+
+  // Sincroniza el form con editingCategory usando useEffect.
+  useEffect(() => {
     if (editingCategory) {
       setForm({ ...editingCategory });
     } else {
       setForm({ id: "", label: "" });
     }
     setFieldErrors({});
-  }
+  }, [editingCategory]);
 
   const getFieldError = (name, value) => {
     if (name === "label") {
