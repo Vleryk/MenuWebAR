@@ -1,34 +1,54 @@
+// =============================================================================
+// AdminDashboard.jsx
+// =============================================================================
 // Dashboard principal del admin. Es el componente mas grande del proyecto
 // porque contiene todo el CRUD: platos, categorias, subida de archivos,
 // selector de imagenes, selector de modelos 3D, etc.
 //
-// Esta dividido en varios componentes internos:
-//   - AdminDashboard  -> shell, auth, tabs, carga de datos
-//   - ItemsPanel      -> formulario y tabla de platos
-//   - CategoriesPanel -> formulario y tabla de categorias
-//   - UploadPanel     -> wrapper del uploader a Cloudinary
-//   - ImageModal      -> modal para elegir/borrar imagenes guardadas
-//   - ModelModal      -> modal para elegir/borrar modelos 3D guardados
-//   - SuccessModal    -> modal verde de confirmacion (auto-cierra en 3s)
+// Estructura del archivo (de arriba a abajo):
+//   - AdminDashboard      -> componente raiz: maneja auth, tabs y carga de datos
+//   - SuccessModal        -> modal verde de confirmacion (auto-cierra en 3s)
+//   - ImageModal          -> modal para elegir/borrar imagenes guardadas
+//   - ModelModal          -> modal para elegir/borrar modelos 3D guardados
+//   - generateItemId      -> helper: ids de plato tipo "item-N"
+//   - generateCategoryId  -> helper: ids slug de categoria
+//   - ItemsPanel          -> formulario y vista tipo menu de platos
+//   - CategoriesPanel     -> formulario y tabla de categorias
+//   - UploadPanel         -> wrapper del uploader a Cloudinary
 //
-// La auth funciona asi: al cargar se llama verifyToken(). Si el token sigue
-// valido, muestra el dashboard. Si no, muestra AdminLogin.
+// Flujo de autenticacion:
+//   1. Al montar, llamamos verifyToken() para chequear si el JWT sigue valido.
+//   2. Mientras chequea, mostramos "Verificando sesion...".
+//   3. Si es valido -> renderiza el dashboard.
+//   4. Si no -> renderiza <AdminLogin/> que setea authenticated=true al loguear.
+//
+// Flujo de datos:
+//   - Todos los datos (categorias, items, modelos, imagenes) viven en este
+//     componente raiz y se pasan por props a los paneles hijos.
+//   - Cada vez que se crea/edita/elimina algo, los hijos llaman a onReload()
+//     que vuelve a pedir todo a la API y refresca el state.
+// =============================================================================
 
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
+  // Lecturas
   getCategories,
   getItems,
   getModelos,
   getImagenes,
+  // Escrituras de items
   createItem,
   updateItem,
   deleteItem,
+  // Escrituras de categorias
   createCategory,
   updateCategory,
   deleteCategory,
+  // Eliminar archivos subidos
   deleteImagen,
   deleteModelo,
+  // Auth
   logout,
   verifyToken,
 } from "./api";
@@ -36,27 +56,44 @@ import AdminLogin from "./AdminLogin";
 import AdminUploader from "./AdminUploader";
 import styles from "./admin.module.css";
 
+// =============================================================================
+// COMPONENTE RAIZ: AdminDashboard
+// =============================================================================
 export default function AdminDashboard() {
-  const navigate = useNavigate();
+  const navigate = useNavigate(); // hook de react-router para volver al menu publico
+
+  // --- Estado de autenticacion ---
+  // authenticated: si el usuario tiene sesion valida
+  // checking: si todavia estamos verificando el token al cargar la pagina
   const [authenticated, setAuthenticated] = useState(false);
   const [checking, setChecking] = useState(true);
 
-  // Todos los datos que consume el admin viven en este componente. Se pasan
-  // por props a los paneles hijos. No usamos context porque el arbol es chico.
-  const [categories, setCategories] = useState([]);
-  const [items, setItems] = useState([]);
-  const [modelos, setModelos] = useState([]);
-  const [imagenes, setImagenes] = useState([]);
+  // --- Datos del backend ---
+  // Todos los datos que consume el admin viven aca. Se pasan por props a los
+  // paneles hijos. No usamos context porque el arbol es chico.
+  const [categories, setCategories] = useState([]); // [{id, label}]
+  const [items, setItems] = useState([]); // [{id, name, category, price, ...}]
+  const [modelos, setModelos] = useState([]); // [{id, label, src}] modelos .glb
+  const [imagenes, setImagenes] = useState([]); // [{id, label, src}] imagenes
+
+  // Tab activa: "items" | "categories" | "upload"
   const [activeTab, setActiveTab] = useState("items");
 
-  // Item/categoria que se esta editando. Si es null, el form esta en modo
-  // "crear nuevo". Si tiene valor, el form se pre-llena para editar.
+  // --- Estado de edicion ---
+  // editingItem/editingCategory: si tienen valor, el form del panel hijo se
+  // pre-llena con esos datos (modo "editar"). Si son null, el form esta en
+  // modo "crear nuevo".
   const [editingItem, setEditingItem] = useState(null);
   const [editingCategory, setEditingCategory] = useState(null);
+
+  // Filtro por categoria (se aplica antes de pasar items al ItemsPanel).
   const [filterCategory, setFilterCategory] = useState("");
 
-  // Recarga todos los datos. Se llama despues de cada create/update/delete
-  // para mantener la UI sincronizada con la BD.
+  // ---------------------------------------------------------------------------
+  // loadData: recarga todos los datos del backend.
+  // Se llama despues de cada create/update/delete para mantener la UI
+  // sincronizada con la BD. Promise.all paraleliza las 4 llamadas.
+  // ---------------------------------------------------------------------------
   const loadData = async () => {
     try {
       const [cats, itms, mods, imgs] = await Promise.all([
@@ -76,7 +113,10 @@ export default function AdminDashboard() {
     }
   };
 
-  // Primer chequeo al montar: verificamos si hay un token valido.
+  // ---------------------------------------------------------------------------
+  // Effect 1: chequeo inicial de token al montar.
+  // Solo corre una vez (deps = []). verifyToken() devuelve boolean.
+  // ---------------------------------------------------------------------------
   useEffect(() => {
     verifyToken().then((valid) => {
       setAuthenticated(valid);
@@ -84,9 +124,11 @@ export default function AdminDashboard() {
     });
   }, []);
 
-  // Una vez autenticado, cargamos los datos iniciales. Usamos la bandera
-  // `cancelled` para evitar setear state si el componente se desmonto antes
-  // de que resuelvan las promesas (por ej, si el user hace logout rapido).
+  // ---------------------------------------------------------------------------
+  // Effect 2: cuando el user se autentica, cargar todos los datos.
+  // La bandera `cancelled` evita setear state si el componente se desmonto
+  // antes de que resuelvan las promesas (ej: logout rapido).
+  // ---------------------------------------------------------------------------
   useEffect(() => {
     if (!authenticated) return;
     let cancelled = false;
@@ -108,31 +150,37 @@ export default function AdminDashboard() {
         if (!cancelled) setAuthenticated(false);
       }
     })();
+    // Cleanup: se ejecuta cuando el componente se desmonta o cambia `authenticated`.
     return () => {
       cancelled = true;
     };
   }, [authenticated]);
 
+  // Cierra sesion: limpia el token y vuelve a mostrar el login.
   function handleLogout() {
     logout();
     setAuthenticated(false);
   }
 
+  // --- Renders condicionales segun estado de auth ---
   if (checking) {
     return <div className={styles.loading}>Verificando sesion...</div>;
   }
 
   if (!authenticated) {
+    // El callback onLogin lo dispara <AdminLogin/> cuando el login es exitoso.
     return <AdminLogin onLogin={() => setAuthenticated(true)} />;
   }
 
-  // El filtro por categoria se aplica aca antes de pasar al ItemsPanel.
+  // Aplicamos el filtro de categoria antes de pasar al ItemsPanel.
   // allItems se pasa tambien para que el panel pueda generar ids unicos
   // aunque este viendo una vista filtrada.
   const filteredItems = filterCategory ? items.filter((i) => i.category === filterCategory) : items;
 
+  // --- Render principal ---
   return (
     <div className={styles.adminShell}>
+      {/* Header con branding y botones de navegacion */}
       <header className={styles.adminHeader}>
         <div className={styles.adminHeaderLeft}>
           <h1 className={styles.adminBrand}>Route 66 — Admin</h1>
@@ -145,6 +193,7 @@ export default function AdminDashboard() {
         </button>
       </header>
 
+      {/* Tabs de navegacion entre paneles */}
       <nav className={styles.adminNav}>
         <button
           className={`${styles.navBtn} ${activeTab === "items" ? styles.navActive : ""}`}
@@ -166,6 +215,7 @@ export default function AdminDashboard() {
         </button>
       </nav>
 
+      {/* Contenido del panel activo (renderizado condicional segun activeTab) */}
       <main className={styles.adminMain}>
         {activeTab === "items" && (
           <ItemsPanel
@@ -195,16 +245,23 @@ export default function AdminDashboard() {
   );
 }
 
+// =============================================================================
+// SuccessModal
+// -----------------------------------------------------------------------------
 // Modal verde que aparece despues de guardar algo con exito. Se cierra solo
-// despues de 3 segundos o cuando se llama a onClose.
+// despues de 3s o cuando se llama a onClose(). El timer se limpia en el
+// cleanup del useEffect para evitar memory leaks si el componente se desmonta
+// antes de que terminen los 3s.
+// =============================================================================
 function SuccessModal({ isOpen, message, onClose }) {
   useEffect(() => {
     if (isOpen) {
       const timer = setTimeout(onClose, 3000);
-      return () => clearTimeout(timer);
+      return () => clearTimeout(timer); // cleanup
     }
   }, [isOpen, onClose]);
 
+  // Patron comun: si no esta abierto, no renderizamos nada.
   if (!isOpen) return null;
 
   return (
@@ -217,21 +274,36 @@ function SuccessModal({ isOpen, message, onClose }) {
   );
 }
 
+// =============================================================================
+// ImageModal
+// -----------------------------------------------------------------------------
 // Modal para elegir una imagen ya subida. Muestra un grid con thumbnails,
 // permite buscar por nombre y borrar imagenes (borra tambien de Cloudinary).
+//
+// Props:
+//   - isOpen: si el modal esta visible
+//   - imagenes: lista completa [{id, label, src}]
+//   - onSelectImage(url): callback al seleccionar
+//   - onDeleteImage(id): callback al eliminar
+//   - onClose: callback al cerrar el modal
+// =============================================================================
 function ImageModal({ isOpen, imagenes, onSelectImage, onDeleteImage, onClose }) {
+  // Estado local: termino de busqueda y id de la imagen que se esta borrando
+  // (para mostrar spinner solo en ese item).
   const [searchTerm, setSearchTerm] = useState("");
   const [deletingId, setDeletingId] = useState(null);
 
+  // Filtro case-insensitive por label.
   const filteredImages = imagenes.filter((img) =>
     img.label.toLowerCase().includes(searchTerm.toLowerCase()),
   );
 
   if (!isOpen) return null;
 
+  // Maneja el click en la X de borrar. Pide confirmacion antes.
   const handleDeleteClick = async (e, img) => {
-    // stopPropagation para que el click en la X no dispare el onClick del
-    // contenedor padre (que seleccionaria la imagen).
+    // stopPropagation: evita que el click en la X dispare el onClick del
+    // contenedor padre, que seleccionaria la imagen en lugar de borrarla.
     e.stopPropagation();
     if (
       !window.confirm(
@@ -246,11 +318,13 @@ function ImageModal({ isOpen, imagenes, onSelectImage, onDeleteImage, onClose })
     } catch (err) {
       alert(err.message || "Error al eliminar imagen");
     } finally {
+      // Reseteamos siempre, falle o no, para no dejar el spinner pegado.
       setDeletingId(null);
     }
   };
 
   return (
+    // Click en el overlay (fondo oscuro) cierra el modal.
     <div className={styles.modalOverlay} onClick={onClose}>
       {/* stopPropagation para que click DENTRO del modal no cierre el modal */}
       <div className={styles.imageModalContent} onClick={(e) => e.stopPropagation()}>
@@ -269,6 +343,7 @@ function ImageModal({ isOpen, imagenes, onSelectImage, onDeleteImage, onClose })
           onChange={(e) => setSearchTerm(e.target.value)}
         />
 
+        {/* Grid: cada item tiene boton de borrar y click para seleccionar */}
         <div className={styles.imageGrid}>
           {filteredImages.length > 0 ? (
             filteredImages.map((img) => (
@@ -297,8 +372,13 @@ function ImageModal({ isOpen, imagenes, onSelectImage, onDeleteImage, onClose })
   );
 }
 
-// Modal analogo al de imagenes pero para modelos 3D. Los .glb no se pueden
-// previsualizar directamente asi que mostramos un icono generico con el label.
+// =============================================================================
+// ModelModal
+// -----------------------------------------------------------------------------
+// Modal analogo al de imagenes pero para modelos 3D (.glb). Los .glb no se
+// pueden previsualizar facilmente asi que en lugar de thumbnail mostramos un
+// icono generico de cubo con el label del modelo.
+// =============================================================================
 function ModelModal({ isOpen, modelos, onSelectModel, onDeleteModel, onClose }) {
   const [searchTerm, setSearchTerm] = useState("");
   const [deletingId, setDeletingId] = useState(null);
@@ -309,6 +389,7 @@ function ModelModal({ isOpen, modelos, onSelectModel, onDeleteModel, onClose }) 
 
   if (!isOpen) return null;
 
+  // Mismo patron que en ImageModal: stopPropagation + confirm + spinner.
   const handleDeleteClick = async (e, model) => {
     e.stopPropagation();
     if (
@@ -360,6 +441,7 @@ function ModelModal({ isOpen, modelos, onSelectModel, onDeleteModel, onClose }) 
                   {deletingId === model.id ? "..." : "✕"}
                 </button>
                 <div className={styles.imageGridItemInner} onClick={() => onSelectModel(model.id)}>
+                  {/* Icono generico de cubo (no podemos renderizar .glb facilmente) */}
                   <div className={styles.modelIconBox}>
                     <span className={styles.modelIconEmoji}>📦</span>
                     <span className={styles.modelIconText}>.glb</span>
@@ -377,31 +459,40 @@ function ModelModal({ isOpen, modelos, onSelectModel, onDeleteModel, onClose }) 
   );
 }
 
+// =============================================================================
+// HELPERS DE GENERACION DE IDS
+// =============================================================================
+
 // Genera el proximo id de item mirando los existentes y sumando 1 al mayor.
-// Nota: la BD ya tiene identity autoincrement asi que este id se ignora en
-// el server. Lo dejamos para no romper la interfaz historica.
+// Ej: si existen ["item-1", "item-3", "item-7"] -> devuelve "item-8".
+//
+// Nota: la BD tiene identity autoincrement asi que el server ignora este id.
+// Lo dejamos para mantener compatibilidad con el codigo viejo del frontend.
 function generateItemId(itemsList) {
+  // 1) Extraer los numeros de cada id que matchee "item-N".
   const nums = itemsList
     .map((i) => {
       const m = String(i.id).match(/^item-(\d+)$/);
       return m ? parseInt(m[1], 10) : 0;
     })
     .filter((n) => n > 0);
+  // 2) Tomar el mayor + 1, o 1 si la lista esta vacia.
   const next = nums.length > 0 ? Math.max(...nums) + 1 : 1;
   return `item-${next}`;
 }
 
-// Genera un id slug-like a partir del label de la categoria. Ej: "Bebidas y
-// Jugos" -> "bebidas-y-jugos". Si ese id ya existe, agrega un numero
-// incremental al final.
+// Genera un id slug-like a partir del label de la categoria.
+// Ej: "Bebidas y Jugos" -> "bebidas-y-jugos".
+// Si ese id ya existe, agrega un numero incremental al final ("-2", "-3"...).
 function generateCategoryId(categoriesList, label) {
   const base =
     label
       .toLowerCase()
-      .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "") // quita tildes
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-+|-+$/g, "") || "cat";
+      .normalize("NFD") // descomposicion unicode (separa tildes)
+      .replace(/[\u0300-\u036f]/g, "") // quita tildes (combining marks)
+      .replace(/[^a-z0-9]+/g, "-") // todo lo no-alfanumerico -> guion
+      .replace(/^-+|-+$/g, "") || "cat"; // quita guiones del inicio/final
+  // Si el slug ya existe, agregamos sufijo numerico hasta que sea unico.
   let id = base;
   let i = 2;
   while (categoriesList.some((c) => c.id === id)) {
@@ -410,13 +501,27 @@ function generateCategoryId(categoriesList, label) {
   return id;
 }
 
+// Color por defecto de la card de un plato (azul oscuro).
 const DEFAULT_CARD_COLOR = "#152238";
 
-// Panel principal: formulario de plato arriba y tabla listando los platos
-// abajo. El form sirve para crear o editar segun si editingItem es null.
+// =============================================================================
+// ItemsPanel
+// -----------------------------------------------------------------------------
+// Panel principal: formulario de plato arriba y vista tipo "menu cliente"
+// abajo (cards agrupadas por categoria). El form sirve para crear o editar
+// segun si editingItem es null.
+//
+// Es el componente mas complejo del dashboard. Maneja:
+//   - Form con muchos campos y validacion en vivo
+//   - Selector de imagen (modal)
+//   - Selector de modelo 3D (modal)
+//   - Lista de ingredientes dinamica
+//   - Color picker para la card
+//   - Vista de menu agrupada por categoria con filtro
+// =============================================================================
 function ItemsPanel({
-  items,
-  allItems,
+  items, // items ya filtrados por categoria (para mostrar)
+  allItems, // items completos (para generar ids unicos)
   categories,
   modelos,
   imagenes,
@@ -426,8 +531,14 @@ function ItemsPanel({
   setEditingItem,
   onReload,
 }) {
+  // Ref al form para hacer scroll automatico cuando se entra a modo "editar".
   const formRef = useRef(null);
-  // Estado del formulario. Tiene todos los campos que se guardan en BD.
+
+  // ---------------------------------------------------------------------------
+  // ESTADO DEL FORMULARIO
+  // ---------------------------------------------------------------------------
+  // form: objeto con todos los campos del plato. Se usa tanto para crear como
+  // para editar. Cuando editingItem cambia, se re-llena con esos datos.
   const [form, setForm] = useState({
     id: "",
     category: "",
@@ -440,24 +551,34 @@ function ItemsPanel({
     cardColor: DEFAULT_CARD_COLOR,
     cardMessage: "",
   });
+
+  // Input temporal para agregar ingredientes (uno o varios separados por coma).
   const [newIngredient, setNewIngredient] = useState("");
-  const [error, setError] = useState("");
-  const [saving, setSaving] = useState(false);
-  // Errores campo por campo para mostrar en rojo debajo de cada input.
-  const [fieldErrors, setFieldErrors] = useState({});
+
+  // Errores y estado de submit
+  const [error, setError] = useState(""); // error general (server)
+  const [saving, setSaving] = useState(false); // mientras se guarda
+  const [fieldErrors, setFieldErrors] = useState({}); // errores por campo
+
+  // Estados de modales
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [successMessage, setSuccessMessage] = useState("");
   const [showImageModal, setShowImageModal] = useState(false);
   const [showModelModal, setShowModelModal] = useState(false);
 
+  // Lista completa de items (para generar ids). Si no se paso allItems usa items.
   const itemsList = allItems || items;
 
-  // Patron para sincronizar el form con editingItem. No usamos useEffect
-  // porque dispararia un render extra y haria parpadear el form. En su lugar,
-  // detectamos el cambio con un ref y actualizamos el state en el mismo
-  // Sincroniza el form con editingItem usando useEffect (cumple con react-hooks/refs).
+  // ---------------------------------------------------------------------------
+  // Effect: sincronizar el form con editingItem.
+  // Cuando setEditingItem se llama desde fuera (al hacer click en "Editar"),
+  // este effect detecta el cambio y rellena el form con los datos del item.
+  // Si editingItem es null, resetea el form a valores vacios (modo "crear").
+  // ---------------------------------------------------------------------------
   useEffect(() => {
     if (editingItem) {
+      // Modo editar: rellenar form con valores del item.
+      // Los `|| ""` y `|| []` son defaults por si el item no tiene esos campos.
       setForm({
         ...editingItem,
         modelAR: editingItem.modelAR || "",
@@ -466,6 +587,7 @@ function ItemsPanel({
         cardMessage: editingItem.cardMessage || "",
       });
     } else {
+      // Modo crear: form vacio. La categoria default es la primera disponible.
       setForm({
         id: "",
         category: categories[0]?.id || "",
@@ -479,19 +601,27 @@ function ItemsPanel({
         cardMessage: "",
       });
     }
+    // Limpiar errores y input de ingrediente al cambiar de modo.
     setFieldErrors({});
     setNewIngredient("");
     // eslint-disable-next-line react-hooks/exhaustive-deps
+    // ^ Ignoramos `categories` en deps a proposito: solo queremos disparar
+    //   este effect cuando cambia editingItem, no cuando llegan categorias.
   }, [editingItem]);
 
-  // Reglas de validacion. Cada campo tiene su regla, se usan tanto al
-  // escribir (validacion en vivo) como al hacer submit.
+  // ---------------------------------------------------------------------------
+  // VALIDACION
+  // ---------------------------------------------------------------------------
+
+  // Devuelve un mensaje de error si el campo es invalido, "" si es valido.
+  // Se usa para validacion en vivo (al escribir) y en el submit.
   const getFieldError = (name, value) => {
     if (name === "category") {
       if (!value) return "Categoria es requerida";
     }
     if (name === "name") {
       if (!value.trim()) return "Nombre es requerido";
+      // Permitimos solo letras, espacios, guiones y vocales acentuadas/ñ.
       if (!/^[a-zA-Z\s\-áéíóúñÁÉÍÓÚÑ]+$/.test(value)) return "Solo letras y espacios";
     }
     if (name === "price") {
@@ -507,6 +637,7 @@ function ItemsPanel({
       if (!value) return "Imagen es requerida";
     }
     if (name === "cardColor") {
+      // Hex de 6 digitos con # al inicio.
       if (value && !/^#[0-9A-Fa-f]{6}$/.test(value)) return "Formato hex invalido (#RRGGBB)";
     }
     if (name === "cardMessage") {
@@ -515,6 +646,7 @@ function ItemsPanel({
     return "";
   };
 
+  // Corre todas las validaciones y devuelve un objeto con los errores.
   const validateAll = () => {
     const errors = {};
     ["category", "name", "price", "description", "image", "cardColor", "cardMessage"].forEach(
@@ -526,16 +658,20 @@ function ItemsPanel({
     return errors;
   };
 
+  // True si no hay ningun error.
   const isFormValid = () => Object.keys(validateAll()).length === 0;
 
+  // ---------------------------------------------------------------------------
+  // HANDLERS DEL FORM
+  // ---------------------------------------------------------------------------
+
   // Maneja cambios en los inputs. Ademas de setear el valor, aplica algunos
-  // filtros (por ejemplo, bloquea caracteres no permitidos antes de que
-  // entren al state). Eso da mejor UX que solo mostrar error.
+  // "bloqueos de entrada": si el nuevo valor tiene caracteres invalidos, ni
+  // siquiera dejamos que se escriban (mejor UX que solo mostrar error).
   const handleChange = (e) => {
     const { name, value } = e.target;
 
-    // "Bloqueos" de entrada: si el nuevo valor tiene caracteres invalidos,
-    // ni siquiera dejamos que se escriban.
+    // Bloqueos por campo:
     if (name === "name") {
       if (value !== "" && !/^[a-zA-Z\s\-áéíóúñÁÉÍÓÚÑ]*$/.test(value)) return;
     }
@@ -549,6 +685,7 @@ function ItemsPanel({
       if (value.length > 40) return;
     }
 
+    // Actualizar form y revalidar el campo.
     setForm((f) => ({ ...f, [name]: value }));
     setFieldErrors((errs) => ({ ...errs, [name]: getFieldError(name, value) }));
   };
@@ -556,6 +693,7 @@ function ItemsPanel({
   // Agrega ingredientes. Acepta varios separados por coma en un solo input
   // ("tomate, cebolla, palta") y evita duplicados ignorando mayusculas.
   const handleAddIngredient = () => {
+    // 1) Parsear: split por coma, trim, descartar vacios.
     const nextIngredients = newIngredient
       .split(",")
       .map((v) => v.trim())
@@ -563,6 +701,7 @@ function ItemsPanel({
 
     if (nextIngredients.length === 0) return;
 
+    // 2) Mergear con los existentes evitando duplicados (case-insensitive).
     setForm((f) => {
       const existingKeys = new Set(f.ingredients.map((i) => i.toLowerCase()));
       const merged = [...f.ingredients];
@@ -575,9 +714,11 @@ function ItemsPanel({
       return { ...f, ingredients: merged };
     });
 
+    // 3) Limpiar el input.
     setNewIngredient("");
   };
 
+  // Quita un ingrediente por indice.
   const handleRemoveIngredient = (index) => {
     setForm((f) => ({ ...f, ingredients: f.ingredients.filter((_, i) => i !== index) }));
   };
@@ -585,14 +726,15 @@ function ItemsPanel({
   // Al seleccionar una imagen del modal, la guardamos en el form y cerramos.
   const handleSelectImage = (imageUrl) => {
     setForm((f) => ({ ...f, image: imageUrl }));
-    setFieldErrors((errs) => ({ ...errs, image: "" }));
+    setFieldErrors((errs) => ({ ...errs, image: "" })); // limpiar error si habia
     setShowImageModal(false);
   };
 
+  // Al borrar una imagen desde el modal: la borramos del backend, y si era
+  // la que estaba seleccionada en el form, la limpiamos para no quedarnos
+  // con una URL muerta.
   const handleDeleteImage = async (imageId) => {
     await deleteImagen(imageId);
-    // Si la imagen borrada era la que estaba seleccionada en el form, la
-    // limpiamos para no quedarnos con una URL muerta.
     const deletedImg = imagenes.find((i) => i.id === imageId);
     if (deletedImg && form.image === deletedImg.src) {
       setForm((f) => ({ ...f, image: "" }));
@@ -600,6 +742,7 @@ function ItemsPanel({
     await onReload();
   };
 
+  // Mismo patron para modelos 3D.
   const handleSelectModel = (modelId) => {
     setForm((f) => ({ ...f, modelAR: modelId }));
     setShowModelModal(false);
@@ -619,11 +762,14 @@ function ItemsPanel({
     setForm((f) => ({ ...f, modelAR: "" }));
   };
 
+  // ---------------------------------------------------------------------------
+  // SUBMIT
+  // ---------------------------------------------------------------------------
   const handleSubmit = async (e) => {
-    e.preventDefault();
+    e.preventDefault(); // evitar reload de pagina (comportamiento default del form)
     setError("");
 
-    // Validacion final antes de mandar al server.
+    // 1) Validacion final antes de mandar al server.
     const errors = validateAll();
     if (Object.keys(errors).length > 0) {
       setFieldErrors(errors);
@@ -632,26 +778,30 @@ function ItemsPanel({
 
     setSaving(true);
     try {
-      // cardMessage vacio se manda como null para que la BD no guarde "".
+      // 2) Preparar payload: cardMessage vacio se manda como null para que la
+      //    BD no guarde "" (mas semantico).
       const payloadBase = {
         ...form,
         cardMessage: form.cardMessage.trim() || null,
       };
 
+      // 3) Llamar al endpoint correcto segun modo (editar vs crear).
       if (editingItem) {
         await updateItem(editingItem.id, payloadBase);
         setSuccessMessage("EL PLATO SE HA ACTUALIZADO CON EXITO");
       } else {
-        // Al crear, generamos el id temporal. El server igual lo ignora pero
+        // Al crear, generamos el id temporal. El server lo ignora pero
         // mantiene compatibilidad con codigo viejo.
         const payload = { ...payloadBase, id: generateItemId(itemsList) };
         await createItem(payload);
         setSuccessMessage("EL PLATO SE HA AGREGADO CON EXITO");
       }
+
+      // 4) Mostrar modal de exito y volver a modo "crear".
       setShowSuccessModal(true);
       setEditingItem(null);
 
-      // Reset completo del form despues de guardar.
+      // 5) Reset completo del form.
       setForm({
         id: "",
         category: categories[0]?.id || "",
@@ -668,8 +818,9 @@ function ItemsPanel({
       setNewIngredient("");
       setSaving(false);
 
-      // Esperamos 1.5s antes de recargar para que el user alcance a ver el
-      // modal de exito. Si recargaramos inmediato, la tabla pestañearia.
+      // 6) Recargar datos despues de 1.5s. Esperamos para que el user alcance
+      //    a ver el modal de exito; si recargaramos inmediato, la lista
+      //    pestañearia mientras todavia se ve el modal.
       setTimeout(async () => {
         try {
           await onReload();
@@ -683,6 +834,7 @@ function ItemsPanel({
     }
   };
 
+  // Borrar plato con confirmacion.
   const handleDelete = async (id) => {
     if (!window.confirm("Eliminar este plato?")) return;
     try {
@@ -693,11 +845,16 @@ function ItemsPanel({
     }
   };
 
+  // Datos derivados que necesitamos en el render.
   const formValid = isFormValid();
   const selectedModel = modelos.find((m) => m.id === form.modelAR);
 
+  // ---------------------------------------------------------------------------
+  // RENDER
+  // ---------------------------------------------------------------------------
   return (
     <div>
+      {/* Modales (solo se renderizan internamente si isOpen=true) */}
       <SuccessModal
         isOpen={showSuccessModal}
         message={successMessage}
@@ -724,9 +881,12 @@ function ItemsPanel({
         <h2>{editingItem ? "Editar Plato" : "Agregar Plato"}</h2>
       </div>
 
+      {/* ============ FORMULARIO ============ */}
       <form ref={formRef} className={styles.formGrid} onSubmit={handleSubmit}>
+        {/* Error general del server (se muestra arriba del form) */}
         {error && <div className={styles.errorMsg}>{error}</div>}
 
+        {/* --- Categoria --- */}
         <label className={styles.label}>
           Categoria
           <select
@@ -748,6 +908,7 @@ function ItemsPanel({
           )}
         </label>
 
+        {/* --- Nombre --- */}
         <label className={styles.label}>
           Nombre
           <input
@@ -758,6 +919,7 @@ function ItemsPanel({
             required
             placeholder="Nombre del plato"
           />
+          {/* Helper text dinamico: muestra error en rojo o hint en gris */}
           {fieldErrors.name ? (
             <span className={styles.helperError}>{fieldErrors.name}</span>
           ) : (
@@ -765,6 +927,7 @@ function ItemsPanel({
           )}
         </label>
 
+        {/* --- Precio --- */}
         <label className={styles.label}>
           Precio
           <input
@@ -782,6 +945,7 @@ function ItemsPanel({
           )}
         </label>
 
+        {/* --- Descripcion (full width, ocupa las 2 columnas del grid) --- */}
         <label className={`${styles.label} ${styles.fullWidth}`}>
           Descripcion
           <textarea
@@ -797,12 +961,13 @@ function ItemsPanel({
             {fieldErrors.description ? (
               <span className={styles.helperError}>{fieldErrors.description}</span>
             ) : (
+              // Contador de caracteres visible para el user.
               <span className={styles.helperText}>{form.description.length}/500 caracteres</span>
             )}
           </div>
         </label>
 
-        {/* Selector de imagen: abre el modal con todas las imagenes guardadas */}
+        {/* --- Selector de imagen: abre modal con todas las imagenes --- */}
         <div className={`${styles.label} ${styles.fullWidth}`}>
           <span>Imagen</span>
 
@@ -823,6 +988,7 @@ function ItemsPanel({
             </span>
           )}
 
+          {/* Hint extra si no hay nada en la BD */}
           {imagenes.length === 0 && (
             <span className={styles.helperError}>
               No hay imágenes registradas. Primero sube una imagen en &quot;Subir Archivos&quot;.
@@ -830,14 +996,14 @@ function ItemsPanel({
           )}
         </div>
 
-        {/* Preview de la imagen seleccionada (si existe) */}
+        {/* Preview de la imagen seleccionada (si existe y la URL es valida) */}
         {form.image && (form.image.startsWith("/assets/") || form.image.startsWith("https://")) && (
           <div className={`${styles.fullWidth} ${styles.imagePreviewContainer}`}>
             <img src={form.image} alt="Vista previa" className={styles.imagePreview} />
           </div>
         )}
 
-        {/* Selector de modelo 3D: mismo patron que el de imagen */}
+        {/* --- Selector de modelo 3D: mismo patron que imagen --- */}
         <div className={`${styles.label} ${styles.fullWidth}`}>
           <span>Modelo AR (opcional)</span>
 
@@ -887,9 +1053,11 @@ function ItemsPanel({
           </div>
         )}
 
+        {/* --- Color picker de la card --- */}
         <label className={styles.label}>
           Color de la card
           <div className={styles.colorPickerRow}>
+            {/* input type="color" da el picker nativo del navegador */}
             <input
               type="color"
               name="cardColor"
@@ -897,6 +1065,7 @@ function ItemsPanel({
               onChange={handleChange}
               className={styles.colorSwatch}
             />
+            {/* Input text para escribir el hex a mano (sincronizado con el color) */}
             <input
               className={`${styles.input} ${fieldErrors.cardColor ? styles.inputError : ""}`}
               name="cardColor"
@@ -913,6 +1082,7 @@ function ItemsPanel({
           )}
         </label>
 
+        {/* --- Mensaje de la card (badge tipo "Nuevo!", "Recomendado") --- */}
         <label className={styles.label}>
           Mensaje de la card (opcional)
           <input
@@ -930,6 +1100,7 @@ function ItemsPanel({
           )}
         </label>
 
+        {/* --- Input para agregar ingredientes --- */}
         <label className={`${styles.label} ${styles.fullWidth}`}>
           Ingredientes (opcional)
           <div style={{ display: "flex", gap: "0.5rem" }}>
@@ -978,10 +1149,12 @@ function ItemsPanel({
           </div>
         )}
 
+        {/* --- Botones de accion (Crear/Actualizar/Cancelar) --- */}
         <div className={styles.formActions}>
           <button className={styles.btnPrimary} type="submit" disabled={saving || !formValid}>
             {saving ? "Guardando..." : editingItem ? "Actualizar" : "Crear Plato"}
           </button>
+          {/* Cancelar solo aparece en modo editar (vuelve a modo crear). */}
           {editingItem && (
             <button
               type="button"
@@ -994,7 +1167,8 @@ function ItemsPanel({
         </div>
       </form>
 
-      {/* Tabla con todos los platos y filtro por categoria */}
+      {/* ============ VISTA TIPO MENU CLIENTE ============ */}
+      {/* Header con contador y filtro por categoria */}
       <div className={styles.tableHeader}>
         <h2>Platos ({items.length})</h2>
         <select
@@ -1011,75 +1185,114 @@ function ItemsPanel({
         </select>
       </div>
 
-      <div className={styles.tableWrap}>
-        <table className={styles.table}>
-          <thead>
-            <tr>
-              <th>ID</th>
-              <th>Nombre</th>
-              <th>Categoria</th>
-              <th>Precio</th>
-              <th>Color</th>
-              <th>Mensaje</th>
-              <th>Ingr.</th>
-              <th>AR</th>
-              <th>Acciones</th>
-            </tr>
-          </thead>
-          <tbody>
-            {items.map((item) => (
-              <tr key={item.id}>
-                <td className={styles.mono}>{item.id}</td>
-                <td>{item.name}</td>
-                <td>{item.category}</td>
-                <td>{item.price}</td>
-                <td>
-                  <span
-                    className={styles.colorDot}
-                    style={{ backgroundColor: item.cardColor || DEFAULT_CARD_COLOR }}
-                    title={item.cardColor || DEFAULT_CARD_COLOR}
-                  />
-                </td>
-                <td>{item.cardMessage || "—"}</td>
-                <td>
-                  {item.ingredients && item.ingredients.length > 0 ? item.ingredients.length : "—"}
-                </td>
-                <td className={styles.mono}>{item.modelAR ? "✓" : "—"}</td>
-                <td>
-                  <button
-                    className={styles.btnSmall}
-                    onClick={() => {
-                      setEditingItem(item);
-                      // Scroll al form para que se vea la edicion. El timeout
-                      // asegura que el form ya se rellenó antes de scrollear.
-                      setTimeout(
-                        () =>
-                          formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }),
-                        50,
-                      );
-                    }}
-                  >
-                    Editar
-                  </button>
-                  <button
-                    className={`${styles.btnSmall} ${styles.btnSmallDanger}`}
-                    onClick={() => handleDelete(item.id)}
-                  >
-                    Eliminar
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      {/* Iteramos por categorias (no por items) para agruparlas visualmente.
+          Si hay filtro activo, solo mostramos esa categoria.
+          Categorias sin items se omiten (return null). */}
+      <div className={styles.menuPreview}>
+        {categories
+          .filter((cat) => !filterCategory || cat.id === filterCategory)
+          .map((cat) => {
+            const catItems = items.filter((i) => i.category === cat.id);
+            if (catItems.length === 0) return null;
+            return (
+              <section key={cat.id} className={styles.menuCategory}>
+                <h3 className={styles.menuCategoryTitle}>{cat.label}</h3>
+                <div className={styles.menuGrid}>
+                  {catItems.map((item) => (
+                    // Cada plato es una card con color de fondo personalizado.
+                    <article
+                      key={item.id}
+                      className={styles.menuCard}
+                      style={{ backgroundColor: item.cardColor || DEFAULT_CARD_COLOR }}
+                    >
+                      {/* Badge superior izquierdo (ej: "¡Nuevo!") */}
+                      {item.cardMessage && (
+                        <span className={styles.menuBadge}>{item.cardMessage}</span>
+                      )}
+
+                      {/* Imagen de cabecera */}
+                      {item.image && (
+                        <div className={styles.menuImageWrap}>
+                          <img src={item.image} alt={item.name} className={styles.menuImage} />
+                        </div>
+                      )}
+
+                      {/* Cuerpo de la card */}
+                      <div className={styles.menuBody}>
+                        <div className={styles.menuTopRow}>
+                          <h4 className={styles.menuName}>{item.name}</h4>
+                          <span className={styles.menuPrice}>{item.price}</span>
+                        </div>
+
+                        {/* Id en mono (util para debug/identificacion) */}
+                        <p className={styles.menuId}>{item.id}</p>
+
+                        {item.description && <p className={styles.menuDesc}>{item.description}</p>}
+
+                        {/* Lista de ingredientes como badges */}
+                        {item.ingredients?.length > 0 && (
+                          <div className={styles.menuIngredients}>
+                            {item.ingredients.map((ing, i) => (
+                              <span key={i} className={styles.ingredientBadge}>
+                                {ing}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+
+                        {/* Indicador de modelo AR disponible */}
+                        {item.modelAR && <span className={styles.menuAr}>AR ✓</span>}
+
+                        {/* Acciones de admin: editar y eliminar */}
+                        <div className={styles.menuActions}>
+                          <button
+                            className={styles.btnSmall}
+                            onClick={() => {
+                              setEditingItem(item);
+                              // Scroll al form. setTimeout asegura que el form
+                              // ya se rellenó (effect dispara) antes de scrollear.
+                              setTimeout(
+                                () =>
+                                  formRef.current?.scrollIntoView({
+                                    behavior: "smooth",
+                                    block: "start",
+                                  }),
+                                50,
+                              );
+                            }}
+                          >
+                            Editar
+                          </button>
+                          <button
+                            className={`${styles.btnSmall} ${styles.btnSmallDanger}`}
+                            onClick={() => handleDelete(item.id)}
+                          >
+                            Eliminar
+                          </button>
+                        </div>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              </section>
+            );
+          })}
       </div>
     </div>
   );
 }
 
+// =============================================================================
+// CategoriesPanel
+// -----------------------------------------------------------------------------
 // Panel de categorias. Mucho mas simple que el de platos: solo tiene un campo
 // (label). El id se genera automaticamente a partir del label.
+//
+// IMPORTANTE: eliminar una categoria tambien borra todos los platos de esa
+// categoria (ON DELETE CASCADE en la BD). Por eso el confirm es enfatico.
+// =============================================================================
 function CategoriesPanel({ categories, editingCategory, setEditingCategory, onReload }) {
+  // Estado del form: solo necesita id y label.
   const [form, setForm] = useState({ id: "", label: "" });
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
@@ -1087,10 +1300,7 @@ function CategoriesPanel({ categories, editingCategory, setEditingCategory, onRe
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [successMessage, setSuccessMessage] = useState("");
 
-  // Mismo patron que ItemsPanel para sincronizar el form con editingCategory.
-  const prevEditingCategoryRef = useRef(editingCategory);
-
-  // Sincroniza el form con editingCategory usando useEffect.
+  // Sincroniza el form con editingCategory (mismo patron que ItemsPanel).
   useEffect(() => {
     if (editingCategory) {
       setForm({ ...editingCategory });
@@ -1100,6 +1310,7 @@ function CategoriesPanel({ categories, editingCategory, setEditingCategory, onRe
     setFieldErrors({});
   }, [editingCategory]);
 
+  // Validacion: solo letras y espacios en el label.
   const getFieldError = (name, value) => {
     if (name === "label") {
       if (!value.trim()) return "Nombre visible es requerido";
@@ -1119,9 +1330,9 @@ function CategoriesPanel({ categories, editingCategory, setEditingCategory, onRe
 
   const isFormValid = () => Object.keys(validateAll()).length === 0;
 
+  // Bloqueo de entrada: solo permitimos letras/espacios.
   const handleChange = (e) => {
     const { name, value } = e.target;
-    // Bloqueo de entrada: solo permitimos letras/espacios.
     if (value !== "" && !/^[a-zA-Z\s\-áéíóúñÁÉÍÓÚÑ]*$/.test(value)) return;
     setForm((f) => ({ ...f, [name]: value }));
     setFieldErrors((errs) => ({ ...errs, [name]: getFieldError(name, value) }));
@@ -1140,10 +1351,11 @@ function CategoriesPanel({ categories, editingCategory, setEditingCategory, onRe
     setSaving(true);
     try {
       if (editingCategory) {
+        // Editar: solo actualizamos el label, el id no cambia.
         await updateCategory(editingCategory.id, { label: form.label });
         setSuccessMessage("LA CATEGORIA SE HA ACTUALIZADO CON EXITO");
       } else {
-        // En crear, el id se deriva del label (ej: "Bebidas" -> "bebidas").
+        // Crear: id se deriva del label (ej: "Bebidas" -> "bebidas").
         const payload = { id: generateCategoryId(categories, form.label), label: form.label };
         await createCategory(payload);
         setSuccessMessage("LA CATEGORIA SE HA AGREGADO CON EXITO");
@@ -1154,6 +1366,7 @@ function CategoriesPanel({ categories, editingCategory, setEditingCategory, onRe
       setFieldErrors({});
       setSaving(false);
 
+      // Recargar despues de 1.5s (mismo motivo que en ItemsPanel).
       setTimeout(async () => {
         try {
           await onReload();
@@ -1193,6 +1406,7 @@ function CategoriesPanel({ categories, editingCategory, setEditingCategory, onRe
         <h2>{editingCategory ? "Editar Categoria" : "Agregar Categoria"}</h2>
       </div>
 
+      {/* Form simple en una sola fila */}
       <form className={styles.formRow} onSubmit={handleSubmit}>
         {error && <div className={styles.errorMsg}>{error}</div>}
 
@@ -1229,6 +1443,7 @@ function CategoriesPanel({ categories, editingCategory, setEditingCategory, onRe
         </div>
       </form>
 
+      {/* Tabla de categorias existentes */}
       <div className={styles.tableWrap}>
         <table className={styles.table}>
           <thead>
@@ -1263,8 +1478,13 @@ function CategoriesPanel({ categories, editingCategory, setEditingCategory, onRe
   );
 }
 
-// Wrapper simple del AdminUploader. Cuando se sube algo nuevo, recarga todos
-// los datos del dashboard para que aparezca en los selectores.
+// =============================================================================
+// UploadPanel
+// -----------------------------------------------------------------------------
+// Wrapper simple del AdminUploader (componente externo que maneja la subida
+// a Cloudinary). Cuando se sube algo nuevo, recarga todos los datos del
+// dashboard para que aparezca en los selectores de imagen y modelo.
+// =============================================================================
 function UploadPanel({ onReload }) {
   return (
     <div>
@@ -1274,6 +1494,8 @@ function UploadPanel({ onReload }) {
 
       <div className={styles.uploadContainer}>
         <AdminUploader
+          // Callback que dispara AdminUploader cuando termina una subida.
+          // type es "model" o "image" (nos lo pasa el uploader).
           onUploadComplete={async (asset, type) => {
             console.log(`${type === "model" ? "Modelo AR" : "Imagen"} subida:`, asset);
             await onReload();
