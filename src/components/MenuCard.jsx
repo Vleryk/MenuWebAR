@@ -147,7 +147,7 @@ function MenuCard({ item }) {
                 title="Ver ingredientes"
                 onClick={openIngredientsModal}
               >
-                <IngredientsIcon />
+                <IngredientsIcon className={styles.cameraIcon} />
               </button>
 
               {/* Boton de AR: solo si el plato tiene modelo 3D asignado */}
@@ -159,7 +159,7 @@ function MenuCard({ item }) {
                   title="Proyectar en tu mesa"
                   onClick={launchAr}
                 >
-                  <CameraIcon />
+                  <CameraIcon className={styles.cameraIcon} />
                 </button>
               ) : null}
             </div>
