@@ -72,7 +72,6 @@ import {
 import AdminLogin from "./AdminLogin";
 import AdminUploader from "./AdminUploader";
 import styles from "./admin.module.css";
-import { IconDownload } from "../components/icons/IconDownload";
 
 // [NUEVO] Presets de colores de la marca para el color picker.
 // Permite al admin elegir colores consistentes con un solo click en lugar
@@ -233,15 +232,6 @@ export default function AdminDashboard() {
           </button>
         </div>
         <div className={styles.adminHeaderRight}>
-          <a
-            className={styles.btnDownloadMenu}
-            href="/menu/print"
-            target="_blank"
-            title="Descargar Carta Menú"
-          >
-            <IconDownload />
-            <span>Carta Menú</span>
-          </a>
           <button className={styles.btnDanger} onClick={handleLogout}>
             Cerrar Sesion
           </button>
