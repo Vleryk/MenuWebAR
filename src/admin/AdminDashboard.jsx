@@ -10,8 +10,14 @@
 //   - SuccessModal        -> modal verde de confirmacion (auto-cierra en 3s)
 //   - ImageModal          -> modal para elegir/borrar imagenes guardadas
 //   - ModelModal          -> modal para elegir/borrar modelos 3D guardados
+//   - Section             -> [NUEVO] wrapper de seccion colapsable con header
+//   - Tooltip             -> [NUEVO] icono "?" con texto al hacer hover/focus
+//   - FieldStatus         -> [NUEVO] icono ✓/✗ inline para mostrar validacion
+//   - LivePreview         -> [NUEVO] vista previa en vivo de la card del plato
 //   - generateItemId      -> helper: ids de plato tipo "item-N"
 //   - generateCategoryId  -> helper: ids slug de categoria
+//   - formatPriceCLP      -> [NUEVO] helper: formatea numero a "$12.990"
+//   - unformatPrice       -> [NUEVO] helper: extrae digitos de un precio
 //   - ItemsPanel          -> formulario y vista tipo menu de platos
 //   - CategoriesPanel     -> formulario y tabla de categorias
 //   - UploadPanel         -> wrapper del uploader a Cloudinary
@@ -27,9 +33,20 @@
 //     componente raiz y se pasan por props a los paneles hijos.
 //   - Cada vez que se crea/edita/elimina algo, los hijos llaman a onReload()
 //     que vuelve a pedir todo a la API y refresca el state.
+//
+// MEJORAS UX (sin tocar BD):
+//   - Secciones colapsables agrupadas por proposito
+//   - Vista previa en vivo (replica la card publica)
+//   - Color picker visual con presets de marca
+//   - Precio con formato CLP automatico al escribir
+//   - Validacion inline con iconos ✓/✗
+//   - Botón sticky de guardar (siempre visible)
+//   - Tooltips en campos tecnicos
+//   - Atajos: Ctrl+S para guardar, Esc para cancelar edicion, Enter en
+//     ingredientes para agregarlos sin enviar el form
 // =============================================================================
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   // Lecturas
@@ -56,6 +73,38 @@ import AdminLogin from "./AdminLogin";
 import AdminUploader from "./AdminUploader";
 import styles from "./admin.module.css";
 import { IconDownload } from "../components/icons/IconDownload";
+
+// [NUEVO] Presets de colores de la marca para el color picker.
+// Permite al admin elegir colores consistentes con un solo click en lugar
+// de tipear codigos hex. Si quieres agregar mas, simplemente extiende el array.
+const COLOR_PRESETS = [
+  { name: "Azul oscuro", value: "#152238" },
+  { name: "Dorado", value: "#d4aa63" },
+  { name: "Vino", value: "#5c1a1b" },
+  { name: "Verde", value: "#1f3d2b" },
+  { name: "Negro", value: "#0a0a0a" },
+  { name: "Café", value: "#3e2723" },
+];
+
+// Color por defecto de la card de un plato (azul oscuro).
+const DEFAULT_CARD_COLOR = "#152238";
+
+// [NUEVO] Formatea cualquier valor a precio chileno: "12990" -> "$12.990".
+// Acepta strings con caracteres no numericos y los limpia. Si no hay digitos
+// devuelve "" (mejor que "$0" para inputs vacios).
+function formatPriceCLP(value) {
+  const digits = String(value).replace(/\D/g, "");
+  if (!digits) return "";
+  const num = parseInt(digits, 10);
+  return "$" + num.toLocaleString("es-CL");
+}
+
+// [NUEVO] Extrae solo los digitos de un precio formateado.
+// Ej: "$12.990" -> "12990". Util para validar que el numero sea > 0
+// independientemente del formato visual.
+function unformatPrice(value) {
+  return String(value).replace(/\D/g, "");
+}
 
 // =============================================================================
 // COMPONENTE RAIZ: AdminDashboard
@@ -175,6 +224,7 @@ export default function AdminDashboard() {
   return (
     <div className={styles.adminShell}>
       {/* Header con branding y botones de navegacion */}
+
       <header className={styles.adminHeader}>
         <div className={styles.adminHeaderLeft}>
           <h1 className={styles.adminBrand}>Route 66 — Admin</h1>
@@ -458,6 +508,127 @@ function ModelModal({ isOpen, modelos, onSelectModel, onDeleteModel, onClose }) 
 }
 
 // =============================================================================
+// [NUEVO] Section
+// -----------------------------------------------------------------------------
+// Wrapper de seccion colapsable. Reemplaza el formulario "todo en un bloque"
+// por bloques agrupados por proposito (Info basica, Multimedia, etc).
+// El admin puede expandir/colapsar cada uno con click en el header.
+//
+// Props:
+//   - title: titulo visible (ej: "Información básica")
+//   - icon: emoji o icono que aparece a la izquierda del titulo
+//   - children: contenido del cuerpo de la seccion
+//   - defaultOpen: si arranca expandida (default true)
+//   - badge: contenido opcional a la derecha del titulo (ej: numero de items
+//     o un check ✓ si la seccion esta completa)
+// =============================================================================
+function Section({ title, icon, children, defaultOpen = true, badge }) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <div className={styles.section}>
+      <button type="button" className={styles.sectionHeader} onClick={() => setOpen(!open)}>
+        <span className={styles.sectionIcon}>{icon}</span>
+        <span className={styles.sectionTitle}>{title}</span>
+        {badge && <span className={styles.sectionBadge}>{badge}</span>}
+        {/* Chevron rota 180deg cuando esta abierto via clase CSS */}
+        <span className={`${styles.sectionChevron} ${open ? styles.sectionChevronOpen : ""}`}>
+          ▼
+        </span>
+      </button>
+      {/* Solo renderizamos el body si esta abierto. Asi tambien se mejora
+          un poco el render en formularios grandes. */}
+      {open && <div className={styles.sectionBody}>{children}</div>}
+    </div>
+  );
+}
+
+// =============================================================================
+// [NUEVO] Tooltip
+// -----------------------------------------------------------------------------
+// Icono "?" pequeño que muestra un texto explicativo al hacer hover o al
+// recibir focus (accesibilidad por teclado). Util para campos tecnicos
+// como "Modelo AR" o "Color hex" donde el admin no tecnico puede no saber
+// que es. El texto aparece arriba del icono con flecha apuntando hacia abajo.
+// =============================================================================
+function Tooltip({ text }) {
+  return (
+    <span className={styles.tooltip} tabIndex={0}>
+      <span className={styles.tooltipIcon}>?</span>
+      <span className={styles.tooltipText}>{text}</span>
+    </span>
+  );
+}
+
+// =============================================================================
+// [NUEVO] FieldStatus
+// -----------------------------------------------------------------------------
+// Icono inline ✓ (verde) o ✗ (rojo) que aparece DENTRO del input para dar
+// feedback visual inmediato sobre la validez. Solo se muestra si:
+//   - el campo fue tocado (touched=true) Y tiene valor
+// Asi evitamos mostrar ✗ en un input vacio que el user todavia no abrio.
+// =============================================================================
+function FieldStatus({ error, value, touched }) {
+  if (!touched || !value) return null;
+  if (error) return <span className={`${styles.fieldStatus} ${styles.fieldStatusError}`}>✗</span>;
+  return <span className={`${styles.fieldStatus} ${styles.fieldStatusOk}`}>✓</span>;
+}
+
+// =============================================================================
+// [NUEVO] LivePreview
+// -----------------------------------------------------------------------------
+// Vista previa en vivo de la card del plato tal como la verá el cliente.
+// Se renderiza en una columna sticky a la derecha del formulario y se
+// actualiza en tiempo real con cada cambio del form.
+//
+// Replica los estilos de MenuCard publica pero simplificado: no muestra
+// modales de AR ni de ingredientes, solo la apariencia visual.
+//
+// Si algun campo aun no tiene valor, muestra placeholders sensatos
+// ("Nombre del plato", "Sin imagen", etc) para que el admin vea el layout
+// completo desde el primer momento.
+// =============================================================================
+function LivePreview({ form, categories }) {
+  // El color de fondo se aplica inline porque depende del estado del form.
+  const cardStyle = form.cardColor ? { backgroundColor: form.cardColor } : undefined;
+  // Mostramos el label de la categoria (no el id) para que sea legible.
+  const categoryLabel = categories.find((c) => c.id === form.category)?.label;
+
+  return (
+    <div className={styles.livePreviewWrap}>
+      <div className={styles.livePreviewHeader}>
+        <span className={styles.livePreviewLabel}>Vista previa en vivo</span>
+        {categoryLabel && <span className={styles.livePreviewCat}>{categoryLabel}</span>}
+      </div>
+      <article className={styles.previewCard} style={cardStyle}>
+        {/* Badge de mensaje (ej: "¡Nuevo!"). Solo si hay valor */}
+        {form.cardMessage && <span className={styles.previewBadge}>{form.cardMessage}</span>}
+        {/* Imagen o placeholder visual si todavia no se eligio */}
+        {form.image ? (
+          <img className={styles.previewThumb} src={form.image} alt={form.name || "Preview"} />
+        ) : (
+          <div className={styles.previewThumbPlaceholder}>
+            <span>Sin imagen</span>
+          </div>
+        )}
+        <div className={styles.previewContent}>
+          <h3>{form.name || "Nombre del plato"}</h3>
+          <p>{form.description || "Descripción del plato..."}</p>
+          <div className={styles.previewFooter}>
+            <strong>{form.price || "$0"}</strong>
+            <div className={styles.previewActions}>
+              {/* Indicadores visuales: si hay ingredientes muestra el icono,
+                  si hay modelo AR muestra el badge correspondiente */}
+              {form.ingredients?.length > 0 && <span className={styles.previewMiniBtn}>🍽️</span>}
+              {form.modelAR && <span className={styles.previewMiniBtn}>📷 AR</span>}
+            </div>
+          </div>
+        </div>
+      </article>
+    </div>
+  );
+}
+
+// =============================================================================
 // HELPERS DE GENERACION DE IDS
 // =============================================================================
 
@@ -499,9 +670,6 @@ function generateCategoryId(categoriesList, label) {
   return id;
 }
 
-// Color por defecto de la card de un plato (azul oscuro).
-const DEFAULT_CARD_COLOR = "#152238";
-
 // =============================================================================
 // ItemsPanel
 // -----------------------------------------------------------------------------
@@ -516,6 +684,9 @@ const DEFAULT_CARD_COLOR = "#152238";
 //   - Lista de ingredientes dinamica
 //   - Color picker para la card
 //   - Vista de menu agrupada por categoria con filtro
+//
+// [NUEVO] Reorganizado en secciones colapsables + columna de vista previa
+//         en vivo + barra sticky de acciones + atajos de teclado.
 // =============================================================================
 const DEFAULT_FORM_ITEMS = {
   id: "",
@@ -560,6 +731,12 @@ function ItemsPanel({
   const [saving, setSaving] = useState(false); // mientras se guarda
   const [fieldErrors, setFieldErrors] = useState({}); // errores por campo
 
+  // [NUEVO] touched: registra que campos ya fueron modificados por el user.
+  // Sin esto, el icono ✗ aparece en TODOS los inputs vacios al cargar el form,
+  // lo que es ruidoso. Solo mostramos validacion visual cuando el user
+  // realmente interactuo con el campo.
+  const [touched, setTouched] = useState({});
+
   // Estados de modales
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [successMessage, setSuccessMessage] = useState("");
@@ -585,9 +762,11 @@ function ItemsPanel({
       if (!/^[a-zA-Z\s\-áéíóúñÁÉÍÓÚÑ]+$/.test(value)) return "Solo letras y espacios";
     }
     if (name === "price") {
-      if (!value.trim()) return "Precio es requerido";
-      if (!/^[\d.]+$/.test(value)) return "Solo numeros y punto";
-      if (parseFloat(value) <= 0) return "Precio debe ser mayor a 0";
+      // [NUEVO] El precio ahora es un string formateado ("$12.990") asi que
+      // validamos sobre los digitos limpios, no sobre el formato visual.
+      const clean = unformatPrice(value);
+      if (!clean) return "Precio es requerido";
+      if (parseInt(clean, 10) <= 0) return "Precio debe ser mayor a 0";
     }
     if (name === "description") {
       if (!value.trim()) return "Descripcion es requerida";
@@ -635,8 +814,15 @@ function ItemsPanel({
     if (name === "name") {
       if (value !== "" && !/^[a-zA-Z\s\-áéíóúñÁÉÍÓÚÑ]*$/.test(value)) return;
     }
+    // [NUEVO] Precio con auto-formato CLP. El user escribe "12990" y se
+    // muestra "$12.990" en tiempo real. Tomamos el valor del input,
+    // lo limpiamos a digitos, y devolvemos el formateado.
     if (name === "price") {
-      if (value !== "" && !/^[\d.]*$/.test(value)) return;
+      const formatted = formatPriceCLP(value);
+      setForm((f) => ({ ...f, price: formatted }));
+      setFieldErrors((errs) => ({ ...errs, price: getFieldError("price", formatted) }));
+      setTouched((t) => ({ ...t, price: true }));
+      return; // salimos temprano, el flujo normal de abajo no aplica
     }
     if (name === "description") {
       if (value.length > 500) return;
@@ -645,9 +831,11 @@ function ItemsPanel({
       if (value.length > 40) return;
     }
 
-    // Actualizar form y revalidar el campo.
+    // Actualizar form, marcar campo como tocado y revalidar.
     setForm((f) => ({ ...f, [name]: value }));
     setFieldErrors((errs) => ({ ...errs, [name]: getFieldError(name, value) }));
+    // [NUEVO] marcamos el campo como tocado para que se muestre el icono ✓/✗
+    setTouched((t) => ({ ...t, [name]: true }));
   };
 
   // Agrega ingredientes. Acepta varios separados por coma en un solo input
@@ -687,6 +875,9 @@ function ItemsPanel({
   const handleSelectImage = (imageUrl) => {
     setForm((f) => ({ ...f, image: imageUrl }));
     setFieldErrors((errs) => ({ ...errs, image: "" })); // limpiar error si habia
+    // [NUEVO] marcamos imagen como tocada (importante porque la imagen no se
+    // setea via input estandar, sino via el modal).
+    setTouched((t) => ({ ...t, image: true }));
     setShowImageModal(false);
   };
 
@@ -722,66 +913,115 @@ function ItemsPanel({
     setForm((f) => ({ ...f, modelAR: "" }));
   };
 
+  // [NUEVO] Helper para resetear el form a su estado inicial. Lo usamos en
+  // varios lugares: despues de guardar, al cancelar edicion, al presionar Esc.
+  const resetForm = () => {
+    setIsEditingItem(false);
+    setForm(DEFAULT_FORM_ITEMS);
+    setFieldErrors({});
+    setTouched({});
+    setNewIngredient("");
+  };
+
   // ---------------------------------------------------------------------------
   // SUBMIT
   // ---------------------------------------------------------------------------
-  const handleSubmit = async (e) => {
-    e.preventDefault(); // evitar reload de pagina (comportamiento default del form)
-    setError("");
+  // [NUEVO] Envuelto en useCallback para que el atajo Ctrl+S (que lo llama
+  // desde un useEffect) tenga una referencia estable.
+  const handleSubmit = useCallback(
+    async (e) => {
+      if (e?.preventDefault) e.preventDefault(); // evitar reload de pagina (comportamiento default del form)
+      setError("");
 
-    // 1) Validacion final antes de mandar al server.
-    const errors = validateAll();
-    if (Object.keys(errors).length > 0) {
-      setFieldErrors(errors);
-      return;
-    }
-
-    setSaving(true);
-    try {
-      // 2) Preparar payload: cardMessage vacio se manda como null para que la
-      //    BD no guarde "" (mas semantico).
-      const payloadBase = {
-        ...form,
-        cardMessage: form.cardMessage.trim() || null,
-      };
-
-      // 3) Llamar al endpoint correcto segun modo (editar vs crear).
-      if (isEditingItem) {
-        await updateItem(form.id, payloadBase);
-        setSuccessMessage("EL PLATO SE HA ACTUALIZADO CON EXITO");
-      } else {
-        // Al crear, generamos el id temporal. El server lo ignora pero
-        // mantiene compatibilidad con codigo viejo.
-        const payload = { ...payloadBase, id: generateItemId(itemsList) };
-        await createItem(payload);
-        setSuccessMessage("EL PLATO SE HA AGREGADO CON EXITO");
+      // 1) Validacion final antes de mandar al server.
+      const errors = validateAll();
+      if (Object.keys(errors).length > 0) {
+        setFieldErrors(errors);
+        // [NUEVO] Si hubo errores marcamos TODOS los campos como tocados
+        // para que se vean los iconos ✗ en los que faltan completar.
+        setTouched({
+          category: true,
+          name: true,
+          price: true,
+          description: true,
+          image: true,
+          cardColor: true,
+          cardMessage: true,
+        });
+        return;
       }
 
-      // 4) Mostrar modal de exito y volver a modo "crear".
-      setShowSuccessModal(true);
-      setIsEditingItem(false);
+      setSaving(true);
+      try {
+        // 2) Preparar payload: cardMessage vacio se manda como null para que la
+        //    BD no guarde "" (mas semantico).
+        const payloadBase = {
+          ...form,
+          cardMessage: form.cardMessage.trim() || null,
+        };
 
-      // 5) Reset completo del form.
-      setForm(DEFAULT_FORM_ITEMS);
-      setFieldErrors({});
-      setNewIngredient("");
-      setSaving(false);
-
-      // 6) Recargar datos despues de 1.5s. Esperamos para que el user alcance
-      //    a ver el modal de exito; si recargaramos inmediato, la lista
-      //    pestañearia mientras todavia se ve el modal.
-      setTimeout(async () => {
-        try {
-          await onReload();
-        } catch (reloadErr) {
-          console.error("Error al recargar datos:", reloadErr);
+        // 3) Llamar al endpoint correcto segun modo (editar vs crear).
+        if (isEditingItem) {
+          await updateItem(form.id, payloadBase);
+          setSuccessMessage("EL PLATO SE HA ACTUALIZADO CON EXITO");
+        } else {
+          // Al crear, generamos el id temporal. El server lo ignora pero
+          // mantiene compatibilidad con codigo viejo.
+          const payload = { ...payloadBase, id: generateItemId(itemsList) };
+          await createItem(payload);
+          setSuccessMessage("EL PLATO SE HA AGREGADO CON EXITO");
         }
-      }, 1500);
-    } catch (err) {
-      setError(err.message || "Error al guardar el plato");
-      setSaving(false);
-    }
-  };
+
+        // 4) Mostrar modal de exito y volver a modo "crear".
+        setShowSuccessModal(true);
+
+        // 5) Reset completo del form (usa el helper).
+        resetForm();
+        setSaving(false);
+
+        // 6) Recargar datos despues de 1.5s. Esperamos para que el user alcance
+        //    a ver el modal de exito; si recargaramos inmediato, la lista
+        //    pestañearia mientras todavia se ve el modal.
+        setTimeout(async () => {
+          try {
+            await onReload();
+          } catch (reloadErr) {
+            console.error("Error al recargar datos:", reloadErr);
+          }
+        }, 1500);
+      } catch (err) {
+        setError(err.message || "Error al guardar el plato");
+        setSaving(false);
+      }
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    },
+    [form, isEditingItem, itemsList, onReload],
+  );
+
+  // ---------------------------------------------------------------------------
+  // [NUEVO] ATAJOS DE TECLADO
+  // ---------------------------------------------------------------------------
+  // Listener global mientras el panel esta montado:
+  //   - Ctrl+S (o Cmd+S en Mac): dispara el submit si el form es valido
+  //   - Esc: cancela la edicion (solo si NO hay un modal abierto, para que
+  //          Esc en un modal lo cierre primero antes de cancelar el form)
+  //
+  // Re-suscribimos el handler cuando cambian las dependencias para que las
+  // closures siempre vean el estado actualizado.
+  useEffect(() => {
+    const handler = (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === "s") {
+        e.preventDefault();
+        if (!saving && isFormValid()) handleSubmit();
+      }
+      if (e.key === "Escape" && isEditingItem && !showImageModal && !showModelModal) {
+        resetForm();
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [saving, isEditingItem, showImageModal, showModelModal, handleSubmit]);
 
   // Borrar plato con confirmacion.
   const handleDelete = async (id) => {
@@ -828,296 +1068,411 @@ function ItemsPanel({
 
       <div className={styles.panelHeader}>
         <h2>{isEditingItem ? "Editar Plato" : "Agregar Plato"}</h2>
+        {/* [NUEVO] Hint visual de los atajos disponibles. Se oculta en
+            mobile via media query (no hay teclado fisico). */}
+        <span className={styles.shortcutHint}>
+          Atajos: <kbd>Ctrl+S</kbd> guardar · <kbd>Esc</kbd> cancelar
+        </span>
       </div>
 
-      {/* ============ FORMULARIO ============ */}
-      <form ref={formRef} className={styles.formGrid} onSubmit={handleSubmit}>
-        {/* Error general del server (se muestra arriba del form) */}
-        {error && <div className={styles.errorMsg}>{error}</div>}
+      {/* [NUEVO] Layout de 2 columnas: formulario a la izquierda + vista
+          previa pegada (sticky) a la derecha. En pantallas <1100px colapsa
+          a una sola columna (la preview baja debajo del form). */}
+      <div className={styles.editorLayout}>
+        {/* ============ FORMULARIO ============ */}
+        <form ref={formRef} className={styles.editorForm} onSubmit={handleSubmit}>
+          {/* Error general del server (se muestra arriba del form) */}
+          {error && <div className={styles.errorMsg}>{error}</div>}
 
-        {/* --- Categoria --- */}
-        <label className={styles.label}>
-          Categoria
-          <select
-            className={`${styles.input} ${fieldErrors.category ? styles.inputError : ""}`}
-            name="category"
-            value={form.category}
-            onChange={handleChange}
-            required
-          >
-            <option value="">Seleccionar...</option>
-            {categories.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.label}
-              </option>
-            ))}
-          </select>
-          {fieldErrors.category && (
-            <span className={styles.helperError}>{fieldErrors.category}</span>
-          )}
-        </label>
+          {/* [NUEVO] SECCIÓN 1: INFORMACIÓN BÁSICA
+              Agrupa los datos esenciales del plato: categoria, nombre,
+              precio y descripcion. Esta abierta por defecto porque es lo
+              primero que el admin completa. */}
+          <Section title="Información básica" icon="📋" defaultOpen>
+            <div className={styles.sectionGrid}>
+              {/* --- Categoria --- */}
+              <label className={styles.label}>
+                Categoria
+                {/* [NUEVO] Wrapper inputWithIcon para posicionar el ✓/✗ adentro */}
+                <div className={styles.inputWithIcon}>
+                  <select
+                    className={`${styles.input} ${fieldErrors.category ? styles.inputError : ""}`}
+                    name="category"
+                    value={form.category}
+                    onChange={handleChange}
+                    required
+                  >
+                    <option value="">Seleccionar...</option>
+                    {categories.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.label}
+                      </option>
+                    ))}
+                  </select>
+                  {/* [NUEVO] Icono visual ✓/✗ inline */}
+                  <FieldStatus
+                    error={fieldErrors.category}
+                    value={form.category}
+                    touched={touched.category}
+                  />
+                </div>
+                {fieldErrors.category && (
+                  <span className={styles.helperError}>{fieldErrors.category}</span>
+                )}
+              </label>
 
-        {/* --- Nombre --- */}
-        <label className={styles.label}>
-          Nombre
-          <input
-            className={`${styles.input} ${fieldErrors.name ? styles.inputError : ""}`}
-            name="name"
-            value={form.name}
-            onChange={handleChange}
-            required
-            placeholder="Nombre del plato"
-          />
-          {/* Helper text dinamico: muestra error en rojo o hint en gris */}
-          {fieldErrors.name ? (
-            <span className={styles.helperError}>{fieldErrors.name}</span>
-          ) : (
-            <span className={styles.helperText}>Solo letras y espacios</span>
-          )}
-        </label>
+              {/* --- Nombre --- */}
+              <label className={styles.label}>
+                Nombre
+                <div className={styles.inputWithIcon}>
+                  <input
+                    className={`${styles.input} ${fieldErrors.name ? styles.inputError : ""}`}
+                    name="name"
+                    value={form.name}
+                    onChange={handleChange}
+                    required
+                    placeholder="Nombre del plato"
+                  />
+                  <FieldStatus error={fieldErrors.name} value={form.name} touched={touched.name} />
+                </div>
+                {/* Helper text dinamico: muestra error en rojo o hint en gris */}
+                {fieldErrors.name ? (
+                  <span className={styles.helperError}>{fieldErrors.name}</span>
+                ) : (
+                  <span className={styles.helperText}>Solo letras y espacios</span>
+                )}
+              </label>
 
-        {/* --- Precio --- */}
-        <label className={styles.label}>
-          Precio
-          <input
-            className={`${styles.input} ${fieldErrors.price ? styles.inputError : ""}`}
-            name="price"
-            value={form.price}
-            onChange={handleChange}
-            required
-            placeholder="$12.990"
-          />
-          {fieldErrors.price ? (
-            <span className={styles.helperError}>{fieldErrors.price}</span>
-          ) : (
-            <span className={styles.helperText}>Solo numeros y punto</span>
-          )}
-        </label>
+              {/* --- Precio --- */}
+              {/* [NUEVO] Tooltip explicativo del formato automatico CLP */}
+              <label className={styles.label}>
+                Precio{" "}
+                <Tooltip text="Ingresa solo números. Se formatea automáticamente como pesos chilenos." />
+                <div className={styles.inputWithIcon}>
+                  <input
+                    className={`${styles.input} ${fieldErrors.price ? styles.inputError : ""}`}
+                    name="price"
+                    value={form.price}
+                    onChange={handleChange}
+                    required
+                    placeholder="$12.990"
+                    /* [NUEVO] inputMode="numeric" -> en mobile abre el teclado numerico */
+                    inputMode="numeric"
+                  />
+                  <FieldStatus
+                    error={fieldErrors.price}
+                    value={form.price}
+                    touched={touched.price}
+                  />
+                </div>
+                {fieldErrors.price ? (
+                  <span className={styles.helperError}>{fieldErrors.price}</span>
+                ) : (
+                  <span className={styles.helperText}>Formato automático: $12.990</span>
+                )}
+              </label>
 
-        {/* --- Descripcion (full width, ocupa las 2 columnas del grid) --- */}
-        <label className={`${styles.label} ${styles.fullWidth}`}>
-          Descripcion
-          <textarea
-            className={`${styles.textarea} ${fieldErrors.description ? styles.inputError : ""}`}
-            name="description"
-            value={form.description}
-            onChange={handleChange}
-            rows={2}
-            required
-            placeholder="Descripcion del plato..."
-          />
-          <div className={styles.helperRow}>
-            {fieldErrors.description ? (
-              <span className={styles.helperError}>{fieldErrors.description}</span>
-            ) : (
-              // Contador de caracteres visible para el user.
-              <span className={styles.helperText}>{form.description.length}/500 caracteres</span>
-            )}
-          </div>
-        </label>
+              {/* --- Descripcion (full width, ocupa las 2 columnas del grid) --- */}
+              <label className={`${styles.label} ${styles.fullWidth}`}>
+                Descripcion
+                <textarea
+                  className={`${styles.textarea} ${fieldErrors.description ? styles.inputError : ""}`}
+                  name="description"
+                  value={form.description}
+                  onChange={handleChange}
+                  rows={3}
+                  required
+                  placeholder="Descripcion del plato..."
+                />
+                <div className={styles.helperRow}>
+                  {fieldErrors.description ? (
+                    <span className={styles.helperError}>{fieldErrors.description}</span>
+                  ) : (
+                    // Contador de caracteres visible para el user.
+                    <span className={styles.helperText}>
+                      {form.description.length}/500 caracteres
+                    </span>
+                  )}
+                </div>
+              </label>
+            </div>
+          </Section>
 
-        {/* --- Selector de imagen: abre modal con todas las imagenes --- */}
-        <div className={`${styles.label} ${styles.fullWidth}`}>
-          <span>Imagen</span>
+          {/* [NUEVO] SECCIÓN 2: MULTIMEDIA
+              Agrupa imagen y modelo AR. Muestra un badge ✓ en el header
+              cuando hay imagen seleccionada (feedback rapido al colapsar). */}
+          <Section title="Multimedia" icon="🖼️" defaultOpen badge={form.image ? "✓" : null}>
+            {/* --- Selector de imagen: abre modal con todas las imagenes --- */}
+            <div className={styles.label}>
+              <span>Imagen del plato</span>
 
-          <button
-            type="button"
-            className={styles.btnImageSelector}
-            onClick={() => setShowImageModal(true)}
-            disabled={saving}
-          >
-            {form.image ? "Cambiar imagen" : "Seleccionar imagen guardada..."}
-          </button>
-
-          {fieldErrors.image ? (
-            <span className={styles.helperError}>{fieldErrors.image}</span>
-          ) : (
-            <span className={styles.helperText}>
-              Selecciona una imagen ya subida desde la pestaña &quot;Subir Archivos&quot;.
-            </span>
-          )}
-
-          {/* Hint extra si no hay nada en la BD */}
-          {imagenes.length === 0 && (
-            <span className={styles.helperError}>
-              No hay imágenes registradas. Primero sube una imagen en &quot;Subir Archivos&quot;.
-            </span>
-          )}
-        </div>
-
-        {/* Preview de la imagen seleccionada (si existe y la URL es valida) */}
-        {form.image && (form.image.startsWith("/assets/") || form.image.startsWith("https://")) && (
-          <div className={`${styles.fullWidth} ${styles.imagePreviewContainer}`}>
-            <img src={form.image} alt="Vista previa" className={styles.imagePreview} />
-          </div>
-        )}
-
-        {/* --- Selector de modelo 3D: mismo patron que imagen --- */}
-        <div className={`${styles.label} ${styles.fullWidth}`}>
-          <span>Modelo AR (opcional)</span>
-
-          <button
-            type="button"
-            className={styles.btnImageSelector}
-            onClick={() => setShowModelModal(true)}
-            disabled={saving}
-          >
-            {selectedModel
-              ? `Cambiar modelo (actual: ${selectedModel.label})`
-              : "Seleccionar modelo guardado..."}
-          </button>
-
-          <span className={styles.helperText}>
-            Selecciona un modelo .glb ya subido desde la pestaña &quot;Subir Archivos&quot;.
-          </span>
-
-          {modelos.length === 0 && (
-            <span className={styles.helperError}>
-              No hay modelos registrados. Primero sube un .glb en &quot;Subir Archivos&quot;.
-            </span>
-          )}
-        </div>
-
-        {/* Card con info del modelo seleccionado y boton para quitarlo */}
-        {selectedModel && (
-          <div className={`${styles.fullWidth} ${styles.modelPreviewContainer}`}>
-            <div className={styles.modelPreviewCard}>
-              <div className={styles.modelIconBox}>
-                <span className={styles.modelIconEmoji}>📦</span>
-                <span className={styles.modelIconText}>.glb</span>
-              </div>
-              <div className={styles.modelPreviewInfo}>
-                <p className={styles.modelPreviewLabel}>{selectedModel.label}</p>
-                <p className={styles.modelPreviewId}>{selectedModel.id}</p>
-              </div>
               <button
                 type="button"
-                className={styles.btnSmallDanger}
-                onClick={handleClearModel}
-                title="Quitar modelo de este plato"
+                className={styles.btnImageSelector}
+                onClick={() => setShowImageModal(true)}
+                disabled={saving}
               >
-                Quitar
+                {form.image ? "🔄 Cambiar imagen" : "🖼️ Seleccionar imagen guardada..."}
               </button>
+
+              {fieldErrors.image ? (
+                <span className={styles.helperError}>{fieldErrors.image}</span>
+              ) : (
+                <span className={styles.helperText}>
+                  Selecciona una imagen ya subida en &quot;Subir Archivos&quot;.
+                </span>
+              )}
+
+              {/* Hint extra si no hay nada en la BD */}
+              {imagenes.length === 0 && (
+                <span className={styles.helperError}>
+                  No hay imágenes registradas. Primero sube una.
+                </span>
+              )}
             </div>
-          </div>
-        )}
 
-        {/* --- Color picker de la card --- */}
-        <label className={styles.label}>
-          Color de la card
-          <div className={styles.colorPickerRow}>
-            {/* input type="color" da el picker nativo del navegador */}
-            <input
-              type="color"
-              name="cardColor"
-              value={form.cardColor}
-              onChange={handleChange}
-              className={styles.colorSwatch}
-            />
-            {/* Input text para escribir el hex a mano (sincronizado con el color) */}
-            <input
-              className={`${styles.input} ${fieldErrors.cardColor ? styles.inputError : ""}`}
-              name="cardColor"
-              value={form.cardColor}
-              onChange={handleChange}
-              placeholder="#152238"
-              maxLength={7}
-            />
-          </div>
-          {fieldErrors.cardColor ? (
-            <span className={styles.helperError}>{fieldErrors.cardColor}</span>
-          ) : (
-            <span className={styles.helperText}>Formato hex: #RRGGBB</span>
-          )}
-        </label>
+            {/* Preview de la imagen seleccionada (si existe y la URL es valida) */}
+            {form.image &&
+              (form.image.startsWith("/assets/") || form.image.startsWith("https://")) && (
+                <div className={styles.imagePreviewContainer}>
+                  <img src={form.image} alt="Vista previa" className={styles.imagePreview} />
+                </div>
+              )}
 
-        {/* --- Mensaje de la card (badge tipo "Nuevo!", "Recomendado") --- */}
-        <label className={styles.label}>
-          Mensaje de la card (opcional)
-          <input
-            className={`${styles.input} ${fieldErrors.cardMessage ? styles.inputError : ""}`}
-            name="cardMessage"
-            value={form.cardMessage}
-            onChange={handleChange}
-            placeholder="Ej: ¡Nuevo!, Recomendado..."
-            maxLength={40}
-          />
-          {fieldErrors.cardMessage ? (
-            <span className={styles.helperError}>{fieldErrors.cardMessage}</span>
-          ) : (
-            <span className={styles.helperText}>{form.cardMessage.length}/40 caracteres</span>
-          )}
-        </label>
+            {/* --- Selector de modelo 3D: mismo patron que imagen --- */}
+            {/* [NUEVO] Tooltip explicando que es un modelo AR para usuarios no tecnicos */}
+            <div className={styles.label} style={{ marginTop: "1rem" }}>
+              <span>
+                Modelo AR (opcional){" "}
+                <Tooltip text="Modelo 3D en formato .glb que el cliente puede ver en realidad aumentada con su cámara." />
+              </span>
 
-        {/* --- Input para agregar ingredientes --- */}
-        <label className={`${styles.label} ${styles.fullWidth}`}>
-          Ingredientes (opcional)
-          <div style={{ display: "flex", gap: "0.5rem" }}>
-            <input
-              type="text"
-              className={styles.input}
-              value={newIngredient}
-              onChange={(e) => setNewIngredient(e.target.value)}
-              onKeyPress={(e) => {
-                // Enter agrega el ingrediente sin enviar el form entero.
-                if (e.key === "Enter") {
-                  e.preventDefault();
-                  handleAddIngredient();
-                }
-              }}
-              placeholder="Ej: Tomate, Cebolla..."
-              style={{ flex: 1 }}
-            />
-            <button
-              type="button"
-              className={styles.btnSecondary}
-              onClick={handleAddIngredient}
-              style={{ padding: "0.65rem 1rem", whiteSpace: "nowrap" }}
-            >
-              +
-            </button>
-          </div>
-        </label>
+              <button
+                type="button"
+                className={styles.btnImageSelector}
+                onClick={() => setShowModelModal(true)}
+                disabled={saving}
+              >
+                {selectedModel
+                  ? `🔄 Cambiar (actual: ${selectedModel.label})`
+                  : "📦 Seleccionar modelo guardado..."}
+              </button>
 
-        {/* Lista de ingredientes ya agregados, cada uno con boton para quitarlo */}
-        {form.ingredients.length > 0 && (
-          <div className={`${styles.ingredientsList} ${styles.fullWidth}`}>
-            {form.ingredients.map((ing, idx) => (
-              <div key={idx} className={styles.ingredientItem}>
-                <span className={styles.ingredientBadge}>{ing}</span>
+              <span className={styles.helperText}>
+                Selecciona un .glb ya subido en &quot;Subir Archivos&quot;.
+              </span>
+
+              {modelos.length === 0 && (
+                <span className={styles.helperError}>
+                  No hay modelos registrados. Primero sube un .glb.
+                </span>
+              )}
+            </div>
+
+            {/* Card con info del modelo seleccionado y boton para quitarlo */}
+            {selectedModel && (
+              <div className={styles.modelPreviewContainer}>
+                <div className={styles.modelPreviewCard}>
+                  <div className={styles.modelIconBox}>
+                    <span className={styles.modelIconEmoji}>📦</span>
+                    <span className={styles.modelIconText}>.glb</span>
+                  </div>
+                  <div className={styles.modelPreviewInfo}>
+                    <p className={styles.modelPreviewLabel}>{selectedModel.label}</p>
+                    <p className={styles.modelPreviewId}>{selectedModel.id}</p>
+                  </div>
+                  <button
+                    type="button"
+                    className={styles.btnSmallDanger}
+                    onClick={handleClearModel}
+                    title="Quitar modelo de este plato"
+                  >
+                    Quitar
+                  </button>
+                </div>
+              </div>
+            )}
+          </Section>
+
+          {/* [NUEVO] SECCIÓN 3: PERSONALIZACIÓN
+              Agrupa color de la card y mensaje destacado. Cerrada por
+              defecto porque son opcionales/avanzados. */}
+          <Section title="Personalización de la card" icon="🎨" defaultOpen={false}>
+            <div className={styles.sectionGrid}>
+              {/* --- Color picker de la card --- */}
+              {/* [NUEVO] Tooltip + paleta de presets debajo del input */}
+              <label className={styles.label}>
+                Color de fondo <Tooltip text="Color de fondo de la tarjeta del plato en el menú." />
+                <div className={styles.colorPickerRow}>
+                  {/* input type="color" da el picker nativo del navegador */}
+                  <input
+                    type="color"
+                    name="cardColor"
+                    value={form.cardColor}
+                    onChange={handleChange}
+                    className={styles.colorSwatch}
+                  />
+                  {/* Input text para escribir el hex a mano (sincronizado con el color) */}
+                  <input
+                    className={`${styles.input} ${fieldErrors.cardColor ? styles.inputError : ""}`}
+                    name="cardColor"
+                    value={form.cardColor}
+                    onChange={handleChange}
+                    placeholder="#152238"
+                    maxLength={7}
+                  />
+                </div>
+                {/* [NUEVO] Paleta de presets de marca: click rapido a colores comunes */}
+                <div className={styles.colorPresets}>
+                  {COLOR_PRESETS.map((p) => (
+                    <button
+                      key={p.value}
+                      type="button"
+                      className={styles.colorPresetBtn}
+                      style={{ background: p.value }}
+                      title={p.name}
+                      onClick={() => setForm((f) => ({ ...f, cardColor: p.value }))}
+                    />
+                  ))}
+                </div>
+                {fieldErrors.cardColor ? (
+                  <span className={styles.helperError}>{fieldErrors.cardColor}</span>
+                ) : (
+                  <span className={styles.helperText}>Click en un color o ingresa hex #RRGGBB</span>
+                )}
+              </label>
+
+              {/* --- Mensaje de la card (badge tipo "Nuevo!", "Recomendado") --- */}
+              {/* [NUEVO] Tooltip con ejemplos de uso */}
+              <label className={styles.label}>
+                Mensaje destacado (opcional){" "}
+                <Tooltip text="Etiqueta corta que aparece sobre la card. Ej: ¡Nuevo!, Recomendado, 2x1." />
+                <input
+                  className={`${styles.input} ${fieldErrors.cardMessage ? styles.inputError : ""}`}
+                  name="cardMessage"
+                  value={form.cardMessage}
+                  onChange={handleChange}
+                  placeholder="Ej: ¡Nuevo!, Recomendado..."
+                  maxLength={40}
+                />
+                {fieldErrors.cardMessage ? (
+                  <span className={styles.helperError}>{fieldErrors.cardMessage}</span>
+                ) : (
+                  <span className={styles.helperText}>{form.cardMessage.length}/40 caracteres</span>
+                )}
+              </label>
+            </div>
+          </Section>
+
+          {/* [NUEVO] SECCIÓN 4: INGREDIENTES
+              Cerrada por defecto. El badge muestra la cantidad agregada
+              para que se vea aun colapsada. */}
+          <Section
+            title="Ingredientes"
+            icon="🥗"
+            defaultOpen={false}
+            badge={form.ingredients.length > 0 ? form.ingredients.length : null}
+          >
+            {/* --- Input para agregar ingredientes --- */}
+            <label className={styles.label}>
+              Agregar ingredientes{" "}
+              <Tooltip text="Puedes agregar varios separados por coma. Presiona Enter o el botón + para añadir." />
+              <div style={{ display: "flex", gap: "0.5rem" }}>
+                <input
+                  type="text"
+                  className={styles.input}
+                  value={newIngredient}
+                  onChange={(e) => setNewIngredient(e.target.value)}
+                  /* [NUEVO] onKeyDown en lugar de onKeyPress (deprecado).
+                     Enter agrega el ingrediente sin enviar el form entero. */
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      handleAddIngredient();
+                    }
+                  }}
+                  placeholder="Ej: Tomate, Cebolla, Palta..."
+                  style={{ flex: 1 }}
+                />
                 <button
                   type="button"
-                  className={styles.btnSmallDanger}
-                  onClick={() => handleRemoveIngredient(idx)}
-                  style={{ marginLeft: "auto" }}
+                  className={styles.btnSecondary}
+                  onClick={handleAddIngredient}
+                  style={{ padding: "0.65rem 1rem", whiteSpace: "nowrap" }}
                 >
-                  ✕
+                  + Agregar
                 </button>
               </div>
-            ))}
-          </div>
-        )}
+              <span className={styles.helperText}>
+                Tip: separa con comas para agregar varios a la vez
+              </span>
+            </label>
 
-        {/* --- Botones de accion (Crear/Actualizar/Cancelar) --- */}
-        <div className={styles.formActions}>
-          <button className={styles.btnPrimary} type="submit" disabled={saving || !formValid}>
-            {saving ? "Guardando..." : isEditingItem ? "Actualizar" : "Crear Plato"}
-          </button>
-          {/* Cancelar solo aparece en modo editar (vuelve a modo crear). */}
-          {isEditingItem && (
+            {/* Lista de ingredientes ya agregados, cada uno con boton para quitarlo */}
+            {form.ingredients.length > 0 && (
+              <div className={styles.ingredientsList}>
+                {form.ingredients.map((ing, idx) => (
+                  <div key={idx} className={styles.ingredientItem}>
+                    <span className={styles.ingredientBadge}>{ing}</span>
+                    <button
+                      type="button"
+                      className={styles.btnSmallDanger}
+                      onClick={() => handleRemoveIngredient(idx)}
+                      style={{ marginLeft: "auto" }}
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </Section>
+        </form>
+
+        {/* [NUEVO] COLUMNA DE VISTA PREVIA
+            Sticky a la derecha. Se actualiza en vivo con cada cambio del form. */}
+        <aside className={styles.previewColumn}>
+          <LivePreview form={form} categories={categories} />
+        </aside>
+      </div>
+
+      {/* [NUEVO] BARRA STICKY DE ACCIONES
+          Fija en la parte inferior de la pantalla. Siempre visible aunque el
+          admin scrollee. Muestra:
+            - Estado del form (incompleto / listo / en error)
+            - Boton de cancelar (solo en modo editar)
+            - Boton primario de guardar
+          Reemplaza el viejo formActions que estaba al final del form (que
+          podia quedar lejos del scroll cuando el form era largo). */}
+      <div className={styles.stickyActions}>
+        <div className={styles.stickyActionsInner}>
+          <span className={styles.stickyStatus}>
+            {!formValid && Object.keys(touched).length > 0 ? (
+              <span className={styles.statusError}>⚠️ Completa los campos requeridos</span>
+            ) : formValid ? (
+              <span className={styles.statusOk}>✓ Listo para guardar</span>
+            ) : (
+              <span className={styles.statusNeutral}>Completa la información del plato</span>
+            )}
+          </span>
+          <div className={styles.stickyButtons}>
+            {/* Cancelar solo aparece en modo editar (vuelve a modo crear). */}
+            {isEditingItem && (
+              <button type="button" className={styles.btnSecondary} onClick={resetForm}>
+                Cancelar
+              </button>
+            )}
             <button
+              className={styles.btnPrimary}
               type="button"
-              className={styles.btnSecondary}
-              onClick={() => {
-                setIsEditingItem(false);
-                setForm(DEFAULT_FORM_ITEMS);
-              }}
+              disabled={saving || !formValid}
+              onClick={handleSubmit}
             >
-              Cancelar
+              {saving ? "Guardando..." : isEditingItem ? "💾 Actualizar Plato" : "✓ Crear Plato"}
             </button>
-          )}
+          </div>
         </div>
-      </form>
+      </div>
 
       {/* ============ VISTA TIPO MENU CLIENTE ============ */}
       {/* Header con contador y filtro por categoria */}
@@ -1206,6 +1561,10 @@ function ItemsPanel({
                                 ...item,
                                 cardMessage: item.cardMessage ?? "",
                               });
+                              // [NUEVO] Reseteamos touched al entrar a editar:
+                              // los campos ya tienen valor pero el user todavia
+                              // no los modifico, asi que no mostramos validacion.
+                              setTouched({});
                               // Scroll al form. setTimeout asegura que el form
                               // ya se rellenó (effect dispara) antes de scrollear.
                               setTimeout(
