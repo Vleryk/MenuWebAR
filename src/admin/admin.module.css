@@ -1577,6 +1577,9 @@ input[type="file"] {
   font-size: 0.82rem;
   color: rgba(255, 255, 255, 0.7);
   line-height: 1.4;
+
+  overflow-wrap: break-word;
+  word-break: work-break;
 }
 .menuIngredients {
   display: flex;
