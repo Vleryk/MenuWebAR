@@ -55,6 +55,7 @@ import {
 import AdminLogin from "./AdminLogin";
 import AdminUploader from "./AdminUploader";
 import styles from "./admin.module.css";
+import { IconDownload } from "../components/icons/IconDownload";
 
 // =============================================================================
 // COMPONENTE RAIZ: AdminDashboard
@@ -188,9 +189,20 @@ export default function AdminDashboard() {
             ← Ver Menu
           </button>
         </div>
-        <button className={styles.btnDanger} onClick={handleLogout}>
-          Cerrar Sesion
-        </button>
+        <div className={styles.adminHeaderRight}>
+          <a
+            className={styles.btnDownloadMenu}
+            href="/menu/print"
+            target="_blank"
+            title="Descargar Carta Menú"
+          >
+            <IconDownload />
+            <span>Carta Menú</span>
+          </a>
+          <button className={styles.btnDanger} onClick={handleLogout}>
+            Cerrar Sesion
+          </button>
+        </div>
       </header>
 
       {/* Tabs de navegacion entre paneles */}
