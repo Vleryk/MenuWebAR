@@ -84,7 +84,6 @@ export default function AdminDashboard() {
   // editingItem/editingCategory: si tienen valor, el form del panel hijo se
   // pre-llena con esos datos (modo "editar"). Si son null, el form esta en
   // modo "crear nuevo".
-  const [editingItem, setEditingItem] = useState(null);
   const [editingCategory, setEditingCategory] = useState(null);
 
   // Filtro por categoria (se aplica antes de pasar items al ItemsPanel).
@@ -238,8 +237,6 @@ export default function AdminDashboard() {
             imagenes={imagenes}
             filterCategory={filterCategory}
             setFilterCategory={setFilterCategory}
-            editingItem={editingItem}
-            setEditingItem={setEditingItem}
             onReload={loadData}
           />
         )}
@@ -531,6 +528,19 @@ const DEFAULT_CARD_COLOR = "#152238";
 //   - Color picker para la card
 //   - Vista de menu agrupada por categoria con filtro
 // =============================================================================
+const DEFAULT_FORM_ITEMS = {
+  id: "",
+  category: "",
+  name: "",
+  description: "",
+  price: "",
+  image: "",
+  modelAR: "",
+  ingredients: [],
+  cardColor: DEFAULT_CARD_COLOR,
+  cardMessage: "",
+};
+
 function ItemsPanel({
   items, // items ya filtrados por categoria (para mostrar)
   allItems, // items completos (para generar ids unicos)
@@ -539,10 +549,10 @@ function ItemsPanel({
   imagenes,
   filterCategory,
   setFilterCategory,
-  editingItem,
-  setEditingItem,
   onReload,
 }) {
+  const [isEditingItem, setIsEditingItem] = useState(false);
+
   // Ref al form para hacer scroll automatico cuando se entra a modo "editar".
   const formRef = useRef(null);
 
@@ -551,18 +561,7 @@ function ItemsPanel({
   // ---------------------------------------------------------------------------
   // form: objeto con todos los campos del plato. Se usa tanto para crear como
   // para editar. Cuando editingItem cambia, se re-llena con esos datos.
-  const [form, setForm] = useState({
-    id: "",
-    category: "",
-    name: "",
-    description: "",
-    price: "",
-    image: "",
-    modelAR: "",
-    ingredients: [],
-    cardColor: DEFAULT_CARD_COLOR,
-    cardMessage: "",
-  });
+  const [form, setForm] = useState(DEFAULT_FORM_ITEMS);
 
   // Input temporal para agregar ingredientes (uno o varios separados por coma).
   const [newIngredient, setNewIngredient] = useState("");
@@ -580,46 +579,6 @@ function ItemsPanel({
 
   // Lista completa de items (para generar ids). Si no se paso allItems usa items.
   const itemsList = allItems || items;
-
-  // ---------------------------------------------------------------------------
-  // Effect: sincronizar el form con editingItem.
-  // Cuando setEditingItem se llama desde fuera (al hacer click en "Editar"),
-  // este effect detecta el cambio y rellena el form con los datos del item.
-  // Si editingItem es null, resetea el form a valores vacios (modo "crear").
-  // ---------------------------------------------------------------------------
-  useEffect(() => {
-    if (editingItem) {
-      // Modo editar: rellenar form con valores del item.
-      // Los `|| ""` y `|| []` son defaults por si el item no tiene esos campos.
-      setForm({
-        ...editingItem,
-        modelAR: editingItem.modelAR || "",
-        ingredients: editingItem.ingredients || [],
-        cardColor: editingItem.cardColor || DEFAULT_CARD_COLOR,
-        cardMessage: editingItem.cardMessage || "",
-      });
-    } else {
-      // Modo crear: form vacio. La categoria default es la primera disponible.
-      setForm({
-        id: "",
-        category: categories[0]?.id || "",
-        name: "",
-        description: "",
-        price: "",
-        image: "",
-        modelAR: "",
-        ingredients: [],
-        cardColor: DEFAULT_CARD_COLOR,
-        cardMessage: "",
-      });
-    }
-    // Limpiar errores y input de ingrediente al cambiar de modo.
-    setFieldErrors({});
-    setNewIngredient("");
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    // ^ Ignoramos `categories` en deps a proposito: solo queremos disparar
-    //   este effect cuando cambia editingItem, no cuando llegan categorias.
-  }, [editingItem]);
 
   // ---------------------------------------------------------------------------
   // VALIDACION
@@ -798,8 +757,8 @@ function ItemsPanel({
       };
 
       // 3) Llamar al endpoint correcto segun modo (editar vs crear).
-      if (editingItem) {
-        await updateItem(editingItem.id, payloadBase);
+      if (isEditingItem) {
+        await updateItem(form.id, payloadBase);
         setSuccessMessage("EL PLATO SE HA ACTUALIZADO CON EXITO");
       } else {
         // Al crear, generamos el id temporal. El server lo ignora pero
@@ -811,21 +770,10 @@ function ItemsPanel({
 
       // 4) Mostrar modal de exito y volver a modo "crear".
       setShowSuccessModal(true);
-      setEditingItem(null);
+      setIsEditingItem(false);
 
       // 5) Reset completo del form.
-      setForm({
-        id: "",
-        category: categories[0]?.id || "",
-        name: "",
-        description: "",
-        price: "",
-        image: "",
-        modelAR: "",
-        ingredients: [],
-        cardColor: DEFAULT_CARD_COLOR,
-        cardMessage: "",
-      });
+      setForm(DEFAULT_FORM_ITEMS);
       setFieldErrors({});
       setNewIngredient("");
       setSaving(false);
@@ -890,7 +838,7 @@ function ItemsPanel({
       />
 
       <div className={styles.panelHeader}>
-        <h2>{editingItem ? "Editar Plato" : "Agregar Plato"}</h2>
+        <h2>{isEditingItem ? "Editar Plato" : "Agregar Plato"}</h2>
       </div>
 
       {/* ============ FORMULARIO ============ */}
@@ -1164,14 +1112,17 @@ function ItemsPanel({
         {/* --- Botones de accion (Crear/Actualizar/Cancelar) --- */}
         <div className={styles.formActions}>
           <button className={styles.btnPrimary} type="submit" disabled={saving || !formValid}>
-            {saving ? "Guardando..." : editingItem ? "Actualizar" : "Crear Plato"}
+            {saving ? "Guardando..." : isEditingItem ? "Actualizar" : "Crear Plato"}
           </button>
           {/* Cancelar solo aparece en modo editar (vuelve a modo crear). */}
-          {editingItem && (
+          {isEditingItem && (
             <button
               type="button"
               className={styles.btnSecondary}
-              onClick={() => setEditingItem(null)}
+              onClick={() => {
+                setIsEditingItem(false);
+                setForm(DEFAULT_FORM_ITEMS);
+              }}
             >
               Cancelar
             </button>
@@ -1260,7 +1211,12 @@ function ItemsPanel({
                           <button
                             className={styles.btnSmall}
                             onClick={() => {
-                              setEditingItem(item);
+                              setIsEditingItem(true);
+                              setForm({
+                                ...DEFAULT_FORM_ITEMS,
+                                ...item,
+                                cardMessage: item.cardMessage ?? "",
+                              });
                               // Scroll al form. setTimeout asegura que el form
                               // ya se rellenó (effect dispara) antes de scrollear.
                               setTimeout(
