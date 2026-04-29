@@ -80,12 +80,6 @@ export default function AdminDashboard() {
   // Tab activa: "items" | "categories" | "upload"
   const [activeTab, setActiveTab] = useState("items");
 
-  // --- Estado de edicion ---
-  // editingItem/editingCategory: si tienen valor, el form del panel hijo se
-  // pre-llena con esos datos (modo "editar"). Si son null, el form esta en
-  // modo "crear nuevo".
-  const [editingCategory, setEditingCategory] = useState(null);
-
   // Filtro por categoria (se aplica antes de pasar items al ItemsPanel).
   const [filterCategory, setFilterCategory] = useState("");
 
@@ -241,12 +235,7 @@ export default function AdminDashboard() {
           />
         )}
         {activeTab === "categories" && (
-          <CategoriesPanel
-            categories={categories}
-            editingCategory={editingCategory}
-            setEditingCategory={setEditingCategory}
-            onReload={loadData}
-          />
+          <CategoriesPanel categories={categories} onReload={loadData} />
         )}
         {activeTab === "upload" && <UploadPanel onReload={loadData} />}
       </main>
@@ -1259,24 +1248,17 @@ function ItemsPanel({
 // IMPORTANTE: eliminar una categoria tambien borra todos los platos de esa
 // categoria (ON DELETE CASCADE en la BD). Por eso el confirm es enfatico.
 // =============================================================================
-function CategoriesPanel({ categories, editingCategory, setEditingCategory, onReload }) {
+const DEFAULT_FORM_CATEGORY = { id: "", label: "" };
+
+function CategoriesPanel({ categories, onReload }) {
+  const [isEditingCategory, setIsEditingCategory] = useState(false);
   // Estado del form: solo necesita id y label.
-  const [form, setForm] = useState({ id: "", label: "" });
+  const [form, setForm] = useState(DEFAULT_FORM_CATEGORY);
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
   const [fieldErrors, setFieldErrors] = useState({});
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [successMessage, setSuccessMessage] = useState("");
-
-  // Sincroniza el form con editingCategory (mismo patron que ItemsPanel).
-  useEffect(() => {
-    if (editingCategory) {
-      setForm({ ...editingCategory });
-    } else {
-      setForm({ id: "", label: "" });
-    }
-    setFieldErrors({});
-  }, [editingCategory]);
 
   // Validacion: solo letras y espacios en el label.
   const getFieldError = (name, value) => {
@@ -1318,9 +1300,9 @@ function CategoriesPanel({ categories, editingCategory, setEditingCategory, onRe
 
     setSaving(true);
     try {
-      if (editingCategory) {
+      if (isEditingCategory) {
         // Editar: solo actualizamos el label, el id no cambia.
-        await updateCategory(editingCategory.id, { label: form.label });
+        await updateCategory(form.id, { label: form.label });
         setSuccessMessage("LA CATEGORIA SE HA ACTUALIZADO CON EXITO");
       } else {
         // Crear: id se deriva del label (ej: "Bebidas" -> "bebidas").
@@ -1329,8 +1311,8 @@ function CategoriesPanel({ categories, editingCategory, setEditingCategory, onRe
         setSuccessMessage("LA CATEGORIA SE HA AGREGADO CON EXITO");
       }
       setShowSuccessModal(true);
-      setEditingCategory(null);
-      setForm({ id: "", label: "" });
+      setIsEditingCategory(false);
+      setForm(DEFAULT_FORM_CATEGORY);
       setFieldErrors({});
       setSaving(false);
 
@@ -1371,7 +1353,7 @@ function CategoriesPanel({ categories, editingCategory, setEditingCategory, onRe
       />
 
       <div className={styles.panelHeader}>
-        <h2>{editingCategory ? "Editar Categoria" : "Agregar Categoria"}</h2>
+        <h2>{isEditingCategory ? "Editar Categoria" : "Agregar Categoria"}</h2>
       </div>
 
       {/* Form simple en una sola fila */}
@@ -1397,13 +1379,16 @@ function CategoriesPanel({ categories, editingCategory, setEditingCategory, onRe
 
         <div className={styles.formActions}>
           <button className={styles.btnPrimary} type="submit" disabled={saving || !formValid}>
-            {saving ? "Guardando..." : editingCategory ? "Actualizar" : "Crear"}
+            {saving ? "Guardando..." : isEditingCategory ? "Actualizar" : "Crear"}
           </button>
-          {editingCategory && (
+          {isEditingCategory && (
             <button
               type="button"
               className={styles.btnSecondary}
-              onClick={() => setEditingCategory(null)}
+              onClick={() => {
+                setIsEditingCategory(false);
+                setForm(DEFAULT_FORM_CATEGORY);
+              }}
             >
               Cancelar
             </button>
@@ -1427,7 +1412,13 @@ function CategoriesPanel({ categories, editingCategory, setEditingCategory, onRe
                 <td className={styles.mono}>{cat.id}</td>
                 <td>{cat.label}</td>
                 <td>
-                  <button className={styles.btnSmall} onClick={() => setEditingCategory(cat)}>
+                  <button
+                    className={styles.btnSmall}
+                    onClick={() => {
+                      setIsEditingCategory(true);
+                      setForm({ ...DEFAULT_FORM_CATEGORY, ...cat });
+                    }}
+                  >
                     Editar
                   </button>
                   <button
