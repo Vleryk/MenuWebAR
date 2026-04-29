@@ -16,6 +16,7 @@ import DirectARViewer from "./components/DirectARViewer";
 // Solo hay que hacerlo una vez, aca, y queda disponible en toda la app.
 import "@google/model-viewer";
 import "./globals.css";
+import { MenuPrint } from "./components/MenuPrint";
 
 ReactDOM.createRoot(document.getElementById("root")).render(
   // StrictMode hace doble-render en dev para detectar side effects mal hechos.
@@ -28,6 +29,7 @@ ReactDOM.createRoot(document.getElementById("root")).render(
         <Routes>
           {/* Menu publico: lo que ven los clientes */}
           <Route path="/" element={<App />} />
+          <Route path="/menu/print" element={<MenuPrint />} />
           {/* Panel admin protegido por login */}
           <Route path="/admin" element={<AdminDashboard />} />
           {/* AR directo via QR. Util para imprimir un QR por plato y que el
