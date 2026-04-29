@@ -73,6 +73,7 @@ import AdminLogin from "./AdminLogin";
 import AdminUploader from "./AdminUploader";
 import styles from "./admin.module.css";
 import { IconDownload } from "../components/icons/IconDownload";
+import { currencyFormatter } from "../config/currencyFormatter";
 
 // [NUEVO] Presets de colores de la marca para el color picker.
 // Permite al admin elegir colores consistentes con un solo click en lugar
@@ -1528,7 +1529,9 @@ function ItemsPanel({
                       <div className={styles.menuBody}>
                         <div className={styles.menuTopRow}>
                           <h4 className={styles.menuName}>{item.name}</h4>
-                          <span className={styles.menuPrice}>{item.price}</span>
+                          <span className={styles.menuPrice}>
+                            {currencyFormatter.format(item.price)}
+                          </span>
                         </div>
 
                         {/* Id en mono (util para debug/identificacion) */}

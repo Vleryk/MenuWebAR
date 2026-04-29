@@ -15,6 +15,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import styles from "./MenuCard.module.css";
+import { currencyFormatter } from "../config/currencyFormatter";
 
 // Icono de camara (SVG inline para evitar una dependencia extra por un icono).
 function CameraIcon() {
@@ -151,7 +152,7 @@ function MenuCard({ item }) {
           <p>{item.description}</p>
 
           <div className={styles.menuFooter}>
-            <strong>{item.price}</strong>
+            <strong>{currencyFormatter.format(item.price)}</strong>
 
             <div className={styles.cardActions}>
               {/* Boton de ingredientes: siempre visible */}

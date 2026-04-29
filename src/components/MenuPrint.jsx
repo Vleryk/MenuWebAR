@@ -8,6 +8,7 @@ import { QRCodeSVG } from "qrcode.react";
 
 import styles from "./menuPrint.module.css";
 import { useEffect } from "react";
+import { currencyFormatter } from "../config/currencyFormatter";
 
 function MenuPrint() {
   const { categories } = useCategories();
@@ -19,11 +20,6 @@ function MenuPrint() {
     year: "numeric",
   });
   const baseUrl = restaurantConfig.links.web ?? window.location.origin;
-
-  const currencyFormatter = new Intl.NumberFormat("es-CL", {
-    style: "currency",
-    currency: "CLP",
-  });
 
   const menuByCategory = categories
     .map((category) => ({
