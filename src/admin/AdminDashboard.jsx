@@ -1218,8 +1218,7 @@ function ItemsPanel({
   const formValid = isFormValid();
   const selectedModel = modelos.find((m) => m.id === form.modelAR);
 
-  const submitDisabled =
-    saving || !formValid || (isEditingItem ? !canEdit : !canCreate);
+  const submitDisabled = saving || !formValid || (isEditingItem ? !canEdit : !canCreate);
 
   const submitDisabledReason = isEditingItem
     ? !canEdit
@@ -1237,7 +1236,8 @@ function ItemsPanel({
     const now = Date.now();
     const ini = form.descuentoInicio ? new Date(form.descuentoInicio).getTime() : null;
     const fin = form.descuentoFin ? new Date(form.descuentoFin).getTime() : null;
-    if (ini && now < ini) return { type: "off", text: `Programado: arranca ${form.descuentoInicio.replace("T", " ")}` };
+    if (ini && now < ini)
+      return { type: "off", text: `Programado: arranca ${form.descuentoInicio.replace("T", " ")}` };
     if (fin && now > fin) return { type: "off", text: "Expirado" };
     return { type: "ok", text: `Activo: -${pct}% aplicado ahora` };
   };
@@ -1569,7 +1569,6 @@ function ItemsPanel({
                     />
                   ))}
                 </div>
-
                 <div className={styles.colorHistoryWrap}>
                   <span className={styles.colorHistoryLabel}>Usados recientemente</span>
                   {colorHistory && colorHistory.length > 0 ? (
@@ -1591,7 +1590,6 @@ function ItemsPanel({
                     </span>
                   )}
                 </div>
-
                 {fieldErrors.cardColor ? (
                   <span className={styles.helperError}>{fieldErrors.cardColor}</span>
                 ) : (

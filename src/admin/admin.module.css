@@ -1607,7 +1607,6 @@ input[type="file"] {
   border-top: 1px solid rgba(255, 255, 255, 0.08);
 }
 
-
 /* ============ HISTORIAL DE COLORES ============ */
 /* Misma idea que .colorPresets pero con su propio header y boton de quitar */
 .colorHistoryWrap {
@@ -1654,7 +1653,6 @@ input[type="file"] {
   transform: scale(1.15);
   box-shadow: 0 0 8px rgba(212, 170, 99, 0.4);
 }
-
 
 /* ============ GESTION DE USUARIOS ============ */
 /* Modal mas alto que los demas porque la lista de usuarios + form puede ocupar
@@ -1783,9 +1781,6 @@ input[type="file"] {
   transform: none !important;
 }
 
-
-
-
 /* ============ DESCUENTO ============ */
 .discountRow {
   display: grid;
@@ -1840,7 +1835,6 @@ input[type="file"] {
   letter-spacing: 0.03em;
   margin-left: 0.3rem;
 }
-
 
 /* RESPONSIVE */
 @media (max-width: 1100px) {

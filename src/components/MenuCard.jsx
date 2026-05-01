@@ -159,9 +159,7 @@ function MenuCard({ item }) {
   // como si no hubiera descuento (item.price es el precio que se muestra).
   const hasDiscount = Boolean(item.discountActive);
   const oldPriceDisplay = formatPriceDisplay(item.price);
-  const newPriceDisplay = hasDiscount
-    ? formatPriceDisplay(item.discountedPrice)
-    : oldPriceDisplay;
+  const newPriceDisplay = hasDiscount ? formatPriceDisplay(item.discountedPrice) : oldPriceDisplay;
 
   return (
     <>
@@ -172,9 +170,7 @@ function MenuCard({ item }) {
 
         {/* Badge de descuento -X%. Lo ponemos arriba a la izquierda asi no se
             pisa con el cardMessage que va a la derecha. */}
-        {hasDiscount && (
-          <span className={styles.discountBadge}>-{item.descuento}%</span>
-        )}
+        {hasDiscount && <span className={styles.discountBadge}>-{item.descuento}%</span>}
 
         {/* loading="lazy" para que las imagenes de platos que no estan en
             viewport no se bajen hasta que el user scrollee. */}

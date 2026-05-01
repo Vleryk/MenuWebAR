@@ -770,11 +770,7 @@ async function createUsuario({ email, password, permissions }) {
     ...cleanPerms,
   };
 
-  const { data, error } = await supabase
-    .from("usuarios")
-    .insert(insertRow)
-    .select()
-    .single();
+  const { data, error } = await supabase.from("usuarios").insert(insertRow).select().single();
 
   if (error) {
     // Postgres devuelve codigo 23505 cuando se viola un UNIQUE (email duplicado)
