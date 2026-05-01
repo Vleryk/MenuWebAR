@@ -1608,6 +1608,240 @@ input[type="file"] {
 }
 
 
+/* ============ HISTORIAL DE COLORES ============ */
+/* Misma idea que .colorPresets pero con su propio header y boton de quitar */
+.colorHistoryWrap {
+  margin-top: 0.6rem;
+  padding-top: 0.6rem;
+  border-top: 1px dashed rgba(212, 170, 99, 0.2);
+}
+
+.colorHistoryLabel {
+  display: block;
+  font-size: 0.7rem;
+  color: rgba(255, 255, 255, 0.5);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 0.4rem;
+  font-weight: 600;
+}
+
+.colorHistoryRow {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+
+.colorHistoryEmpty {
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.35);
+  font-style: italic;
+}
+
+/* Reusa el mismo aspecto que .colorPresetBtn, pero un poco mas chico para
+   diferenciarlo visualmente de los presets fijos de la marca */
+.colorHistoryBtn {
+  width: 24px;
+  height: 24px;
+  border-radius: 5px;
+  border: 2px solid rgba(255, 255, 255, 0.12);
+  cursor: pointer;
+  transition: all 0.2s;
+  padding: 0;
+}
+.colorHistoryBtn:hover {
+  border-color: #d4aa63;
+  transform: scale(1.15);
+  box-shadow: 0 0 8px rgba(212, 170, 99, 0.4);
+}
+
+
+/* ============ GESTION DE USUARIOS ============ */
+/* Modal mas alto que los demas porque la lista de usuarios + form puede ocupar
+   bastante espacio vertical */
+.usersModalContent {
+  background: linear-gradient(135deg, rgba(20, 25, 40, 0.98) 0%, rgba(15, 23, 36, 0.98) 100%);
+  border: 1px solid rgba(212, 170, 99, 0.2);
+  border-radius: 16px;
+  padding: 2rem;
+  max-width: 900px;
+  width: 95%;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(10px);
+  overflow-y: auto;
+}
+
+.usersListWrap {
+  margin-bottom: 1.5rem;
+}
+
+.usersListEmpty {
+  color: rgba(255, 255, 255, 0.5);
+  font-style: italic;
+  padding: 1rem;
+  text-align: center;
+}
+
+/* Tabla compacta de usuarios. Reusamos los estilos generales de table */
+.usersTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+.usersTable th {
+  text-align: left;
+  padding: 0.5rem 0.7rem;
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+.usersTable td {
+  padding: 0.55rem 0.7rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.permPill {
+  display: inline-block;
+  background: rgba(212, 170, 99, 0.18);
+  color: #d4aa63;
+  font-size: 0.65rem;
+  padding: 0.12rem 0.45rem;
+  border-radius: 999px;
+  margin-right: 0.25rem;
+  margin-bottom: 0.2rem;
+  white-space: nowrap;
+}
+
+/* Form de crear/editar usuario dentro del modal */
+.userForm {
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid rgba(212, 170, 99, 0.15);
+  border-radius: 10px;
+  padding: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.userFormTitle {
+  margin: 0;
+  color: #d4aa63;
+  font-size: 1rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.userFormGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+/* Lista de checkboxes de permisos en 2 columnas para que entre todo sin scroll */
+.permGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  padding: 0.75rem;
+}
+
+.permItem {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.82rem;
+  color: rgba(247, 241, 232, 0.85);
+  cursor: pointer;
+  user-select: none;
+}
+
+.permItem input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: #d4aa63;
+  cursor: pointer;
+}
+
+/* Estilos para los botones que el usuario actual NO puede usar (se muestran
+   deshabilitados con cursor not-allowed y opacidad). Tooltip viene del title. */
+.btnDisabledByPerm {
+  opacity: 0.4;
+  cursor: not-allowed !important;
+  pointer-events: auto !important; /* para que el title (tooltip nativo) se vea */
+}
+.btnDisabledByPerm:hover {
+  background: inherit !important;
+  transform: none !important;
+}
+
+
+
+
+/* ============ DESCUENTO ============ */
+.discountRow {
+  display: grid;
+  grid-template-columns: 110px 1fr 1fr;
+  gap: 0.75rem;
+  align-items: end;
+}
+
+.discountStatus {
+  margin-top: 0.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: 8px;
+  font-size: 0.82rem;
+}
+.discountStatusOk {
+  background: rgba(40, 167, 69, 0.12);
+  color: #6ee7a7;
+  border: 1px solid rgba(40, 167, 69, 0.3);
+}
+.discountStatusOff {
+  background: rgba(255, 255, 255, 0.04);
+  color: rgba(255, 255, 255, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.previewPriceWrap {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+}
+.previewOldPrice {
+  text-decoration: line-through;
+  color: rgba(255, 255, 255, 0.45);
+  font-size: 0.82rem;
+  font-weight: 500;
+}
+.previewNewPrice {
+  color: #d4aa63;
+  font-weight: 700;
+}
+.previewDiscountBadge {
+  display: inline-block;
+  background: #ff4444;
+  color: #fff;
+  font-size: 0.65rem;
+  padding: 0.1rem 0.4rem;
+  border-radius: 4px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  margin-left: 0.3rem;
+}
+
+
 /* RESPONSIVE */
 @media (max-width: 1100px) {
   .editorLayout {

@@ -12,6 +12,13 @@
 //   - Scene Viewer en Chrome Android
 //   - Quick Look en iOS/Safari
 // Todo lo que el usuario tiene que hacer es tocar el boton de la camara.
+//
+// DESCUENTOS:
+// El backend ya nos manda calculado si el descuento esta activo en este
+// momento (item.discountActive) y cual es el precio final con descuento
+// aplicado (item.discountedPrice). El cliente NO calcula nada, solo renderiza
+// lo que viene en los campos. Asi nadie puede hacer trampa con el reloj
+// del navegador.
 
 import { useState } from "react";
 import styles from "./MenuCard.module.css";
@@ -20,6 +27,18 @@ import { CameraIcon } from "./icons/CameraIcon";
 import { IngredientsIcon } from "./icons/IngredientsIcon";
 import { IngredientsModal } from "./IngredientsModal";
 import { ArModal } from "./ArModal";
+
+// Helper para mostrar precios. El backend nos manda el numero como string
+// crudo ("12990"), aca lo formateamos a CLP. Acepta numero o string, devuelve
+// "$12.990" o el valor original si no es parseable.
+function formatPriceDisplay(value) {
+  if (value === null || value === undefined || value === "") return "";
+  // si ya viene formateado con $, lo dejamos pasar
+  if (typeof value === "string" && value.startsWith("$")) return value;
+  const digits = String(value).replace(/\D/g, "");
+  if (!digits) return String(value);
+  return "$" + parseInt(digits, 10).toLocaleString("es-CL");
+}
 
 function MenuCard({ item }) {
   const [isArOpen, setIsArOpen] = useState(false);
@@ -35,12 +54,27 @@ function MenuCard({ item }) {
   // especifico, lo usamos. Si no, queda el default del CSS.
   const cardStyle = item.cardColor ? { backgroundColor: item.cardColor } : undefined;
 
+  // Banderas de descuento: el backend ya hizo el calculo, aca solo leemos.
+  // Compatibilidad: si el backend viejo no manda estos campos, los tratamos
+  // como si no hubiera descuento (item.price es el precio que se muestra).
+  const hasDiscount = Boolean(item.discountActive);
+  const oldPriceDisplay = formatPriceDisplay(item.price);
+  const newPriceDisplay = hasDiscount
+    ? formatPriceDisplay(item.discountedPrice)
+    : oldPriceDisplay;
+
   return (
     <>
       <article className={styles.menuCard} style={cardStyle}>
         {/* Badge con mensaje tipo "Nuevo", "Recomendado", etc. Solo aparece
             si el admin definio cardMessage para este plato. */}
         {item.cardMessage && <span className={styles.cardBadge}>{item.cardMessage}</span>}
+
+        {/* Badge de descuento -X%. Lo ponemos arriba a la izquierda asi no se
+            pisa con el cardMessage que va a la derecha. */}
+        {hasDiscount && (
+          <span className={styles.discountBadge}>-{item.descuento}%</span>
+        )}
 
         {/* loading="lazy" para que las imagenes de platos que no estan en
             viewport no se bajen hasta que el user scrollee. */}
@@ -51,7 +85,20 @@ function MenuCard({ item }) {
           <p>{item.description}</p>
 
           <div className={styles.menuFooter}>
+<<<<<<< HEAD
             <strong>{currencyFormatter.format(item.price)}</strong>
+=======
+            {/* Bloque de precios: si hay descuento mostramos el viejo tachado
+                (chico, gris) + el nuevo (grande, dorado). Si no, solo el normal. */}
+            {hasDiscount ? (
+              <div className={styles.priceBlock}>
+                <span className={styles.oldPrice}>{oldPriceDisplay}</span>
+                <strong className={styles.newPrice}>{newPriceDisplay}</strong>
+              </div>
+            ) : (
+              <strong>{newPriceDisplay}</strong>
+            )}
+>>>>>>> b9ee9eb (guardar ultimos colores usados/agregar superadmin/admin/agregar descuento)
 
             <div className={styles.cardActions}>
               {/* Boton de ingredientes: siempre visible */}

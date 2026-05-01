@@ -30,6 +30,35 @@
   text-overflow: ellipsis;
 }
 
+/* Badge de descuento estilo e-commerce. Lo ponemos arriba a la izquierda
+   con rojo llamativo para que sea inconfundible. */
+.discountBadge {
+  position: absolute;
+  top: -8px;
+  left: 10px;
+  background: linear-gradient(135deg, #ff4444, #cc0000);
+  color: #fff;
+  padding: 0.3rem 0.7rem;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  box-shadow: 0 2px 10px rgba(204, 0, 0, 0.5);
+  z-index: 2;
+  animation: discountPulse 2.5s ease-in-out infinite;
+}
+
+@keyframes discountPulse {
+  0%, 100% {
+    transform: scale(1);
+    box-shadow: 0 2px 10px rgba(204, 0, 0, 0.5);
+  }
+  50% {
+    transform: scale(1.06);
+    box-shadow: 0 2px 16px rgba(255, 68, 68, 0.7);
+  }
+}
+
 .menuThumb {
   flex: 0 0 100px;
   width: 150px;
@@ -73,6 +102,30 @@
 
 .menuFooter strong {
   color: var(--r66-gold);
+}
+
+/* Bloque de precios cuando hay descuento: viejo tachado arriba (chico) y
+   nuevo abajo (grande, dorado). En linea para que entre en el footer. */
+.priceBlock {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  line-height: 1.1;
+  gap: 0.1rem;
+}
+
+.oldPrice {
+  text-decoration: line-through;
+  color: rgba(247, 241, 232, 0.5);
+  font-size: 0.78rem;
+  font-weight: 500;
+}
+
+.newPrice {
+  color: var(--r66-gold);
+  font-size: 1.1rem;
+  font-weight: 800;
+  text-shadow: 0 0 12px rgba(212, 170, 99, 0.3);
 }
 
 .cardActions {

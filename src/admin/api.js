@@ -19,8 +19,11 @@ function getHeaders() {
 
 // ---------- AUTENTICACION ----------
 
-// Login. Si es exitoso, guarda el token y el usuario en localStorage para que
-// persistan entre recargas de pagina. El token dura 8h.
+// Login. Si es exitoso, guarda el token, el usuario y los permisos en
+// localStorage para que persistan entre recargas de pagina. El token dura 8h.
+// Ahora el backend devuelve tambien isSuperAdmin y permissions: los serializamos
+// en localStorage para que el frontend pueda usarlos sin tener que consultar
+// /auth/verify cada vez.
 export async function login(username, password) {
   const res = await fetch(`${API_URL}/auth/login`, {
     method: "POST",
@@ -34,6 +37,10 @@ export async function login(username, password) {
   const data = await res.json();
   localStorage.setItem("admin_token", data.token);
   localStorage.setItem("admin_user", data.username);
+  // guardamos info de sesion para que el frontend renderice botones/pestañas
+  // sin tener que decodificar el JWT
+  localStorage.setItem("admin_is_super", data.isSuperAdmin ? "1" : "0");
+  localStorage.setItem("admin_permissions", JSON.stringify(data.permissions || {}));
   return data;
 }
 
@@ -42,18 +49,56 @@ export async function login(username, password) {
 export function logout() {
   localStorage.removeItem("admin_token");
   localStorage.removeItem("admin_user");
+  localStorage.removeItem("admin_is_super");
+  localStorage.removeItem("admin_permissions");
 }
 
 export function isAuthenticated() {
   return !!localStorage.getItem("admin_token");
 }
 
+// Helpers para que los componentes lean rapido el estado de sesion sin tener
+// que parsear localStorage cada vez.
+export function isSuperAdmin() {
+  return localStorage.getItem("admin_is_super") === "1";
+}
+
+export function getPermissions() {
+  try {
+    return JSON.parse(localStorage.getItem("admin_permissions") || "{}");
+  } catch {
+    return {};
+  }
+}
+
+// Devuelve true si el usuario actual tiene el permiso, considerando que el
+// super_admin tiene todos los permisos. Los componentes lo usan para decidir
+// si renderizar / habilitar botones.
+export function hasPermission(permKey) {
+  if (isSuperAdmin()) return true;
+  const perms = getPermissions();
+  return Boolean(perms[permKey]);
+}
+
 // Valida el token contra el server. Se usa al cargar el admin para saber si
 // el token guardado todavia es valido (puede haber expirado mientras el user
-// estaba ausente).
+// estaba ausente). Aprovecha la respuesta para refrescar permissions y
+// isSuperAdmin en localStorage por si cambiaron en el server.
 export async function verifyToken() {
   const res = await fetch(`${API_URL}/auth/verify`, { headers: getHeaders() });
-  return res.ok;
+  if (!res.ok) return false;
+  try {
+    const data = await res.json();
+    if (data && typeof data === "object") {
+      // refrescamos los permisos: util si el super_admin le cambio los
+      // permisos a este usuario mientras estaba logueado
+      localStorage.setItem("admin_is_super", data.isSuperAdmin ? "1" : "0");
+      localStorage.setItem("admin_permissions", JSON.stringify(data.permissions || {}));
+    }
+  } catch {
+    // si la respuesta no es JSON valido igual consideramos el token valido
+  }
+  return true;
 }
 
 // --- Upload de Imágenes ---
@@ -244,8 +289,88 @@ export async function deleteItem(id) {
   return res.json();
 }
 
+// --- Historial de colores ---
+// Lista los ultimos colores usados en cardColor. El backend ya los devuelve
+// ordenados (mas reciente primero) y limitados a 8.
+export async function getColorHistorial() {
+  const res = await fetch(`${API_URL}/admin/historial-colores`, { headers: getHeaders() });
+  if (!res.ok) throw new Error("Error al obtener historial de colores");
+  return res.json();
+}
+
+// Empuja un color al historial. En el flujo normal no hace falta llamar a
+// esto desde el front, porque el server lo guarda solo cuando se crea o
+// actualiza un plato. Queda disponible por si se quiere registrar un color
+// sin guardar plato (ej: probar paleta).
+export async function pushColorHistorial(color) {
+  const res = await fetch(`${API_URL}/admin/historial-colores`, {
+    method: "POST",
+    headers: getHeaders(),
+    body: JSON.stringify({ color }),
+  });
+  if (!res.ok) {
+    const err = await res.json();
+    throw new Error(err.error || "Error al guardar color");
+  }
+  return res.json();
+}
+
+// --- Usuarios ---
+// CRUD de usuarios secundarios. Solo accesibles para usuarios con permiso
+// "puede_gestionar_usuarios" (super_admin lo tiene siempre).
+export async function getUsuarios() {
+  const res = await fetch(`${API_URL}/admin/usuarios`, { headers: getHeaders() });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || "Error al obtener usuarios");
+  }
+  return res.json();
+}
+
+export async function createUsuario(payload) {
+  // payload: { email, password, permissions }
+  const res = await fetch(`${API_URL}/admin/usuarios`, {
+    method: "POST",
+    headers: getHeaders(),
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || "Error al crear usuario");
+  }
+  return res.json();
+}
+
+export async function updateUsuario(id, payload) {
+  // payload puede incluir { email, password, permissions }. Si password es
+  // string vacio, el backend lo ignora (no lo cambia).
+  const res = await fetch(`${API_URL}/admin/usuarios/${encodeURIComponent(id)}`, {
+    method: "PUT",
+    headers: getHeaders(),
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || "Error al actualizar usuario");
+  }
+  return res.json();
+}
+
+export async function deleteUsuario(id) {
+  const res = await fetch(`${API_URL}/admin/usuarios/${encodeURIComponent(id)}`, {
+    method: "DELETE",
+    headers: getHeaders(),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || "Error al eliminar usuario");
+  }
+  return res.json();
+}
+
 // --- Contraseña ---
-// Cambio de pass del admin. Pide la actual como confirmacion.
+// Cambio de pass del admin. Pide la actual como confirmacion. Solo aplica al
+// super_admin; para los demas usuarios el cambio lo hace el super via gestion.
 export async function changePassword(currentPassword, newPassword) {
   const res = await fetch(`${API_URL}/admin/password`, {
     method: "PUT",
