@@ -73,7 +73,6 @@ import {
 import AdminLogin from "./AdminLogin";
 import AdminUploader from "./AdminUploader";
 import styles from "./admin.module.css";
-import { currencyFormatter } from "../config/currencyFormatter";
 
 // Presets de colores de la marca para el color picker.
 const COLOR_PRESETS = [
@@ -1760,11 +1759,6 @@ function ItemsPanel({
                       <div className={styles.menuBody}>
                         <div className={styles.menuTopRow}>
                           <h4 className={styles.menuName}>{item.name}</h4>
-<<<<<<< HEAD
-                          <span className={styles.menuPrice}>
-                            {currencyFormatter.format(item.price)}
-                          </span>
-=======
                           {/* Si el descuento esta activo mostramos el precio
                               tachado + el nuevo. Si no, solo el normal. */}
                           {item.discountActive ? (
@@ -1786,7 +1780,6 @@ function ItemsPanel({
                               ${parseInt(item.price, 10).toLocaleString("es-CL")}
                             </span>
                           )}
->>>>>>> b9ee9eb (guardar ultimos colores usados/agregar superadmin/admin/agregar descuento)
                         </div>
 
                         <p className={styles.menuId}>{item.id}</p>
