@@ -1,17 +1,52 @@
-/* ===========================
-   ADMIN MODULE CSS - MEJORADO UX
-   =========================== */
+/* =============================================================================
+   admin.module.css
+   =============================================================================
+   Estilos del panel de admin. Va por modulos CSS asi que los nombres de
+   clase se pueden importar como `styles.algo` desde el JSX sin chocar con
+   otros componentes.
 
+   Paleta: azul oscuro (#0f1724) con dorado (#d4aa63) como acento de marca.
+   Toda la UI es dark mode, no hay variante clara.
+
+   Secciones del archivo (en orden):
+     - Login (loginPage, loginForm, etc)
+     - Shell del admin (adminShell, adminHeader, adminNav)
+     - Onboarding modal (NUEVO 02-05-2026)
+     - Labels e inputs (label, input, textarea, helpers)
+     - WarningBox (NUEVO 02-05-2026: aviso contextual amarillo)
+     - Editor + preview layout (editorLayout, livePreview)
+     - Sections colapsables (section, sectionHeader, sectionBody)
+     - Tooltips
+     - Field status (iconos ✓/✗ inline)
+     - Color picker + presets + historial
+     - Sticky actions bar (barra fija inferior)
+     - Botones (primary, secondary, danger, small)
+     - Modales (success, image, model, users)
+     - Tablas
+     - Ingredientes
+     - Preview de imagen y modelo 3D
+     - Upload container
+     - Users modal y permisos
+     - Disabled-by-permission (botones grises por falta de permiso)
+     - Descuento (campos y badge tachado)
+     - Menu preview (vista tipo cliente)
+     - Responsive (breakpoints 1100px, 768px, 480px)
+   ========================================================================== */
+
+/* ============= LOGIN ============= */
 .loginPage {
   min-height: 100vh;
   display: flex;
   align-items: center;
   justify-content: center;
+  /* Fondo con gradiente diagonal para que tenga mas profundidad que un
+     color plano */
   background: linear-gradient(145deg, #0a101c 0%, #152238 50%, #0f1724 100%);
 }
 
 .loginForm {
   background: rgba(255, 255, 255, 0.06);
+  /* glassmorphism: blur + translucidez para que se vea moderno */
   backdrop-filter: blur(12px);
   border: 1px solid rgba(212, 170, 99, 0.2);
   border-radius: 16px;
@@ -40,10 +75,13 @@
   margin: 0;
 }
 
+/* ============= SHELL DEL ADMIN ============= */
 .adminShell {
   min-height: 100vh;
   background: linear-gradient(145deg, #0a101c 0%, #152238 50%, #0f1724 100%);
   color: #f7f1e8;
+  /* padding inferior para que el contenido no quede tapado por la sticky
+     actions bar que esta fija abajo */
   padding-bottom: 100px;
 }
 
@@ -85,6 +123,9 @@
   color: #d4aa63;
 }
 
+/* helpBtn (NUEVO 02-05-2026): boton de ayuda del header. Estilo dorado
+   sutil para que se note pero sin gritar. Es la entrada al onboarding
+   cuando ya lo cerraron */
 .helpBtn {
   background: rgba(212, 170, 99, 0.1);
   border: 1px solid rgba(212, 170, 99, 0.2);
@@ -101,6 +142,7 @@
   border-color: #d4aa63;
 }
 
+/* Nav de pestañas. Sticky para que siempre se vea al hacer scroll. */
 .adminNav {
   display: flex;
   gap: 0;
@@ -111,6 +153,8 @@
   top: 0;
   z-index: 50;
   backdrop-filter: blur(8px);
+  /* overflow-x auto para que en mobile se pueda hacer scroll horizontal
+     en vez de romper el layout */
   overflow-x: auto;
 }
 
@@ -136,6 +180,9 @@
   border-bottom-color: #d4aa63;
 }
 
+/* navBadge (NUEVO 02-05-2026): pill con el contador de elementos al lado
+   del nombre de cada pestaña. Asi el admin ve de un vistazo cuantos
+   platos/categorias tiene */
 .navBadge {
   background: #d4aa63;
   color: #0f1724;
@@ -163,7 +210,11 @@
   font-size: 1rem;
 }
 
-/* ============= ONBOARDING MODAL ============= */
+/* ============= ONBOARDING MODAL (NUEVO 02-05-2026) =============
+   Tutorial que aparece la primera vez que entran al admin. Tiene 5 pasos
+   con dots de progreso. El estilo es similar a los otros modales pero
+   con mas padding y texto centrado para que se sienta mas como un
+   "onboarding" que como una alerta */
 .onboardingModal {
   background: linear-gradient(135deg, rgba(20, 25, 40, 0.98) 0%, rgba(15, 23, 36, 0.98) 100%);
   border: 1px solid rgba(212, 170, 99, 0.2);
@@ -176,6 +227,7 @@
   position: relative;
 }
 
+/* Boton X de cerrar arriba a la derecha por si quieren saltarse el tutorial */
 .onboardingClose {
   position: absolute;
   top: 1rem;
@@ -210,6 +262,8 @@
   font-size: 0.95rem;
   line-height: 1.6;
   margin: 0 0 1.5rem;
+  /* white-space pre-line para respetar los \n del texto del paso "Consejos"
+     que tiene varias lineas con tildes ✓ */
   white-space: pre-line;
 }
 
@@ -229,6 +283,8 @@
   transition: all 0.2s;
 }
 
+/* El dot del paso actual se hace mas ancho (24px en vez de 8px) y cambia
+   de circulo a pill para guiar la mirada */
 .dotActive {
   background: #d4aa63;
   width: 24px;
@@ -241,7 +297,7 @@
   justify-content: center;
 }
 
-/* ============= LABELS Y INPUTS ============= */
+/* ============= LABELS E INPUTS ============= */
 .label {
   display: flex;
   flex-direction: column;
@@ -306,7 +362,9 @@
   margin-top: 4px;
 }
 
-/* ============= WARNING BOX ============= */
+/* warningBox (NUEVO 02-05-2026): aviso amarillo contextual. Lo usamos
+   cuando hay algo importante que mirar antes de seguir, por ejemplo si
+   no hay imagenes subidas y esta queriendo crear un plato. */
 .warningBox {
   background: rgba(255, 193, 7, 0.1);
   border: 1px solid rgba(255, 193, 7, 0.3);
@@ -317,8 +375,10 @@
   font-weight: 500;
 }
 
-/* ============= EDITOR + PREVIEW ============= */
+/* ============= EDITOR + PREVIEW LAYOUT ============= */
 .editorLayout {
+  /* Form a la izquierda (1fr) y preview a la derecha (360px fijo).
+     En mobile se apilan, esto se maneja en el responsive abajo */
   display: grid;
   grid-template-columns: 1fr 360px;
   gap: 1.5rem;
@@ -332,6 +392,8 @@
   gap: 1rem;
 }
 
+/* La preview es sticky asi se queda visible mientras el admin hace scroll
+   del form. Top 70px para no quedar pegada a la nav */
 .previewColumn {
   position: sticky;
   top: 70px;
@@ -378,6 +440,8 @@
   border-radius: 14px;
   padding: 0.9rem;
   min-height: 280px;
+  /* transicion lenta del bg para que cuando cambien el cardColor en el
+     picker se vea fluido el cambio de color */
   transition: background-color 0.3s;
 }
 
@@ -404,6 +468,8 @@
   border: 2px solid rgba(212, 170, 99, 0.4);
 }
 
+/* Placeholder cuando todavia no hay imagen. Se ve dashed para que sea
+   obvio que falta algo */
 .previewThumbPlaceholder {
   width: 100%;
   height: 140px;
@@ -461,7 +527,9 @@
   font-weight: 600;
 }
 
-/* ============= SECTIONS ============= */
+/* ============= SECTIONS COLAPSABLES =============
+   Cada seccion del form (Info Basica, Multimedia, etc) se puede plegar/
+   desplegar. Esto baja la carga visual del form que es bastante largo. */
 .section {
   background: rgba(255, 255, 255, 0.04);
   border: 1px solid rgba(255, 255, 255, 0.08);
@@ -507,6 +575,8 @@
   letter-spacing: 0.05em;
 }
 
+/* Badge a la derecha del titulo (ej: "✓" cuando hay imagen, "-25%"
+   cuando hay descuento, cantidad de ingredientes, etc) */
 .sectionBadge {
   background: #d4aa63;
   color: #0f1724;
@@ -524,6 +594,7 @@
   transition: transform 0.2s;
   flex-shrink: 0;
 }
+/* Cuando la seccion esta abierta, la flecha ▼ se voltea a ▲ con rotate */
 .sectionChevronOpen {
   transform: rotate(180deg);
 }
@@ -538,7 +609,10 @@
   gap: 1rem;
 }
 
-/* ============= TOOLTIP ============= */
+/* ============= TOOLTIP =============
+   Pequeño "?" al lado de los labels que muestra texto al hacer hover.
+   Sirve para explicar campos que pueden ser confusos sin tener que poner
+   un parrafo de texto debajo */
 .tooltip {
   position: relative;
   display: inline-flex;
@@ -587,6 +661,7 @@
   line-height: 1.4;
 }
 
+/* Flechita debajo del tooltip que apunta al icono */
 .tooltipText::after {
   content: "";
   position: absolute;
@@ -604,7 +679,7 @@
   transform: translateX(-50%) translateY(-2px);
 }
 
-/* ============= FIELD STATUS ============= */
+/* ============= FIELD STATUS (icono ✓/✗ inline) ============= */
 .inputWithIcon {
   position: relative;
 }
@@ -636,11 +711,13 @@
   border: 1px solid rgba(255, 68, 68, 0.4);
 }
 
+/* padding-right extra para que el texto del input no quede atras del
+   icono de status */
 .inputWithIcon .input {
   padding-right: 40px;
 }
 
-/* ============= COLOR PICKER ============= */
+/* ============= COLOR PICKER + PRESETS + HISTORIAL ============= */
 .colorPresets {
   display: flex;
   gap: 0.4rem;
@@ -679,6 +756,9 @@
   cursor: pointer;
   flex-shrink: 0;
 }
+/* Hacks para que el color picker nativo del navegador se vea coherente
+   con el resto del diseño (sin estos selectores se ve feo el cuadrado
+   del color por defecto) */
 .colorSwatch::-webkit-color-swatch-wrapper {
   padding: 0;
 }
@@ -691,7 +771,48 @@
   min-width: 0;
 }
 
-/* ============= STICKY ACTIONS BAR ============= */
+/* Historial de colores: fila de los ultimos 8 colores usados en otros
+   platos. Util para mantener coherencia visual entre cards. */
+.colorHistoryWrap {
+  margin-top: 0.75rem;
+}
+.colorHistoryLabel {
+  display: block;
+  font-size: 0.7rem;
+  color: rgba(212, 170, 99, 0.7);
+  margin-bottom: 0.4rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.colorHistoryRow {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+.colorHistoryBtn {
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  cursor: pointer;
+  transition: all 0.2s;
+  padding: 0;
+}
+.colorHistoryBtn:hover {
+  border-color: #d4aa63;
+  transform: scale(1.15);
+}
+.colorHistoryEmpty {
+  display: block;
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.35);
+  font-style: italic;
+}
+
+/* ============= STICKY ACTIONS BAR =============
+   Barra fija abajo del viewport con el boton de Guardar y el indicador
+   de estado del form. Asi el admin no tiene que hacer scroll hasta el
+   final para guardar */
 .stickyActions {
   position: fixed;
   bottom: 0;
@@ -754,8 +875,23 @@
   margin: 0;
 }
 
+.shortcutHint {
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.4);
+}
+.shortcutHint kbd {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 3px;
+  padding: 0.1rem 0.35rem;
+  font-size: 0.7rem;
+  font-family: monospace;
+  color: #d4aa63;
+}
+
 /* ============= BOTONES ============= */
 .btnPrimary {
+  /* gradiente dorado para que se vea como el call-to-action principal */
   background: linear-gradient(135deg, #d4aa63, #c49a52);
   color: #0f1724;
   border: none;
@@ -768,6 +904,7 @@
 }
 .btnPrimary:hover:not(:disabled) {
   opacity: 0.9;
+  /* lift effect en hover para feedback tactil */
   transform: translateY(-1px);
   box-shadow: 0 6px 20px rgba(212, 170, 99, 0.3);
 }
@@ -881,7 +1018,7 @@
   flex-wrap: wrap;
 }
 
-/* ============= MODAL ============= */
+/* ============= MODAL DE EXITO (auto-close) ============= */
 .modalOverlay {
   position: fixed;
   top: 0;
@@ -902,6 +1039,7 @@
   padding: 2.5rem 3rem;
   border-radius: 16px;
   text-align: center;
+  /* doble box-shadow: una para profundidad, otra verde para "exito" */
   box-shadow:
     0 20px 60px rgba(0, 0, 0, 0.5),
     0 0 30px rgba(40, 167, 69, 0.2);
@@ -966,7 +1104,7 @@
   }
 }
 
-/* ============= IMAGE MODAL ============= */
+/* ============= IMAGE/MODEL MODAL ============= */
 .imageModalContent {
   background: linear-gradient(135deg, rgba(20, 25, 40, 0.98) 0%, rgba(15, 23, 36, 0.98) 100%);
   border: 1px solid rgba(212, 170, 99, 0.2);
@@ -1034,6 +1172,7 @@
   max-height: 55vh;
   padding-right: 0.5rem;
 }
+/* Scrollbar custom para que combine con la paleta dark + dorada */
 .imageGrid::-webkit-scrollbar {
   width: 6px;
 }
@@ -1075,6 +1214,8 @@
   height: 100%;
 }
 
+/* Boton X de eliminar imagen. Por defecto invisible (opacity 0), aparece
+   en hover. Asi no satura la grilla pero esta a un movimiento del mouse */
 .imageDeleteBtn {
   position: absolute;
   top: 6px;
@@ -1240,7 +1381,7 @@
   word-break: break-word;
 }
 
-/* ============= PREVIEW ============= */
+/* ============= IMAGE PREVIEW ============= */
 .imagePreviewContainer {
   margin-top: 1rem;
   display: flex;
@@ -1363,6 +1504,7 @@
   color: rgba(255, 255, 255, 0.85);
 }
 
+/* Pills de los permisos activos del usuario en la tabla */
 .permPill {
   display: inline-block;
   background: rgba(212, 170, 99, 0.18);
@@ -1422,11 +1564,16 @@
 .permItem input[type="checkbox"] {
   width: 16px;
   height: 16px;
+  /* accent-color es el truco para tunear el color del checkbox sin
+     hacer un componente custom */
   accent-color: #d4aa63;
   cursor: pointer;
 }
 
-/* ============= DISABLED BY PERMISSION ============= */
+/* ============= DISABLED BY PERMISSION =============
+   Botones de acciones que el usuario no puede hacer (ej: editar sin
+   permiso). Los dejamos visibles pero apagados con tooltip explicativo,
+   asi entiende por que no puede en vez de no encontrar el boton */
 .btnDisabledByPerm {
   opacity: 0.4;
   cursor: not-allowed !important;
@@ -1438,6 +1585,7 @@
 
 /* ============= DESCUENTO ============= */
 .discountRow {
+  /* 110px para % (chico) + 1fr 1fr para las dos fechas */
   display: grid;
   grid-template-columns: 110px 1fr 1fr;
   gap: 0.75rem;
@@ -1465,6 +1613,8 @@
   border: 1px solid rgba(255, 255, 255, 0.08);
 }
 
+/* Wrapper del precio en la preview cuando hay descuento: muestra el viejo
+   tachado, el nuevo grande y el badge -X% */
 .previewPriceWrap {
   display: flex;
   align-items: baseline;
@@ -1492,7 +1642,9 @@
   margin-left: 0.3rem;
 }
 
-/* ============= MENU PREVIEW ============= */
+/* ============= MENU PREVIEW (vista tipo cliente) =============
+   Lista de todos los platos agrupados por categoria, igual que se ve en
+   el menu publico. Sirve para que el admin vea como se ve realmente */
 .menuPreview {
   display: flex;
   flex-direction: column;
@@ -1626,8 +1778,14 @@
   border-top: 1px solid rgba(255, 255, 255, 0.08);
 }
 
-/* ============= RESPONSIVE ============= */
+/* ============= RESPONSIVE =============
+   Tres breakpoints:
+     - 1100px: tablet, donde el preview deja de caber al lado del form
+     - 768px: mobile grande, donde se acomodan headers y modales
+     - 480px: mobile chico, donde apretamos todo lo posible */
+
 @media (max-width: 1100px) {
+  /* En tablet ya no entra el preview al costado, lo apilamos abajo */
   .editorLayout {
     grid-template-columns: 1fr;
   }
@@ -1677,6 +1835,8 @@
   .gridImage {
     height: 120px;
   }
+  /* En mobile el boton de eliminar siempre visible (sin hover) porque no
+     hay hover real con dedo */
   .imageDeleteBtn {
     width: 24px;
     height: 24px;
@@ -1699,6 +1859,7 @@
     width: 100%;
     justify-content: flex-end;
   }
+  /* En mobile las 3 columnas del descuento se apilan */
   .discountRow {
     grid-template-columns: 1fr;
   }
@@ -1722,6 +1883,7 @@
   .menuGrid {
     grid-template-columns: 1fr;
   }
+  /* Onboarding mas compacto en pantallas chicas para que entre todo */
   .onboardingModal {
     max-width: 85%;
     padding: 2rem 1.5rem;

@@ -1,23 +1,80 @@
+// =============================================================================
+// AdminDashboard.jsx
+// =============================================================================
+// Dashboard principal del admin. Es el componente mas grande del proyecto
+// porque contiene todo el CRUD: platos, categorias, subida de archivos,
+// selector de imagenes, selector de modelos 3D, etc.
+//
+// Estructura del archivo (de arriba a abajo):
+//   - AdminDashboard      -> componente raiz: maneja auth, tabs y carga de datos
+//   - OnboardingModal     -> modal de tutorial al primer acceso (NUEVO)
+//   - SuccessModal        -> modal verde de confirmacion (auto-cierra en 3s)
+//   - ImageModal          -> modal para elegir/borrar imagenes guardadas
+//   - ModelModal          -> modal para elegir/borrar modelos 3D guardados
+//   - UsersModal          -> modal de gestion de usuarios secundarios
+//   - Section             -> wrapper de seccion colapsable con header
+//   - Tooltip             -> icono "?" con texto al hacer hover/focus
+//   - FieldStatus         -> icono ✓/✗ inline para mostrar validacion
+//   - LivePreview         -> vista previa en vivo de la card del plato
+//   - generateItemId      -> helper: ids de plato tipo "item-N"
+//   - generateCategoryId  -> helper: ids slug de categoria
+//   - formatPriceCLP      -> helper: formatea numero a "$12.990"
+//   - unformatPrice       -> helper: extrae digitos de un precio
+//   - ItemsPanel          -> formulario y vista tipo menu de platos
+//   - CategoriesPanel     -> formulario y tabla de categorias
+//   - UploadPanel         -> wrapper del uploader a Cloudinary
+//
+// PERMISOS:
+//   - El super_admin (admin.json) tiene todo y bypasea checks.
+//   - Los usuarios de la tabla `usuarios` en Supabase tienen permisos
+//     granulares. Cada accion sensible (crear plato, eliminar imagen, etc.)
+//     se controla en backend con middlewares y en frontend ocultando o
+//     deshabilitando los botones.
+//
+// DESCUENTO POR PLATO:
+//   - Cada plato tiene un porcentaje (0-100) y opcionalmente fechas de
+//     inicio y fin. El backend calcula si esta activo en el momento del
+//     fetch y manda banderas listas para usar.
+//   - El admin lo edita en una seccion nueva del form. La live preview
+//     muestra el resultado con tachado en tiempo real.
+//
+// MEJORAS DE UX (02-05-2026):
+//   - Se agrego el tutorial onboarding para los que entran por primera vez,
+//     asi no necesitan capacitacion. Se guarda en localStorage para no
+//     molestar despues.
+//   - Boton de ayuda en el header por si quieren ver el tutorial de nuevo.
+//   - Emojis en las pestañas + contadores para que se vea de un vistazo
+//     cuanto hay en cada seccion.
+//   - Lenguaje del formulario mas amigable, menos tecnico.
+// =============================================================================
+
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import {
+  // Lecturas
   getCategories,
   getItems,
   getModelos,
   getImagenes,
+  // historial de colores: lo cargamos al montar el dashboard
   getColorHistorial,
+  // Escrituras de items
   createItem,
   updateItem,
   deleteItem,
+  // Escrituras de categorias
   createCategory,
   updateCategory,
   deleteCategory,
+  // Eliminar archivos subidos
   deleteImagen,
   deleteModelo,
+  // Auth + helpers de permisos
   logout,
   verifyToken,
   isSuperAdmin,
   hasPermission,
+  // Usuarios
   getUsuarios,
   createUsuario,
   updateUsuario,
@@ -27,6 +84,7 @@ import AdminLogin from "./AdminLogin";
 import AdminUploader from "./AdminUploader";
 import styles from "./admin.module.css";
 
+// Presets de colores de la marca para el color picker.
 const COLOR_PRESETS = [
   { name: "Azul oscuro", value: "#152238" },
   { name: "Dorado", value: "#d4aa63" },
@@ -38,6 +96,8 @@ const COLOR_PRESETS = [
 
 const DEFAULT_CARD_COLOR = "#152238";
 
+// Lista canonica de permisos que se muestran como checkboxes en el modal de
+// gestion de usuarios.
 const PERMISSION_OPTIONS = [
   { key: "puede_crear_platos", label: "Crear platos" },
   { key: "puede_editar_platos", label: "Editar platos" },
@@ -48,6 +108,7 @@ const PERMISSION_OPTIONS = [
   { key: "puede_gestionar_usuarios", label: "Gestionar usuarios" },
 ];
 
+// Formatea cualquier valor a precio chileno: "12990" -> "$12.990".
 function formatPriceCLP(value) {
   const digits = String(value).replace(/\D/g, "");
   if (!digits) return "";
@@ -55,18 +116,29 @@ function formatPriceCLP(value) {
   return "$" + num.toLocaleString("es-CL");
 }
 
+// Extrae solo los digitos de un precio formateado.
 function unformatPrice(value) {
   return String(value).replace(/\D/g, "");
 }
 
+// Convierte un ISO timestamp ("2026-05-10T12:00:00Z") al formato que necesita
+// el input type="datetime-local" ("2026-05-10T12:00"). Si recibe null/undefined
+// devuelve "" (input vacio).
+//
+// OJO: el input datetime-local trabaja en hora LOCAL del navegador, no en UTC.
+// Para que coincida lo que el admin ve con lo que se guardo, ajustamos el
+// offset de zona horaria al armar el string.
 function isoToDatetimeLocal(iso) {
   if (!iso) return "";
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "";
+  // restamos el offset para que toISOString() devuelva la hora local
   const tzOffset = d.getTimezoneOffset() * 60000;
   return new Date(d.getTime() - tzOffset).toISOString().slice(0, 16);
 }
 
+// Inversa: del formato del input ("2026-05-10T12:00") a un ISO completo.
+// Si el string esta vacio devuelve null para que el backend guarde NULL.
 function datetimeLocalToIso(local) {
   if (!local) return null;
   const d = new Date(local);
@@ -74,6 +146,9 @@ function datetimeLocalToIso(local) {
   return d.toISOString();
 }
 
+// Helper para calcular el precio con descuento aplicado en el frontend (lo
+// usamos solo para la live preview, mientras el admin todavia no guardo).
+// Cuando ya esta guardado, el server manda discountedPrice listo.
 function calcDiscountedPrice(priceStr, percent) {
   const base = parseInt(unformatPrice(priceStr), 10);
   if (Number.isNaN(base)) return 0;
@@ -81,10 +156,22 @@ function calcDiscountedPrice(priceStr, percent) {
   return Math.round(base * (1 - percent / 100));
 }
 
-// ============= ONBOARDING MODAL =============
+// =============================================================================
+// OnboardingModal (NUEVO 02-05-2026)
+// -----------------------------------------------------------------------------
+// Tutorial de bienvenida que se muestra solo la primera vez que un usuario
+// entra al admin. La idea es que no necesiten capacitacion para usar el panel.
+// Tiene 5 pasos navegables con anterior/siguiente y dots de progreso.
+//
+// El estado de "ya lo vi" se guarda en localStorage del navegador, asi no
+// molesta cada vez que recargan. Si quieren verlo de nuevo, pueden tocar el
+// boton "Ayuda" del header.
+// =============================================================================
 function OnboardingModal({ isOpen, onClose }) {
   const [step, setStep] = useState(0);
 
+  // Los 5 pasos del tutorial. Si en el futuro queremos agregar/sacar pasos,
+  // este es el unico lugar a tocar.
   const steps = [
     {
       icon: "📋",
@@ -120,23 +207,30 @@ function OnboardingModal({ isOpen, onClose }) {
   return (
     <div className={styles.modalOverlay}>
       <div className={styles.onboardingModal}>
+        {/* Boton X para cerrar el tutorial cuando quieran sin terminarlo */}
         <button className={styles.onboardingClose} onClick={onClose}>
           ✕
         </button>
         <div className={styles.onboardingIcon}>{current.icon}</div>
         <h2 className={styles.onboardingTitle}>{current.title}</h2>
         <p className={styles.onboardingText}>{current.text}</p>
+
+        {/* Dots de progreso, el activo se ve mas grande para guiar la mirada */}
         <div className={styles.onboardingDots}>
           {steps.map((_, i) => (
             <div key={i} className={`${styles.dot} ${i === step ? styles.dotActive : ""}`} />
           ))}
         </div>
+
         <div className={styles.onboardingButtons}>
+          {/* Solo mostramos "Anterior" si no estamos en el primer paso */}
           {step > 0 && (
             <button className={styles.btnSecondary} onClick={() => setStep(step - 1)}>
               ← Anterior
             </button>
           )}
+          {/* En el ultimo paso cambiamos el texto del boton para que el user
+              sepa que esta cerrando el tutorial, no avanzando a otro paso */}
           {step < steps.length - 1 ? (
             <button className={styles.btnPrimary} onClick={() => setStep(step + 1)}>
               Siguiente →
@@ -152,19 +246,29 @@ function OnboardingModal({ isOpen, onClose }) {
   );
 }
 
-// ============= ADMIN DASHBOARD =============
+// =============================================================================
+// COMPONENTE RAIZ: AdminDashboard
+// =============================================================================
 export default function AdminDashboard() {
   const navigate = useNavigate();
+
   const [authenticated, setAuthenticated] = useState(false);
   const [checking, setChecking] = useState(true);
+
   const [categories, setCategories] = useState([]);
   const [items, setItems] = useState([]);
   const [modelos, setModelos] = useState([]);
   const [imagenes, setImagenes] = useState([]);
   const [colorHistory, setColorHistory] = useState([]);
+
   const [activeTab, setActiveTab] = useState("items");
   const [filterCategory, setFilterCategory] = useState("");
+
   const [showUsersModal, setShowUsersModal] = useState(false);
+
+  // Estado para el modal de onboarding. Se activa solo la primera vez que el
+  // usuario entra (lo controlamos con localStorage abajo) o cuando tocan el
+  // boton de ayuda del header.
   const [showOnboarding, setShowOnboarding] = useState(false);
 
   const loadData = async () => {
@@ -186,10 +290,16 @@ export default function AdminDashboard() {
     }
   };
 
+  // Verificacion de token al montar el componente. Si el token es valido y es
+  // la primera vez que el usuario entra al admin (no tiene la flag en
+  // localStorage), le mostramos el tutorial automaticamente.
   useEffect(() => {
     verifyToken().then((valid) => {
       setAuthenticated(valid);
       setChecking(false);
+      // Solo mostrar onboarding si esta autenticado Y no lo vio antes en este
+      // navegador. La flag "admin_onboarding_done" se setea apenas se muestra
+      // para que no aparezca dos veces aunque cierre y vuelva.
       if (valid && !localStorage.getItem("admin_onboarding_done")) {
         setShowOnboarding(true);
         localStorage.setItem("admin_onboarding_done", "true");
@@ -199,13 +309,30 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     if (!authenticated) return;
+    let cancelled = false;
     (async () => {
       try {
-        await loadData();
+        const [cats, itms, mods, imgs, hist] = await Promise.all([
+          getCategories(),
+          getItems(),
+          getModelos(),
+          getImagenes(),
+          getColorHistorial().catch(() => []),
+        ]);
+        if (!cancelled) {
+          setCategories(cats);
+          setItems(itms);
+          setModelos(mods);
+          setImagenes(imgs);
+          setColorHistory(hist);
+        }
       } catch {
-        setAuthenticated(false);
+        if (!cancelled) setAuthenticated(false);
       }
     })();
+    return () => {
+      cancelled = true;
+    };
   }, [authenticated]);
 
   function handleLogout() {
@@ -214,7 +341,7 @@ export default function AdminDashboard() {
   }
 
   if (checking) {
-    return <div className={styles.loading}>Verificando sesión...</div>;
+    return <div className={styles.loading}>Verificando sesion...</div>;
   }
 
   if (!authenticated) {
@@ -222,12 +349,16 @@ export default function AdminDashboard() {
   }
 
   const filteredItems = filterCategory ? items.filter((i) => i.category === filterCategory) : items;
+
   const canManageUsers = hasPermission("puede_gestionar_usuarios");
   const isSuper = isSuperAdmin();
 
   return (
     <div className={styles.adminShell}>
+      {/* Modal del tutorial. Se controla con showOnboarding desde aca o
+          desde el boton "Ayuda" del header */}
       <OnboardingModal isOpen={showOnboarding} onClose={() => setShowOnboarding(false)} />
+
       <UsersModal isOpen={showUsersModal} onClose={() => setShowUsersModal(false)} />
 
       <header className={styles.adminHeader}>
@@ -238,6 +369,9 @@ export default function AdminDashboard() {
           </button>
         </div>
         <div className={styles.adminHeaderRight}>
+          {/* Boton de ayuda. Es el escape para cuando el usuario quiere volver
+              a ver el tutorial. La flag de localStorage ya esta seteada,
+              pero forzamos showOnboarding=true igual */}
           <button
             className={styles.helpBtn}
             onClick={() => setShowOnboarding(true)}
@@ -249,16 +383,19 @@ export default function AdminDashboard() {
             className={`${styles.btnSecondary} ${!canManageUsers ? styles.btnDisabledByPerm : ""}`}
             onClick={() => canManageUsers && setShowUsersModal(true)}
             disabled={!canManageUsers}
-            title={canManageUsers ? "Gestionar usuarios" : "Sin permiso"}
+            title={canManageUsers ? "Gestionar usuarios" : "Sin permiso para gestionar usuarios"}
           >
             👥 Usuarios
           </button>
           <button className={styles.btnDanger} onClick={handleLogout}>
-            Cerrar Sesión {isSuper ? "(super)" : ""}
+            Cerrar Sesion {isSuper ? "(super)" : ""}
           </button>
         </div>
       </header>
 
+      {/* Las pestañas ahora muestran el conteo de elementos en cada una. Esto
+          le da al admin info inmediata de cuanto tiene en cada seccion sin
+          tener que entrar a verificar */}
       <nav className={styles.adminNav}>
         <button
           className={`${styles.navBtn} ${activeTab === "items" ? styles.navActive : ""}`}
@@ -305,7 +442,9 @@ export default function AdminDashboard() {
   );
 }
 
-// ============= SUCCESS MODAL =============
+// =============================================================================
+// SuccessModal
+// =============================================================================
 function SuccessModal({ isOpen, message, onClose }) {
   useEffect(() => {
     if (isOpen) {
@@ -326,7 +465,9 @@ function SuccessModal({ isOpen, message, onClose }) {
   );
 }
 
-// ============= IMAGE MODAL =============
+// =============================================================================
+// ImageModal
+// =============================================================================
 function ImageModal({ isOpen, imagenes, onSelectImage, onDeleteImage, onClose }) {
   const [searchTerm, setSearchTerm] = useState("");
   const [deletingId, setDeletingId] = useState(null);
@@ -367,6 +508,8 @@ function ImageModal({ isOpen, imagenes, onSelectImage, onDeleteImage, onClose })
           </button>
         </div>
 
+        {/* autoFocus para que el cursor se posicione apenas abre el modal,
+            es mas comodo cuando hay muchas imagenes en la lista */}
         <input
           type="text"
           placeholder="🔍 Buscar imagen..."
@@ -396,6 +539,8 @@ function ImageModal({ isOpen, imagenes, onSelectImage, onDeleteImage, onClose })
               </div>
             ))
           ) : (
+            // Mensaje contextual: si no hay imagenes le decimos donde subirlas
+            // (en vez de un texto vago como "no hay resultados")
             <p className={styles.noImagesText}>
               {imagenes.length === 0
                 ? "No hay imágenes. Ve a 'Subir Archivos' para crear una."
@@ -408,7 +553,9 @@ function ImageModal({ isOpen, imagenes, onSelectImage, onDeleteImage, onClose })
   );
 }
 
-// ============= MODEL MODAL =============
+// =============================================================================
+// ModelModal
+// =============================================================================
 function ModelModal({ isOpen, modelos, onSelectModel, onDeleteModel, onClose }) {
   const [searchTerm, setSearchTerm] = useState("");
   const [deletingId, setDeletingId] = useState(null);
@@ -443,7 +590,7 @@ function ModelModal({ isOpen, modelos, onSelectModel, onDeleteModel, onClose }) 
     <div className={styles.modalOverlay} onClick={onClose}>
       <div className={styles.imageModalContent} onClick={(e) => e.stopPropagation()}>
         <div className={styles.imageModalHeader}>
-          <h3>Seleccionar Modelo AR (.glb)</h3>
+          <h3>Seleccionar Modelo AR</h3>
           <button className={styles.imageModalClose} onClick={onClose} type="button">
             ✕
           </button>
@@ -467,6 +614,7 @@ function ModelModal({ isOpen, modelos, onSelectModel, onDeleteModel, onClose }) 
                   className={`${styles.imageDeleteBtn} ${!canDelete ? styles.btnDisabledByPerm : ""}`}
                   onClick={(e) => canDelete && handleDeleteClick(e, model)}
                   disabled={deletingId === model.id || !canDelete}
+                  title={canDelete ? "Eliminar modelo" : "Sin permiso para eliminar"}
                 >
                   {deletingId === model.id ? "..." : "✕"}
                 </button>
@@ -480,6 +628,8 @@ function ModelModal({ isOpen, modelos, onSelectModel, onDeleteModel, onClose }) 
               </div>
             ))
           ) : (
+            // Mismo patron que en ImageModal: mensaje contextual si la
+            // biblioteca esta vacia
             <p className={styles.noImagesText}>
               {modelos.length === 0
                 ? "No hay modelos. Ve a 'Subir Archivos' para crear uno."
@@ -492,11 +642,14 @@ function ModelModal({ isOpen, modelos, onSelectModel, onDeleteModel, onClose }) 
   );
 }
 
-// ============= USERS MODAL =============
+// =============================================================================
+// UsersModal
+// =============================================================================
 function UsersModal({ isOpen, onClose }) {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+
   const [editingUser, setEditingUser] = useState(null);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -510,6 +663,7 @@ function UsersModal({ isOpen, onClose }) {
     setError("");
     resetForm();
     refresh();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen]);
 
   async function refresh() {
@@ -556,11 +710,11 @@ function UsersModal({ isOpen, onClose }) {
       return;
     }
     if (!editingUser && password.length < 6) {
-      setError("Password es requerido (mínimo 6 caracteres)");
+      setError("Password es requerido (minimo 6 caracteres)");
       return;
     }
     if (editingUser && password.length > 0 && password.length < 6) {
-      setError("Si cambias la password debe tener mínimo 6 caracteres");
+      setError("Si vas a cambiar la password debe tener minimo 6 caracteres");
       return;
     }
 
@@ -600,7 +754,7 @@ function UsersModal({ isOpen, onClose }) {
     <div className={styles.modalOverlay} onClick={onClose}>
       <div className={styles.usersModalContent} onClick={(e) => e.stopPropagation()}>
         <div className={styles.imageModalHeader}>
-          <h3>Gestión de Usuarios</h3>
+          <h3>Gestión de usuarios</h3>
           <button className={styles.imageModalClose} onClick={onClose} type="button">
             ✕
           </button>
@@ -613,7 +767,7 @@ function UsersModal({ isOpen, onClose }) {
             <p className={styles.usersListEmpty}>Cargando...</p>
           ) : users.length === 0 ? (
             <p className={styles.usersListEmpty}>
-              No hay usuarios secundarios. El super admin funciona aparte.
+              No hay usuarios secundarios registrados. El super admin sigue funcionando aparte.
             </p>
           ) : (
             <div className={styles.tableWrap}>
@@ -692,12 +846,13 @@ function UsersModal({ isOpen, onClose }) {
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder={
-                  editingUser ? "Dejar vacío para mantener la actual" : "Mínimo 6 caracteres"
-                }
+                placeholder={editingUser ? "Dejar vacío para no cambiarla" : "Mínimo 6 caracteres"}
+                minLength={editingUser ? 0 : 6}
               />
               <span className={styles.helperText}>
-                {editingUser ? "Vacío = mantiene la actual" : "Mínimo 6 caracteres"}
+                {editingUser
+                  ? "Vacío = mantiene la actual. Si la completas, la reseteas."
+                  : "Mínimo 6 caracteres."}
               </span>
             </label>
           </div>
@@ -736,7 +891,9 @@ function UsersModal({ isOpen, onClose }) {
   );
 }
 
-// ============= SECTION COMPONENT =============
+// =============================================================================
+// Section
+// =============================================================================
 function Section({ title, icon, children, defaultOpen = true, badge }) {
   const [open, setOpen] = useState(defaultOpen);
   return (
@@ -754,7 +911,9 @@ function Section({ title, icon, children, defaultOpen = true, badge }) {
   );
 }
 
-// ============= TOOLTIP COMPONENT =============
+// =============================================================================
+// Tooltip
+// =============================================================================
 function Tooltip({ text }) {
   return (
     <span className={styles.tooltip} tabIndex={0}>
@@ -764,18 +923,32 @@ function Tooltip({ text }) {
   );
 }
 
-// ============= FIELD STATUS COMPONENT =============
+// =============================================================================
+// FieldStatus
+// =============================================================================
 function FieldStatus({ error, value, touched }) {
   if (!touched || !value) return null;
   if (error) return <span className={`${styles.fieldStatus} ${styles.fieldStatusError}`}>✗</span>;
   return <span className={`${styles.fieldStatus} ${styles.fieldStatusOk}`}>✓</span>;
 }
 
-// ============= LIVE PREVIEW COMPONENT =============
+// =============================================================================
+// LivePreview
+// -----------------------------------------------------------------------------
+// Vista previa en vivo de la card. Replica el aspecto publico incluyendo
+// el TACHADO de descuento cuando el form tiene un porcentaje > 0.
+//
+// La preview NO valida fechas en este lado (mostrar siempre el efecto
+// visual mientras el admin completa). El check real de "esta activo o no"
+// lo hace el server al servir el menu publico.
+// =============================================================================
 function LivePreview({ form, categories }) {
   const cardStyle = form.cardColor ? { backgroundColor: form.cardColor } : undefined;
   const categoryLabel = categories.find((c) => c.id === form.category)?.label;
 
+  // Si hay descuento > 0 mostramos el viejo precio tachado y el nuevo grande.
+  // Aca no chequeamos fechas: el preview muestra el efecto incluso si todavia
+  // no llego la fecha de inicio, asi el admin ve como va a quedar.
   const percent = parseInt(form.descuento, 10) || 0;
   const hasPreview = percent > 0 && form.price;
   const newPrice = hasPreview
@@ -785,7 +958,7 @@ function LivePreview({ form, categories }) {
   return (
     <div className={styles.livePreviewWrap}>
       <div className={styles.livePreviewHeader}>
-        <span className={styles.livePreviewLabel}>✨ Vista previa</span>
+        <span className={styles.livePreviewLabel}>✨ Vista previa en vivo</span>
         {categoryLabel && <span className={styles.livePreviewCat}>{categoryLabel}</span>}
       </div>
       <article className={styles.previewCard} style={cardStyle}>
@@ -799,8 +972,10 @@ function LivePreview({ form, categories }) {
         )}
         <div className={styles.previewContent}>
           <h3>{form.name || "Nombre del plato"}</h3>
-          <p>{form.description || "Descripción..."}</p>
+          <p>{form.description || "Descripción del plato..."}</p>
           <div className={styles.previewFooter}>
+            {/* Si hay descuento mostramos el nuevo precio + el viejo tachado
+                + el badge -X%. Si no, solo el precio normal. */}
             {hasPreview ? (
               <div className={styles.previewPriceWrap}>
                 <span className={styles.previewOldPrice}>{form.price}</span>
@@ -821,7 +996,9 @@ function LivePreview({ form, categories }) {
   );
 }
 
-// ============= HELPERS =============
+// =============================================================================
+// HELPERS DE GENERACION DE IDS
+// =============================================================================
 function generateItemId(itemsList) {
   const nums = itemsList
     .map((i) => {
@@ -849,7 +1026,21 @@ function generateCategoryId(categoriesList, label) {
   return id;
 }
 
-// ============= ITEMS PANEL =============
+// =============================================================================
+// ItemsPanel
+// -----------------------------------------------------------------------------
+// El form ahora incluye una nueva seccion "Descuento" con:
+//   - input numerico de porcentaje (0-100)
+//   - inicio (datetime-local, opcional)
+//   - fin (datetime-local, opcional)
+//   - estado en vivo: "Activo ahora" / "Programado" / "Expirado" / "Sin
+//     descuento" segun el calculo en frontend
+//
+// Tambien (02-05-2026) se mejoro el lenguaje de los placeholders para que
+// sea menos tecnico y mas amigable, y se agrego un warningBox cuando todavia
+// no hay imagenes subidas (asi no se confunde y va directo a la pestaña
+// correcta antes de empezar).
+// =============================================================================
 const DEFAULT_FORM_ITEMS = {
   id: "",
   category: "",
@@ -861,6 +1052,8 @@ const DEFAULT_FORM_ITEMS = {
   ingredients: [],
   cardColor: DEFAULT_CARD_COLOR,
   cardMessage: "",
+  // descuento por defecto: 0% = sin descuento. Las fechas en "" para que el
+  // input datetime-local arranque vacio.
   descuento: 0,
   descuentoInicio: "",
   descuentoFin: "",
@@ -878,17 +1071,21 @@ function ItemsPanel({
   onReload,
 }) {
   const [isEditingItem, setIsEditingItem] = useState(false);
+
   const canCreate = hasPermission("puede_crear_platos");
   const canEdit = hasPermission("puede_editar_platos");
   const canDeleteItem = hasPermission("puede_eliminar_platos");
 
   const formRef = useRef(null);
+
   const [form, setForm] = useState(DEFAULT_FORM_ITEMS);
   const [newIngredient, setNewIngredient] = useState("");
+
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
   const [fieldErrors, setFieldErrors] = useState({});
   const [touched, setTouched] = useState({});
+
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [successMessage, setSuccessMessage] = useState("");
   const [showImageModal, setShowImageModal] = useState(false);
@@ -896,6 +1093,9 @@ function ItemsPanel({
 
   const itemsList = allItems || items;
 
+  // ---------------------------------------------------------------------------
+  // VALIDACION
+  // ---------------------------------------------------------------------------
   const getFieldError = (name, value) => {
     if (name === "category") {
       if (!value) return "Selecciona una categoría";
@@ -917,11 +1117,12 @@ function ItemsPanel({
       if (!value) return "Debes agregar una imagen";
     }
     if (name === "cardColor") {
-      if (value && !/^#[0-9A-Fa-f]{6}$/.test(value)) return "Formato hex inválido";
+      if (value && !/^#[0-9A-Fa-f]{6}$/.test(value)) return "Formato hex inválido (#RRGGBB)";
     }
     if (name === "cardMessage") {
       if (value.length > 40) return "Máximo 40 caracteres";
     }
+    // descuento: debe ser un entero entre 0 y 100
     if (name === "descuento") {
       const n = parseInt(value, 10);
       if (Number.isNaN(n) || n < 0 || n > 100) return "Debe ser entre 0 y 100";
@@ -944,6 +1145,7 @@ function ItemsPanel({
       const err = getFieldError(field, form[field] ?? "");
       if (err) errors[field] = err;
     });
+    // chequeo cruzado de fechas: si las dos estan, fin >= inicio
     if (form.descuentoInicio && form.descuentoFin) {
       if (new Date(form.descuentoFin) < new Date(form.descuentoInicio)) {
         errors.descuentoFin = "Fin no puede ser anterior al inicio";
@@ -954,6 +1156,9 @@ function ItemsPanel({
 
   const isFormValid = () => Object.keys(validateAll()).length === 0;
 
+  // ---------------------------------------------------------------------------
+  // HANDLERS
+  // ---------------------------------------------------------------------------
   const handleChange = (e) => {
     const { name, value } = e.target;
 
@@ -973,9 +1178,14 @@ function ItemsPanel({
     if (name === "cardMessage") {
       if (value.length > 40) return;
     }
+    // descuento: lo guardamos como numero para que la live preview pueda
+    // hacer cuentas sin parsear cada vez
     if (name === "descuento") {
+      // permitimos vacio momentaneo (input number con backspace) pero al
+      // guardar lo sanitizamos a 0
       const n = value === "" ? 0 : parseInt(value, 10);
       if (!Number.isNaN(n)) {
+        // clamp a [0, 100] para que no se pueda escribir 200
         const clamped = Math.max(0, Math.min(100, n));
         setForm((f) => ({ ...f, descuento: clamped }));
         setFieldErrors((errs) => ({
@@ -1059,6 +1269,9 @@ function ItemsPanel({
     setNewIngredient("");
   };
 
+  // ---------------------------------------------------------------------------
+  // SUBMIT
+  // ---------------------------------------------------------------------------
   const handleSubmit = useCallback(
     async (e) => {
       if (e?.preventDefault) e.preventDefault();
@@ -1091,6 +1304,8 @@ function ItemsPanel({
 
       setSaving(true);
       try {
+        // Convertimos las fechas del input local a ISO. Si estan vacias,
+        // mandamos null para que el backend guarde NULL.
         const payloadBase = {
           ...form,
           cardMessage: form.cardMessage.trim() || null,
@@ -1101,11 +1316,11 @@ function ItemsPanel({
 
         if (isEditingItem) {
           await updateItem(form.id, payloadBase);
-          setSuccessMessage("🎉 ¡Plato actualizado!");
+          setSuccessMessage("🎉 ¡PLATO ACTUALIZADO!");
         } else {
           const payload = { ...payloadBase, id: generateItemId(itemsList) };
           await createItem(payload);
-          setSuccessMessage("🎉 ¡Plato creado!");
+          setSuccessMessage("🎉 ¡PLATO CREADO!");
         }
 
         setShowSuccessModal(true);
@@ -1123,10 +1338,12 @@ function ItemsPanel({
         setError(err.message || "Error al guardar el plato");
         setSaving(false);
       }
+      // eslint-disable-next-line react-hooks/exhaustive-deps
     },
     [form, isEditingItem, itemsList, onReload, canCreate, canEdit],
   );
 
+  // Atajos de teclado
   useEffect(() => {
     const handler = (e) => {
       if ((e.ctrlKey || e.metaKey) && e.key === "s") {
@@ -1139,6 +1356,7 @@ function ItemsPanel({
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [saving, isEditingItem, showImageModal, showModelModal, handleSubmit]);
 
   const handleDelete = async (id) => {
@@ -1154,21 +1372,35 @@ function ItemsPanel({
 
   const formValid = isFormValid();
   const selectedModel = modelos.find((m) => m.id === form.modelAR);
+
   const submitDisabled = saving || !formValid || (isEditingItem ? !canEdit : !canCreate);
 
+  const submitDisabledReason = isEditingItem
+    ? !canEdit
+      ? "Sin permiso para editar platos"
+      : ""
+    : !canCreate
+      ? "Sin permiso para crear platos"
+      : "";
+
+  // Estado del descuento para el panel "Descuento": calculamos en frontend
+  // si esta activo, programado o expirado segun NOW(). Es solo informativo.
   const computeDiscountStatus = () => {
     const pct = parseInt(form.descuento, 10) || 0;
-    if (pct <= 0) return { type: "off", text: "Sin descuento" };
+    if (pct <= 0) return { type: "off", text: "Sin descuento aplicado" };
     const now = Date.now();
     const ini = form.descuentoInicio ? new Date(form.descuentoInicio).getTime() : null;
     const fin = form.descuentoFin ? new Date(form.descuentoFin).getTime() : null;
     if (ini && now < ini)
-      return { type: "off", text: `Activo en: ${form.descuentoInicio.replace("T", " ")}` };
+      return { type: "off", text: `Programado: arranca ${form.descuentoInicio.replace("T", " ")}` };
     if (fin && now > fin) return { type: "off", text: "Expirado" };
-    return { type: "ok", text: `✅ Activo ahora (-${pct}%)` };
+    return { type: "ok", text: `🟢 Activo: -${pct}% aplicado ahora` };
   };
   const discountStatus = computeDiscountStatus();
 
+  // ---------------------------------------------------------------------------
+  // RENDER
+  // ---------------------------------------------------------------------------
   return (
     <div>
       <SuccessModal
@@ -1195,6 +1427,12 @@ function ItemsPanel({
 
       <div className={styles.panelHeader}>
         <h2>{isEditingItem ? "✏️ Editar Plato" : "➕ Crear Plato"}</h2>
+        <span className={styles.shortcutHint}>
+          Atajos: <kbd>Ctrl+S</kbd> guardar · <kbd>Esc</kbd> cancelar
+        </span>
+        {/* Aviso contextual: si el admin esta queriendo crear un plato pero
+            no hay imagenes subidas todavia, le mandamos derecho a la pestaña
+            de uploads en vez de dejarlo trabar con el form */}
         {imagenes.length === 0 && (
           <div className={styles.warningBox}>
             ⚠️ Primero sube imágenes en la pestaña "Subir Archivos"
@@ -1206,6 +1444,7 @@ function ItemsPanel({
         <form ref={formRef} className={styles.editorForm} onSubmit={handleSubmit}>
           {error && <div className={styles.errorMsg}>{error}</div>}
 
+          {/* SECCIÓN 1: INFORMACIÓN BÁSICA */}
           <Section title="📋 Información Básica" icon="📋" defaultOpen>
             <div className={styles.sectionGrid}>
               <label className={styles.label}>
@@ -1244,25 +1483,30 @@ function ItemsPanel({
                     name="name"
                     value={form.name}
                     onChange={handleChange}
-                    placeholder="Ej: Hamburguesa Clásica"
                     required
+                    placeholder="Ej: Hamburguesa Clásica"
                   />
                   <FieldStatus error={fieldErrors.name} value={form.name} touched={touched.name} />
                 </div>
-                {fieldErrors.name && <span className={styles.helperError}>{fieldErrors.name}</span>}
+                {fieldErrors.name ? (
+                  <span className={styles.helperError}>{fieldErrors.name}</span>
+                ) : (
+                  <span className={styles.helperText}>Solo letras y espacios</span>
+                )}
               </label>
 
               <label className={styles.label}>
-                Precio
+                Precio{" "}
+                <Tooltip text="Ingresa solo números. Se formatea automáticamente como pesos chilenos." />
                 <div className={styles.inputWithIcon}>
                   <input
                     className={`${styles.input} ${fieldErrors.price ? styles.inputError : ""}`}
                     name="price"
                     value={form.price}
                     onChange={handleChange}
+                    required
                     placeholder="$12.990"
                     inputMode="numeric"
-                    required
                   />
                   <FieldStatus
                     error={fieldErrors.price}
@@ -1270,8 +1514,10 @@ function ItemsPanel({
                     touched={touched.price}
                   />
                 </div>
-                {fieldErrors.price && (
+                {fieldErrors.price ? (
                   <span className={styles.helperError}>{fieldErrors.price}</span>
+                ) : (
+                  <span className={styles.helperText}>Formato automático: $12.990</span>
                 )}
               </label>
 
@@ -1282,9 +1528,9 @@ function ItemsPanel({
                   name="description"
                   value={form.description}
                   onChange={handleChange}
-                  placeholder="Describe el plato: ingredientes principales, preparación, etc."
                   rows={3}
                   required
+                  placeholder="Describe el plato: ingredientes principales, preparación, etc."
                 />
                 <div className={styles.helperRow}>
                   {fieldErrors.description ? (
@@ -1299,7 +1545,8 @@ function ItemsPanel({
             </div>
           </Section>
 
-          <Section title="🖼️ Multimedia" icon="🖼️" badge={form.image ? "✓" : null}>
+          {/* SECCIÓN 2: MULTIMEDIA */}
+          <Section title="🖼️ Multimedia" icon="🖼️" defaultOpen badge={form.image ? "✓" : null}>
             <div className={styles.label}>
               <span>Imagen del plato *</span>
               <button
@@ -1310,7 +1557,13 @@ function ItemsPanel({
               >
                 {form.image ? "🔄 Cambiar imagen" : "🖼️ Elegir imagen..."}
               </button>
-              {fieldErrors.image && <span className={styles.helperError}>{fieldErrors.image}</span>}
+              {fieldErrors.image ? (
+                <span className={styles.helperError}>{fieldErrors.image}</span>
+              ) : (
+                <span className={styles.helperText}>
+                  Selecciona una imagen ya subida en &quot;Subir Archivos&quot;.
+                </span>
+              )}
               {imagenes.length === 0 && (
                 <span className={styles.helperError}>
                   📌 Primero sube imágenes en "Subir Archivos"
@@ -1321,12 +1574,15 @@ function ItemsPanel({
             {form.image &&
               (form.image.startsWith("/assets/") || form.image.startsWith("https://")) && (
                 <div className={styles.imagePreviewContainer}>
-                  <img src={form.image} alt="Preview" className={styles.imagePreview} />
+                  <img src={form.image} alt="Vista previa" className={styles.imagePreview} />
                 </div>
               )}
 
             <div className={styles.label} style={{ marginTop: "1rem" }}>
-              <span>Modelo 3D AR (opcional)</span>
+              <span>
+                Modelo 3D AR (opcional){" "}
+                <Tooltip text="Modelo 3D en formato .glb que el cliente puede ver en realidad aumentada con su cámara." />
+              </span>
               <button
                 type="button"
                 className={styles.btnImageSelector}
@@ -1337,6 +1593,14 @@ function ItemsPanel({
                   ? `🔄 Cambiar (actual: ${selectedModel.label})`
                   : "📦 Elegir modelo .glb..."}
               </button>
+              <span className={styles.helperText}>
+                Selecciona un .glb ya subido en &quot;Subir Archivos&quot;.
+              </span>
+              {modelos.length === 0 && (
+                <span className={styles.helperError}>
+                  No hay modelos registrados. Primero sube un .glb.
+                </span>
+              )}
             </div>
 
             {selectedModel && (
@@ -1348,11 +1612,13 @@ function ItemsPanel({
                   </div>
                   <div className={styles.modelPreviewInfo}>
                     <p className={styles.modelPreviewLabel}>{selectedModel.label}</p>
+                    <p className={styles.modelPreviewId}>{selectedModel.id}</p>
                   </div>
                   <button
                     type="button"
                     className={styles.btnSmallDanger}
                     onClick={handleClearModel}
+                    title="Quitar modelo de este plato"
                   >
                     Quitar
                   </button>
@@ -1361,6 +1627,10 @@ function ItemsPanel({
             )}
           </Section>
 
+          {/* SECCIÓN: DESCUENTO
+              Tiene un porcentaje y dos fechas opcionales. Si dejas todo en
+              blanco/0, no hay descuento. Si solo pones porcentaje, el descuento
+              esta activo siempre. Las fechas dan ventana de vigencia. */}
           <Section
             title="🏷️ Descuento"
             icon="🏷️"
@@ -1369,7 +1639,8 @@ function ItemsPanel({
           >
             <div className={styles.discountRow}>
               <label className={styles.label}>
-                % Descuento
+                % Descuento{" "}
+                <Tooltip text="Porcentaje a descontar del precio base. 0 = sin descuento, 100 = gratis." />
                 <input
                   type="number"
                   className={`${styles.input} ${fieldErrors.descuento ? styles.inputError : ""}`}
@@ -1381,10 +1652,14 @@ function ItemsPanel({
                   step="1"
                   inputMode="numeric"
                 />
+                {fieldErrors.descuento && (
+                  <span className={styles.helperError}>{fieldErrors.descuento}</span>
+                )}
               </label>
 
               <label className={styles.label}>
-                Inicio (opcional)
+                Inicio (opcional){" "}
+                <Tooltip text="Si lo dejas vacío, el descuento está activo desde ya. Si pones fecha, el descuento se activa automáticamente cuando llega ese momento." />
                 <input
                   type="datetime-local"
                   className={styles.input}
@@ -1395,7 +1670,8 @@ function ItemsPanel({
               </label>
 
               <label className={styles.label}>
-                Fin (opcional)
+                Fin (opcional){" "}
+                <Tooltip text="Cuándo termina el descuento. Si lo dejas vacío, no expira automáticamente y queda activo hasta que pongas el porcentaje en 0." />
                 <input
                   type="datetime-local"
                   className={`${styles.input} ${fieldErrors.descuentoFin ? styles.inputError : ""}`}
@@ -1403,9 +1679,13 @@ function ItemsPanel({
                   value={form.descuentoFin}
                   onChange={handleChange}
                 />
+                {fieldErrors.descuentoFin && (
+                  <span className={styles.helperError}>{fieldErrors.descuentoFin}</span>
+                )}
               </label>
             </div>
 
+            {/* Estado calculado del descuento (informativo) */}
             <div
               className={`${styles.discountStatus} ${
                 discountStatus.type === "ok" ? styles.discountStatusOk : styles.discountStatusOff
@@ -1413,51 +1693,105 @@ function ItemsPanel({
             >
               {discountStatus.text}
             </div>
+            <span className={styles.helperText}>
+              El cliente verá el precio anterior tachado y el nuevo precio destacado en la card.
+            </span>
           </Section>
 
+          {/* SECCIÓN: PERSONALIZACIÓN */}
           <Section title="🎨 Personalización" icon="🎨" defaultOpen={false}>
-            <label className={styles.label}>
-              Color de fondo
-              <div className={styles.colorPickerRow}>
-                <input
-                  type="color"
-                  name="cardColor"
-                  value={form.cardColor}
-                  onChange={handleChange}
-                  className={styles.colorSwatch}
-                />
-              </div>
-              <div className={styles.colorPresets}>
-                {COLOR_PRESETS.map((p) => (
-                  <button
-                    key={p.value}
-                    type="button"
-                    className={styles.colorPresetBtn}
-                    style={{ background: p.value }}
-                    title={p.name}
-                    onClick={() => setForm((f) => ({ ...f, cardColor: p.value }))}
+            <div className={styles.sectionGrid}>
+              <label className={styles.label}>
+                Color de fondo <Tooltip text="Color de fondo de la tarjeta del plato en el menú." />
+                <div className={styles.colorPickerRow}>
+                  <input
+                    type="color"
+                    name="cardColor"
+                    value={form.cardColor}
+                    onChange={handleChange}
+                    className={styles.colorSwatch}
                   />
-                ))}
-              </div>
-            </label>
+                  <input
+                    className={`${styles.input} ${fieldErrors.cardColor ? styles.inputError : ""}`}
+                    name="cardColor"
+                    value={form.cardColor}
+                    onChange={handleChange}
+                    placeholder="#152238"
+                    maxLength={7}
+                  />
+                </div>
+                <div className={styles.colorPresets}>
+                  {COLOR_PRESETS.map((p) => (
+                    <button
+                      key={p.value}
+                      type="button"
+                      className={styles.colorPresetBtn}
+                      style={{ background: p.value }}
+                      title={p.name}
+                      onClick={() => setForm((f) => ({ ...f, cardColor: p.value }))}
+                    />
+                  ))}
+                </div>
+                {/* Historial de colores: muestra los ultimos 8 que se usaron en
+                    otros platos para mantener coherencia visual entre cards */}
+                <div className={styles.colorHistoryWrap}>
+                  <span className={styles.colorHistoryLabel}>Usados recientemente</span>
+                  {colorHistory && colorHistory.length > 0 ? (
+                    <div className={styles.colorHistoryRow}>
+                      {colorHistory.map((c) => (
+                        <button
+                          key={c}
+                          type="button"
+                          className={styles.colorHistoryBtn}
+                          style={{ background: c }}
+                          title={c}
+                          onClick={() => setForm((f) => ({ ...f, cardColor: c }))}
+                        />
+                      ))}
+                    </div>
+                  ) : (
+                    <span className={styles.colorHistoryEmpty}>
+                      Aún no hay colores guardados. Se irán agregando al guardar platos.
+                    </span>
+                  )}
+                </div>
+                {fieldErrors.cardColor ? (
+                  <span className={styles.helperError}>{fieldErrors.cardColor}</span>
+                ) : (
+                  <span className={styles.helperText}>Click en un color o ingresa hex #RRGGBB</span>
+                )}
+              </label>
 
-            <label className={styles.label}>
-              Etiqueta destacada (opcional)
-              <input
-                className={`${styles.input} ${fieldErrors.cardMessage ? styles.inputError : ""}`}
-                name="cardMessage"
-                value={form.cardMessage}
-                onChange={handleChange}
-                placeholder="Ej: ¡Nuevo!, Recomendado, Oferta"
-                maxLength={40}
-              />
-              <span className={styles.helperText}>{form.cardMessage.length}/40 caracteres</span>
-            </label>
+              <label className={styles.label}>
+                Etiqueta destacada (opcional){" "}
+                <Tooltip text="Etiqueta corta que aparece sobre la card. Ej: ¡Nuevo!, Recomendado, 2x1." />
+                <input
+                  className={`${styles.input} ${fieldErrors.cardMessage ? styles.inputError : ""}`}
+                  name="cardMessage"
+                  value={form.cardMessage}
+                  onChange={handleChange}
+                  placeholder="Ej: ¡Nuevo!, Recomendado, Oferta"
+                  maxLength={40}
+                />
+                {fieldErrors.cardMessage ? (
+                  <span className={styles.helperError}>{fieldErrors.cardMessage}</span>
+                ) : (
+                  <span className={styles.helperText}>{form.cardMessage.length}/40 caracteres</span>
+                )}
+              </label>
+            </div>
           </Section>
 
-          <Section title="🥗 Ingredientes" icon="🥗" badge={form.ingredients.length || null}>
+          {/* SECCIÓN: INGREDIENTES */}
+          <Section
+            title="🥗 Ingredientes"
+            icon="🥗"
+            defaultOpen={false}
+            badge={form.ingredients.length > 0 ? form.ingredients.length : null}
+          >
             <label className={styles.label}>
-              <span>Agregar ingredientes (separados por coma)</span>
+              Agregar ingredientes{" "}
+              <Tooltip text="Puedes agregar varios separados por coma. Presiona Enter o el botón + para añadir." />
               <div style={{ display: "flex", gap: "0.5rem" }}>
                 <input
                   type="text"
@@ -1470,7 +1804,7 @@ function ItemsPanel({
                       handleAddIngredient();
                     }
                   }}
-                  placeholder="Tomate, Cebolla, Palta..."
+                  placeholder="Ej: Tomate, Cebolla, Palta..."
                   style={{ flex: 1 }}
                 />
                 <button
@@ -1482,6 +1816,9 @@ function ItemsPanel({
                   + Agregar
                 </button>
               </div>
+              <span className={styles.helperText}>
+                Tip: separa con comas para agregar varios a la vez
+              </span>
             </label>
 
             {form.ingredients.length > 0 && (
@@ -1527,18 +1864,19 @@ function ItemsPanel({
               </button>
             )}
             <button
-              className={styles.btnPrimary}
+              className={`${styles.btnPrimary} ${submitDisabledReason ? styles.btnDisabledByPerm : ""}`}
               type="button"
               disabled={submitDisabled}
               onClick={handleSubmit}
+              title={submitDisabledReason}
             >
-              {saving ? "Guardando..." : isEditingItem ? "💾 Actualizar" : "✓ Crear"}
+              {saving ? "Guardando..." : isEditingItem ? "💾 Actualizar Plato" : "✓ Crear Plato"}
             </button>
           </div>
         </div>
       </div>
 
-      {/* ============ LISTA DE PLATOS ============ */}
+      {/* ============ VISTA TIPO MENU CLIENTE ============ */}
       <div className={styles.tableHeader}>
         <h2>Todos los platos ({items.length})</h2>
         <select
@@ -1584,6 +1922,8 @@ function ItemsPanel({
                       <div className={styles.menuBody}>
                         <div className={styles.menuTopRow}>
                           <h4 className={styles.menuName}>{item.name}</h4>
+                          {/* Si el descuento esta activo mostramos el precio
+                              tachado + el nuevo. Si no, solo el normal. */}
                           {item.discountActive ? (
                             <span className={styles.menuPrice}>
                               <span
@@ -1625,6 +1965,7 @@ function ItemsPanel({
                           <button
                             className={`${styles.btnSmall} ${!canEdit ? styles.btnDisabledByPerm : ""}`}
                             disabled={!canEdit}
+                            title={canEdit ? "" : "Sin permiso para editar"}
                             onClick={() => {
                               if (!canEdit) return;
                               setIsEditingItem(true);
@@ -1632,9 +1973,13 @@ function ItemsPanel({
                                 ...DEFAULT_FORM_ITEMS,
                                 ...item,
                                 cardMessage: item.cardMessage ?? "",
+                                // Convertimos los ISO de la BD al formato local
+                                // del input. El usuario los ve en su zona horaria.
                                 descuentoInicio: isoToDatetimeLocal(item.descuentoInicio),
                                 descuentoFin: isoToDatetimeLocal(item.descuentoFin),
+                                // descuento como numero (la BD lo guarda asi)
                                 descuento: item.descuento || 0,
+                                // Forzamos price formateado por si viene como int
                                 price:
                                   typeof item.price === "string" && item.price.startsWith("$")
                                     ? item.price
@@ -1656,6 +2001,7 @@ function ItemsPanel({
                           <button
                             className={`${styles.btnSmall} ${styles.btnSmallDanger} ${!canDeleteItem ? styles.btnDisabledByPerm : ""}`}
                             disabled={!canDeleteItem}
+                            title={canDeleteItem ? "" : "Sin permiso para eliminar"}
                             onClick={() => handleDelete(item.id)}
                           >
                             🗑️ Eliminar
@@ -1673,11 +2019,14 @@ function ItemsPanel({
   );
 }
 
-// ============= CATEGORIES PANEL =============
+// =============================================================================
+// CategoriesPanel
+// =============================================================================
 const DEFAULT_FORM_CATEGORY = { id: "", label: "" };
 
 function CategoriesPanel({ categories, onReload }) {
   const canManage = hasPermission("puede_gestionar_categorias");
+
   const [isEditingCategory, setIsEditingCategory] = useState(false);
   const [form, setForm] = useState(DEFAULT_FORM_CATEGORY);
   const [error, setError] = useState("");
@@ -1688,7 +2037,7 @@ function CategoriesPanel({ categories, onReload }) {
 
   const getFieldError = (name, value) => {
     if (name === "label") {
-      if (!value.trim()) return "El nombre es requerido";
+      if (!value.trim()) return "Nombre visible es requerido";
       if (!/^[a-zA-Z\s\-áéíóúñÁÉÍÓÚÑ]+$/.test(value)) return "Solo letras y espacios";
     }
     return "";
@@ -1731,11 +2080,11 @@ function CategoriesPanel({ categories, onReload }) {
     try {
       if (isEditingCategory) {
         await updateCategory(form.id, { label: form.label });
-        setSuccessMessage("🎉 ¡Categoría actualizada!");
+        setSuccessMessage("🎉 ¡CATEGORÍA ACTUALIZADA!");
       } else {
         const payload = { id: generateCategoryId(categories, form.label), label: form.label };
         await createCategory(payload);
-        setSuccessMessage("🎉 ¡Categoría creada!");
+        setSuccessMessage("🎉 ¡CATEGORÍA CREADA!");
       }
       setShowSuccessModal(true);
       setIsEditingCategory(false);
@@ -1791,11 +2140,17 @@ function CategoriesPanel({ categories, onReload }) {
             name="label"
             value={form.label}
             onChange={handleChange}
-            placeholder="Ej: Bebidas y Jugos"
             required
+            placeholder="Ej: Bebidas y Jugos"
             disabled={!canManage}
           />
-          {fieldErrors.label && <span className={styles.helperError}>{fieldErrors.label}</span>}
+          {fieldErrors.label ? (
+            <span className={styles.helperError}>{fieldErrors.label}</span>
+          ) : (
+            <span className={styles.helperText}>
+              {canManage ? "Solo letras y espacios" : "Sin permiso para gestionar categorías"}
+            </span>
+          )}
         </label>
 
         <div className={styles.formActions}>
@@ -1803,6 +2158,7 @@ function CategoriesPanel({ categories, onReload }) {
             className={`${styles.btnPrimary} ${!canManage ? styles.btnDisabledByPerm : ""}`}
             type="submit"
             disabled={saving || !formValid || !canManage}
+            title={canManage ? "" : "Sin permiso para gestionar categorías"}
           >
             {saving ? "Guardando..." : isEditingCategory ? "Actualizar" : "Crear"}
           </button>
@@ -1826,7 +2182,7 @@ function CategoriesPanel({ categories, onReload }) {
           <thead>
             <tr>
               <th>ID</th>
-              <th>Nombre</th>
+              <th>Label</th>
               <th>Acciones</th>
             </tr>
           </thead>
@@ -1839,6 +2195,7 @@ function CategoriesPanel({ categories, onReload }) {
                   <button
                     className={`${styles.btnSmall} ${!canManage ? styles.btnDisabledByPerm : ""}`}
                     disabled={!canManage}
+                    title={canManage ? "" : "Sin permiso para gestionar categorías"}
                     onClick={() => {
                       if (!canManage) return;
                       setIsEditingCategory(true);
@@ -1850,6 +2207,7 @@ function CategoriesPanel({ categories, onReload }) {
                   <button
                     className={`${styles.btnSmall} ${styles.btnSmallDanger} ${!canManage ? styles.btnDisabledByPerm : ""}`}
                     disabled={!canManage}
+                    title={canManage ? "" : "Sin permiso para gestionar categorías"}
                     onClick={() => handleDelete(cat.id)}
                   >
                     🗑️ Eliminar
@@ -1864,7 +2222,9 @@ function CategoriesPanel({ categories, onReload }) {
   );
 }
 
-// ============= UPLOAD PANEL =============
+// =============================================================================
+// UploadPanel
+// =============================================================================
 function UploadPanel({ onReload }) {
   const canUpload = hasPermission("puede_subir_archivos");
 
