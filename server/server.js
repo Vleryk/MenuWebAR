@@ -27,6 +27,16 @@ const {
   createItem: createSupabaseItem,
   updateItem: updateSupabaseItem,
   deleteItem: deleteSupabaseItem,
+  // historial de colores: nuevas funciones del store
+  listColorHistorial,
+  pushColorToHistorial,
+  // usuarios: cuentas secundarias con permisos granulares
+  PERMISSION_KEYS,
+  listUsuarios,
+  createUsuario,
+  updateUsuario,
+  deleteUsuario,
+  verifyUsuarioPassword,
 } = require("./supabaseStore");
 
 const loggingMiddleware = require("./middlewares/loggingMiddleware");
@@ -310,6 +320,14 @@ function requireSupabaseDataSource(res) {
   });
 }
 
+// Devuelve un objeto de permisos donde TODO esta en true. Lo uso para el
+// super_admin que esta en admin.json: bypasea cualquier check granular.
+function allPermissionsTrue() {
+  const all = {};
+  for (const k of PERMISSION_KEYS) all[k] = true;
+  return all;
+}
+
 // --- Middleware ---
 app.use(cors());
 app.use(express.json({ limit: "10mb" }));
@@ -339,7 +357,9 @@ app.use("/api/", apiLimiter);
 app.use(loggingMiddleware);
 
 // Middleware que valida el token JWT. Se usa en todas las rutas /api/admin/*.
-// Si el token es valido, guarda los datos decodificados en req.user.
+// Si el token es valido, guarda los datos decodificados en req.user. Ademas
+// reconstruye los permisos: si el token dice isSuperAdmin -> all true, si no
+// usa los permisos que vinieron en el token.
 function authMiddleware(req, res, next) {
   const header = req.headers.authorization;
   if (!header || !header.startsWith("Bearer ")) {
@@ -348,11 +368,32 @@ function authMiddleware(req, res, next) {
   try {
     const token = header.split(" ")[1];
     const decoded = jwt.verify(token, jwtSecret);
-    req.user = decoded;
+    req.user = {
+      ...decoded,
+      // si es super_admin (admin.json) aplicamos all true, si no respetamos
+      // lo que vino en el token (que se firmo en el login con los permisos
+      // de la BD)
+      permissions: decoded.isSuperAdmin ? allPermissionsTrue() : decoded.permissions || {},
+    };
     next();
   } catch {
     return res.status(401).json({ error: "Token invalido o expirado" });
   }
+}
+
+// Middleware factory: devuelve un middleware que chequea que el usuario tenga
+// el permiso indicado. Uso: app.delete(..., authMiddleware, requirePermission("puede_eliminar_platos"), handler).
+// Si no tiene el permiso devuelve 403 con un mensaje claro para que el frontend
+// pueda mostrar feedback util.
+function requirePermission(permKey) {
+  return (req, res, next) => {
+    if (!req.user) return res.status(401).json({ error: "No autenticado" });
+    if (req.user.permissions && req.user.permissions[permKey]) return next();
+    return res.status(403).json({
+      error: "No tienes permiso para esta accion",
+      missing: permKey,
+    });
+  };
 }
 
 // Handler de errores global. En dev muestra el stack, en prod solo el mensaje.
@@ -442,167 +483,238 @@ app.get("/api/menu-items", async (_req, res) => {
 // AUTENTICACIÓN
 // ========================
 
-// Login: compara la pass contra el hash bcrypt guardado en admin.json.
-// Si matchea, devuelve un JWT valido por 8 horas.
-app.post("/api/auth/login", loginLimiter, (req, res) => {
+// Login: ahora hay DOS fuentes de cuentas.
+// 1) admin.json -> super_admin (bypasea todo). Si el username matchea, no
+//    pasamos a la BD; las credenciales tienen que ser exactas.
+// 2) tabla usuarios en Supabase -> usuarios con permisos granulares.
+// El JWT incluye username, isSuperAdmin y permissions, asi el frontend sabe
+// que puede mostrar y los middlewares server-side saben que dejar pasar.
+app.post("/api/auth/login", loginLimiter, async (req, res) => {
   const { username, password } = req.body;
   if (!username || !password) {
     return res.status(400).json({ error: "Usuario y contraseña requeridos" });
   }
 
+  // Primera puerta: super_admin desde admin.json
   const admin = JSON.parse(fs.readFileSync(ADMIN_FILE, "utf-8"));
-  if (username !== admin.username || !bcrypt.compareSync(password, admin.password)) {
+  if (username === admin.username) {
+    if (!bcrypt.compareSync(password, admin.password)) {
+      return res.status(401).json({ error: "Credenciales incorrectas" });
+    }
+    const token = jwt.sign(
+      { username, isSuperAdmin: true, permissions: allPermissionsTrue() },
+      jwtSecret,
+      { expiresIn: "8h" },
+    );
+    return res.json({
+      token,
+      username,
+      isSuperAdmin: true,
+      permissions: allPermissionsTrue(),
+    });
+  }
+
+  // Segunda puerta: usuarios de la BD. Solo si Supabase esta habilitado
+  if (!isSupabaseEnabled) {
     return res.status(401).json({ error: "Credenciales incorrectas" });
   }
 
-  const token = jwt.sign({ username }, jwtSecret, { expiresIn: "8h" });
-  res.json({ token, username });
-});
-
-// Verifica si el token sigue siendo valido. El frontend lo llama al cargar
-// para saber si puede mostrar el admin sin pedir login de nuevo.
-app.get("/api/auth/verify", authMiddleware, (req, res) => {
-  res.json({ valid: true, username: req.user.username });
-});
-
-// ========================
-// ADMIN
-// ========================
-// Todas estas rutas requieren JWT valido (authMiddleware).
-
-// Upload de imagenes LOCAL (no Cloudinary). Queda como legacy por si hay
-// deploys sin Cloudinary configurado, pero el flujo normal del admin usa
-// Cloudinary directo desde el frontend.
-app.post("/api/admin/upload-image", authMiddleware, (req, res) => {
-  upload.single("image")(req, res, (err) => {
-    if (err) {
-      if (err instanceof multer.MulterError) {
-        if (err.code === "LIMIT_FILE_SIZE") {
-          return res.status(400).json({ error: "La imagen es muy grande (máximo 5MB)" });
-        }
-        return res.status(400).json({ error: "Error al subir la imagen" });
-      }
-      return res.status(400).json({ error: err.message || "Error al subir la imagen" });
-    }
-
-    if (!req.file) {
-      return res.status(400).json({ error: "No se subió ninguna imagen" });
-    }
-
-    const imagePath = `/assets/IMG/${req.file.filename}`;
-    res.json({ image: imagePath });
-  });
-});
-
-// Guarda la metadata de un modelo AR en Supabase. OJO: el archivo .glb ya fue
-// subido a Cloudinary desde el frontend, aca solo registramos la URL en BD
-// para poder listarlo despues.
-app.post("/api/admin/modelos", authMiddleware, (req, res) => {
-  const { id, name, label, url, src, secure_url, secureUrl } = req.body || {};
-
-  // Aceptamos varios nombres de campo por compatibilidad con distintos
-  // clientes (Cloudinary devuelve secure_url, nosotros usamos src o url).
-  const modeloId = typeof (id || name) === "string" ? (id || name).trim() : "";
-  const modeloSrc =
-    typeof (url || src || secure_url || secureUrl) === "string"
-      ? (url || src || secure_url || secureUrl).trim()
-      : "";
-  const modeloLabel =
-    typeof (label || name || modeloId) === "string" ? (label || name || modeloId).trim() : "";
-
-  if (!isValidModeloId(modeloId)) {
-    return res
-      .status(400)
-      .json({ error: "id de modelo invalido (solo letras, numeros, guion y guion bajo)" });
-  }
-  if (!isNonEmptyString(modeloLabel)) {
-    return res.status(400).json({ error: "label es requerido" });
-  }
-  if (!isNonEmptyString(modeloSrc)) {
-    return res.status(400).json({ error: "url es requerida" });
-  }
-  if (!isSafeModelSrc(modeloSrc)) {
-    return res.status(400).json({ error: "URL de modelo no permitida" });
-  }
-
-  if (!isSupabaseEnabled) return requireSupabaseDataSource(res);
-
-  createSupabaseModeloAsset({ id, name, label: modeloLabel, url: modeloSrc })
-    .then((newModelo) => res.status(201).json(newModelo))
-    .catch((error) => handleSupabaseRouteError(res, error));
-});
-
-// Misma logica que modelos pero para imagenes.
-app.post("/api/admin/imagenes", authMiddleware, (req, res) => {
-  const { id, name, label, url, src, secure_url, secureUrl } = req.body || {};
-
-  const imagenId = typeof (id || name) === "string" ? (id || name).trim() : "";
-  const imagenSrc =
-    typeof (url || src || secure_url || secureUrl) === "string"
-      ? (url || src || secure_url || secureUrl).trim()
-      : "";
-  const imagenLabel =
-    typeof (label || name || imagenId) === "string" ? (label || name || imagenId).trim() : "";
-
-  if (!isValidId(imagenId)) {
-    return res
-      .status(400)
-      .json({ error: "id de imagen invalido (solo letras, numeros, guion y guion bajo)" });
-  }
-  if (!isNonEmptyString(imagenLabel)) {
-    return res.status(400).json({ error: "label es requerido" });
-  }
-  if (!isNonEmptyString(imagenSrc)) {
-    return res.status(400).json({ error: "url es requerida" });
-  }
-  if (!isSafeImageRef(imagenSrc)) {
-    return res.status(400).json({ error: "URL de imagen no permitida" });
-  }
-
-  if (!isSupabaseEnabled) return requireSupabaseDataSource(res);
-
-  createSupabaseImagenAsset({ id, name, label: imagenLabel, url: imagenSrc })
-    .then((newImagen) => res.status(201).json(newImagen))
-    .catch((error) => handleSupabaseRouteError(res, error));
-});
-
-// Borrado de imagen: hace DOS cosas.
-// 1. Borra la fila en Supabase (y limpia las referencias en platos).
-// 2. Si la URL era de Cloudinary, tambien borra el archivo alla para no dejar
-//    basura. Si Cloudinary falla, igual devolvemos OK porque lo importante
-//    ya se elimino de la BD.
-app.delete("/api/admin/imagenes/:id", authMiddleware, async (req, res) => {
-  if (!isSupabaseEnabled) return requireSupabaseDataSource(res);
-
   try {
-    const { url } = await deleteSupabaseImagenAsset(req.params.id);
-
-    let cloudinaryResult = null;
-    if (cloudinaryEnabled && url) {
-      const publicId = extractCloudinaryPublicId(url);
-      if (publicId) {
-        try {
-          cloudinaryResult = await cloudinary.uploader.destroy(publicId, {
-            resource_type: "image",
-            invalidate: true,
-          });
-        } catch (cloudErr) {
-          console.error("Error borrando de Cloudinary:", cloudErr?.message || cloudErr);
-          cloudinaryResult = { error: cloudErr?.message || "Error Cloudinary" };
-        }
-      }
+    const user = await verifyUsuarioPassword(username, password);
+    if (!user) {
+      return res.status(401).json({ error: "Credenciales incorrectas" });
     }
-
+    const token = jwt.sign(
+      { username: user.email, isSuperAdmin: false, permissions: user.permissions, userId: user.id },
+      jwtSecret,
+      { expiresIn: "8h" },
+    );
     return res.json({
-      message: "Imagen eliminada",
-      cloudinary: cloudinaryResult,
+      token,
+      username: user.email,
+      isSuperAdmin: false,
+      permissions: user.permissions,
     });
   } catch (error) {
     return handleSupabaseRouteError(res, error);
   }
 });
 
+// Verifica si el token sigue siendo valido. El frontend lo llama al cargar
+// para saber si puede mostrar el admin sin pedir login de nuevo. Devolvemos
+// tambien isSuperAdmin y permissions para que el frontend renderice los
+// botones segun corresponda sin tener que decodificar el JWT manualmente.
+app.get("/api/auth/verify", authMiddleware, (req, res) => {
+  res.json({
+    valid: true,
+    username: req.user.username,
+    isSuperAdmin: Boolean(req.user.isSuperAdmin),
+    permissions: req.user.permissions,
+  });
+});
+
+// ========================
+// ADMIN
+// ========================
+// Todas estas rutas requieren JWT valido (authMiddleware) y un permiso
+// especifico segun la accion.
+
+// Upload de imagenes LOCAL (no Cloudinary). Queda como legacy por si hay
+// deploys sin Cloudinary configurado, pero el flujo normal del admin usa
+// Cloudinary directo desde el frontend.
+app.post(
+  "/api/admin/upload-image",
+  authMiddleware,
+  requirePermission("puede_subir_archivos"),
+  (req, res) => {
+    upload.single("image")(req, res, (err) => {
+      if (err) {
+        if (err instanceof multer.MulterError) {
+          if (err.code === "LIMIT_FILE_SIZE") {
+            return res.status(400).json({ error: "La imagen es muy grande (máximo 5MB)" });
+          }
+          return res.status(400).json({ error: "Error al subir la imagen" });
+        }
+        return res.status(400).json({ error: err.message || "Error al subir la imagen" });
+      }
+
+      if (!req.file) {
+        return res.status(400).json({ error: "No se subió ninguna imagen" });
+      }
+
+      const imagePath = `/assets/IMG/${req.file.filename}`;
+      res.json({ image: imagePath });
+    });
+  },
+);
+
+// Guarda la metadata de un modelo AR en Supabase. OJO: el archivo .glb ya fue
+// subido a Cloudinary desde el frontend, aca solo registramos la URL en BD
+// para poder listarlo despues.
+app.post(
+  "/api/admin/modelos",
+  authMiddleware,
+  requirePermission("puede_subir_archivos"),
+  (req, res) => {
+    const { id, name, label, url, src, secure_url, secureUrl } = req.body || {};
+
+    // Aceptamos varios nombres de campo por compatibilidad con distintos
+    // clientes (Cloudinary devuelve secure_url, nosotros usamos src o url).
+    const modeloId = typeof (id || name) === "string" ? (id || name).trim() : "";
+    const modeloSrc =
+      typeof (url || src || secure_url || secureUrl) === "string"
+        ? (url || src || secure_url || secureUrl).trim()
+        : "";
+    const modeloLabel =
+      typeof (label || name || modeloId) === "string" ? (label || name || modeloId).trim() : "";
+
+    if (!isValidModeloId(modeloId)) {
+      return res
+        .status(400)
+        .json({ error: "id de modelo invalido (solo letras, numeros, guion y guion bajo)" });
+    }
+    if (!isNonEmptyString(modeloLabel)) {
+      return res.status(400).json({ error: "label es requerido" });
+    }
+    if (!isNonEmptyString(modeloSrc)) {
+      return res.status(400).json({ error: "url es requerida" });
+    }
+    if (!isSafeModelSrc(modeloSrc)) {
+      return res.status(400).json({ error: "URL de modelo no permitida" });
+    }
+
+    if (!isSupabaseEnabled) return requireSupabaseDataSource(res);
+
+    createSupabaseModeloAsset({ id, name, label: modeloLabel, url: modeloSrc })
+      .then((newModelo) => res.status(201).json(newModelo))
+      .catch((error) => handleSupabaseRouteError(res, error));
+  },
+);
+
+// Misma logica que modelos pero para imagenes.
+app.post(
+  "/api/admin/imagenes",
+  authMiddleware,
+  requirePermission("puede_subir_archivos"),
+  (req, res) => {
+    const { id, name, label, url, src, secure_url, secureUrl } = req.body || {};
+
+    const imagenId = typeof (id || name) === "string" ? (id || name).trim() : "";
+    const imagenSrc =
+      typeof (url || src || secure_url || secureUrl) === "string"
+        ? (url || src || secure_url || secureUrl).trim()
+        : "";
+    const imagenLabel =
+      typeof (label || name || imagenId) === "string" ? (label || name || imagenId).trim() : "";
+
+    if (!isValidId(imagenId)) {
+      return res
+        .status(400)
+        .json({ error: "id de imagen invalido (solo letras, numeros, guion y guion bajo)" });
+    }
+    if (!isNonEmptyString(imagenLabel)) {
+      return res.status(400).json({ error: "label es requerido" });
+    }
+    if (!isNonEmptyString(imagenSrc)) {
+      return res.status(400).json({ error: "url es requerida" });
+    }
+    if (!isSafeImageRef(imagenSrc)) {
+      return res.status(400).json({ error: "URL de imagen no permitida" });
+    }
+
+    if (!isSupabaseEnabled) return requireSupabaseDataSource(res);
+
+    createSupabaseImagenAsset({ id, name, label: imagenLabel, url: imagenSrc })
+      .then((newImagen) => res.status(201).json(newImagen))
+      .catch((error) => handleSupabaseRouteError(res, error));
+  },
+);
+
+// Borrado de imagen: hace DOS cosas.
+// 1. Borra la fila en Supabase (y limpia las referencias en platos).
+// 2. Si la URL era de Cloudinary, tambien borra el archivo alla para no dejar
+//    basura. Si Cloudinary falla, igual devolvemos OK porque lo importante
+//    ya se elimino de la BD.
+app.delete(
+  "/api/admin/imagenes/:id",
+  authMiddleware,
+  requirePermission("puede_eliminar_archivos"),
+  async (req, res) => {
+    if (!isSupabaseEnabled) return requireSupabaseDataSource(res);
+
+    try {
+      const { url } = await deleteSupabaseImagenAsset(req.params.id);
+
+      let cloudinaryResult = null;
+      if (cloudinaryEnabled && url) {
+        const publicId = extractCloudinaryPublicId(url);
+        if (publicId) {
+          try {
+            cloudinaryResult = await cloudinary.uploader.destroy(publicId, {
+              resource_type: "image",
+              invalidate: true,
+            });
+          } catch (cloudErr) {
+            console.error("Error borrando de Cloudinary:", cloudErr?.message || cloudErr);
+            cloudinaryResult = { error: cloudErr?.message || "Error Cloudinary" };
+          }
+        }
+      }
+
+      return res.json({
+        message: "Imagen eliminada",
+        cloudinary: cloudinaryResult,
+      });
+    } catch (error) {
+      return handleSupabaseRouteError(res, error);
+    }
+  },
+);
+
 // Categorías
+// El GET no necesita permiso especifico (cualquier usuario logueado lo necesita
+// para ver el dashboard). El crear/editar/eliminar si requieren el permiso de
+// gestionar categorias.
 app.get("/api/admin/categories", authMiddleware, async (_req, res) => {
   if (!isSupabaseEnabled) return requireSupabaseDataSource(res);
   try {
@@ -613,48 +725,63 @@ app.get("/api/admin/categories", authMiddleware, async (_req, res) => {
   }
 });
 
-app.post("/api/admin/categories", authMiddleware, (req, res) => {
-  const { id, label } = req.body;
-  if (!isValidId(id)) {
-    return res
-      .status(400)
-      .json({ error: "id invalido (solo letras, numeros, guion y guion bajo)" });
-  }
-  if (!isNonEmptyString(label)) {
-    return res.status(400).json({ error: "label es requerido" });
-  }
+app.post(
+  "/api/admin/categories",
+  authMiddleware,
+  requirePermission("puede_gestionar_categorias"),
+  (req, res) => {
+    const { id, label } = req.body;
+    if (!isValidId(id)) {
+      return res
+        .status(400)
+        .json({ error: "id invalido (solo letras, numeros, guion y guion bajo)" });
+    }
+    if (!isNonEmptyString(label)) {
+      return res.status(400).json({ error: "label es requerido" });
+    }
 
-  if (!isSupabaseEnabled) return requireSupabaseDataSource(res);
+    if (!isSupabaseEnabled) return requireSupabaseDataSource(res);
 
-  createSupabaseCategory({ id, label })
-    .then((newCategory) => res.status(201).json(newCategory))
-    .catch((error) => handleSupabaseRouteError(res, error));
-});
+    createSupabaseCategory({ id, label })
+      .then((newCategory) => res.status(201).json(newCategory))
+      .catch((error) => handleSupabaseRouteError(res, error));
+  },
+);
 
-app.put("/api/admin/categories/:id", authMiddleware, (req, res) => {
-  const { label } = req.body;
-  if (label !== undefined && !isNonEmptyString(label)) {
-    return res.status(400).json({ error: "label no puede estar vacio" });
-  }
+app.put(
+  "/api/admin/categories/:id",
+  authMiddleware,
+  requirePermission("puede_gestionar_categorias"),
+  (req, res) => {
+    const { label } = req.body;
+    if (label !== undefined && !isNonEmptyString(label)) {
+      return res.status(400).json({ error: "label no puede estar vacio" });
+    }
 
-  if (!isSupabaseEnabled) return requireSupabaseDataSource(res);
+    if (!isSupabaseEnabled) return requireSupabaseDataSource(res);
 
-  updateSupabaseCategory(req.params.id, { label })
-    .then((updatedCategory) => res.json(updatedCategory))
-    .catch((error) => handleSupabaseRouteError(res, error));
-});
+    updateSupabaseCategory(req.params.id, { label })
+      .then((updatedCategory) => res.json(updatedCategory))
+      .catch((error) => handleSupabaseRouteError(res, error));
+  },
+);
 
 // Borrar una categoria tambien borra todos sus platos en cascada (lo hace la
 // FK de la BD con ON DELETE CASCADE).
-app.delete("/api/admin/categories/:id", authMiddleware, (req, res) => {
-  if (!isSupabaseEnabled) return requireSupabaseDataSource(res);
+app.delete(
+  "/api/admin/categories/:id",
+  authMiddleware,
+  requirePermission("puede_gestionar_categorias"),
+  (req, res) => {
+    if (!isSupabaseEnabled) return requireSupabaseDataSource(res);
 
-  deleteSupabaseCategory(req.params.id)
-    .then(() => res.json({ message: "Categoria y sus items eliminados" }))
-    .catch((error) => handleSupabaseRouteError(res, error));
-});
+    deleteSupabaseCategory(req.params.id)
+      .then(() => res.json({ message: "Categoria y sus items eliminados" }))
+      .catch((error) => handleSupabaseRouteError(res, error));
+  },
+);
 
-// Menu Items (platos)
+// Menu Items (platos). GET sin permiso especifico, los demas sí.
 app.get("/api/admin/items", authMiddleware, async (_req, res) => {
   if (!isSupabaseEnabled) return requireSupabaseDataSource(res);
   try {
@@ -665,94 +792,241 @@ app.get("/api/admin/items", authMiddleware, async (_req, res) => {
   }
 });
 
-app.post("/api/admin/items", authMiddleware, (req, res) => {
-  const {
-    id,
-    category,
-    name,
-    description,
-    price,
-    image,
-    modelAR,
-    ingredients,
-    cardColor,
-    cardMessage,
-  } = req.body;
+app.post(
+  "/api/admin/items",
+  authMiddleware,
+  requirePermission("puede_crear_platos"),
+  (req, res) => {
+    const {
+      id,
+      category,
+      name,
+      description,
+      price,
+      image,
+      modelAR,
+      ingredients,
+      cardColor,
+      cardMessage,
+    } = req.body;
 
-  if (!isValidId(id)) {
-    return res
-      .status(400)
-      .json({ error: "id invalido (solo letras, numeros, guion y guion bajo)" });
-  }
-  if (!isNonEmptyString(category)) {
-    return res.status(400).json({ error: "category es requerido" });
-  }
-  if (!isNonEmptyString(name)) {
-    return res.status(400).json({ error: "name es requerido" });
-  }
-  if (!isValidPrice(price)) {
-    return res.status(400).json({ error: "price es requerido" });
-  }
-  if (image && !isSafeImageRef(image)) {
-    return res.status(400).json({ error: "Imagen no permitida" });
-  }
-  if (modelAR && !isValidModeloId(modelAR)) {
-    return res.status(400).json({ error: "modelAR debe ser un id de modelo valido" });
-  }
+    if (!isValidId(id)) {
+      return res
+        .status(400)
+        .json({ error: "id invalido (solo letras, numeros, guion y guion bajo)" });
+    }
+    if (!isNonEmptyString(category)) {
+      return res.status(400).json({ error: "category es requerido" });
+    }
+    if (!isNonEmptyString(name)) {
+      return res.status(400).json({ error: "name es requerido" });
+    }
+    if (!isValidPrice(price)) {
+      return res.status(400).json({ error: "price es requerido" });
+    }
+    if (image && !isSafeImageRef(image)) {
+      return res.status(400).json({ error: "Imagen no permitida" });
+    }
+    if (modelAR && !isValidModeloId(modelAR)) {
+      return res.status(400).json({ error: "modelAR debe ser un id de modelo valido" });
+    }
 
-  const cardErr = validateCardFields({ cardColor, cardMessage });
-  if (cardErr) return res.status(400).json({ error: cardErr });
+    const cardErr = validateCardFields({ cardColor, cardMessage });
+    if (cardErr) return res.status(400).json({ error: cardErr });
+
+    if (!isSupabaseEnabled) return requireSupabaseDataSource(res);
+
+    createSupabaseItem({
+      id,
+      category,
+      name,
+      description,
+      price,
+      image,
+      modelAR,
+      ingredients,
+      cardColor,
+      cardMessage,
+    })
+      .then((newItem) => res.status(201).json(newItem))
+      .catch((error) => handleSupabaseRouteError(res, error));
+  },
+);
+
+app.put(
+  "/api/admin/items/:id",
+  authMiddleware,
+  requirePermission("puede_editar_platos"),
+  (req, res) => {
+    const { image, modelAR, cardColor, cardMessage } = req.body || {};
+
+    // En update solo validamos los campos que vengan en el body. Cualquier campo
+    // omitido queda como estaba en la BD.
+    if (image !== undefined && image && !isSafeImageRef(image)) {
+      return res.status(400).json({ error: "Imagen no permitida" });
+    }
+    if (modelAR !== undefined && modelAR && !isValidModeloId(modelAR)) {
+      return res.status(400).json({ error: "modelAR debe ser un id de modelo valido" });
+    }
+
+    const cardErr = validateCardFields({ cardColor, cardMessage });
+    if (cardErr) return res.status(400).json({ error: cardErr });
+
+    if (!isSupabaseEnabled) return requireSupabaseDataSource(res);
+
+    updateSupabaseItem(req.params.id, req.body || {})
+      .then((updatedItem) => res.json(updatedItem))
+      .catch((error) => handleSupabaseRouteError(res, error));
+  },
+);
+
+app.delete(
+  "/api/admin/items/:id",
+  authMiddleware,
+  requirePermission("puede_eliminar_platos"),
+  (req, res) => {
+    if (!isSupabaseEnabled) return requireSupabaseDataSource(res);
+
+    deleteSupabaseItem(req.params.id)
+      .then(() => res.json({ message: "Item eliminado" }))
+      .catch((error) => handleSupabaseRouteError(res, error));
+  },
+);
+
+// ========================
+// HISTORIAL DE COLORES
+// ========================
+// Endpoints para listar y agregar colores al historial. El GET es admin (asi
+// no exponemos preferencias de la marca a cualquiera) y el POST tambien.
+// El push automatico al guardar plato lo hace supabaseStore.createItem /
+// updateItem; este POST queda por si se quiere registrar un color sin guardar
+// plato (ej: solo cambio de paleta).
+
+app.get("/api/admin/historial-colores", authMiddleware, async (_req, res) => {
+  if (!isSupabaseEnabled) return requireSupabaseDataSource(res);
+  try {
+    const colors = await listColorHistorial();
+    return res.json(colors);
+  } catch (error) {
+    return handleSupabaseRouteError(res, error);
+  }
+});
+
+app.post("/api/admin/historial-colores", authMiddleware, async (req, res) => {
+  const { color } = req.body || {};
+
+  // Validamos hex aca tambien para devolver 400 sin necesidad de pegarle a
+  // Supabase con basura.
+  if (typeof color !== "string" || !HEX_COLOR_RE.test(color)) {
+    return res.status(400).json({ error: "color debe ser hex #RRGGBB" });
+  }
 
   if (!isSupabaseEnabled) return requireSupabaseDataSource(res);
 
-  createSupabaseItem({
-    id,
-    category,
-    name,
-    description,
-    price,
-    image,
-    modelAR,
-    ingredients,
-    cardColor,
-    cardMessage,
-  })
-    .then((newItem) => res.status(201).json(newItem))
-    .catch((error) => handleSupabaseRouteError(res, error));
-});
-
-app.put("/api/admin/items/:id", authMiddleware, (req, res) => {
-  const { image, modelAR, cardColor, cardMessage } = req.body || {};
-
-  // En update solo validamos los campos que vengan en el body. Cualquier campo
-  // omitido queda como estaba en la BD.
-  if (image !== undefined && image && !isSafeImageRef(image)) {
-    return res.status(400).json({ error: "Imagen no permitida" });
+  try {
+    const result = await pushColorToHistorial(color);
+    return res.status(201).json(result);
+  } catch (error) {
+    return handleSupabaseRouteError(res, error);
   }
-  if (modelAR !== undefined && modelAR && !isValidModeloId(modelAR)) {
-    return res.status(400).json({ error: "modelAR debe ser un id de modelo valido" });
-  }
-
-  const cardErr = validateCardFields({ cardColor, cardMessage });
-  if (cardErr) return res.status(400).json({ error: cardErr });
-
-  if (!isSupabaseEnabled) return requireSupabaseDataSource(res);
-
-  updateSupabaseItem(req.params.id, req.body || {})
-    .then((updatedItem) => res.json(updatedItem))
-    .catch((error) => handleSupabaseRouteError(res, error));
 });
 
-app.delete("/api/admin/items/:id", authMiddleware, (req, res) => {
-  if (!isSupabaseEnabled) return requireSupabaseDataSource(res);
+// ========================
+// USUARIOS
+// ========================
+// Toda la gestion de usuarios secundarios la protege el permiso
+// "puede_gestionar_usuarios". El super_admin lo tiene siempre por ser
+// super_admin (allPermissionsTrue), asi que el flujo natural es: super_admin
+// crea usuarios y opcionalmente le da a uno o mas el permiso para que ellos
+// tambien puedan gestionar.
 
-  deleteSupabaseItem(req.params.id)
-    .then(() => res.json({ message: "Item eliminado" }))
-    .catch((error) => handleSupabaseRouteError(res, error));
-});
+app.get(
+  "/api/admin/usuarios",
+  authMiddleware,
+  requirePermission("puede_gestionar_usuarios"),
+  async (_req, res) => {
+    if (!isSupabaseEnabled) return requireSupabaseDataSource(res);
+    try {
+      const users = await listUsuarios();
+      return res.json(users);
+    } catch (error) {
+      return handleSupabaseRouteError(res, error);
+    }
+  },
+);
+
+app.post(
+  "/api/admin/usuarios",
+  authMiddleware,
+  requirePermission("puede_gestionar_usuarios"),
+  async (req, res) => {
+    const { email, password, permissions } = req.body || {};
+
+    if (!isNonEmptyString(email)) {
+      return res.status(400).json({ error: "email es requerido" });
+    }
+    if (typeof password !== "string" || password.length < 6) {
+      return res
+        .status(400)
+        .json({ error: "password es requerido y debe tener al menos 6 caracteres" });
+    }
+
+    if (!isSupabaseEnabled) return requireSupabaseDataSource(res);
+
+    try {
+      const newUser = await createUsuario({ email, password, permissions });
+      return res.status(201).json(newUser);
+    } catch (error) {
+      return handleSupabaseRouteError(res, error);
+    }
+  },
+);
+
+app.put(
+  "/api/admin/usuarios/:id",
+  authMiddleware,
+  requirePermission("puede_gestionar_usuarios"),
+  async (req, res) => {
+    if (!isSupabaseEnabled) return requireSupabaseDataSource(res);
+
+    try {
+      const updated = await updateUsuario(req.params.id, req.body || {});
+      return res.json(updated);
+    } catch (error) {
+      return handleSupabaseRouteError(res, error);
+    }
+  },
+);
+
+app.delete(
+  "/api/admin/usuarios/:id",
+  authMiddleware,
+  requirePermission("puede_gestionar_usuarios"),
+  async (req, res) => {
+    if (!isSupabaseEnabled) return requireSupabaseDataSource(res);
+
+    // Pequeño candado: si por alguna razon el usuario logueado tiene userId
+    // (lo seteamos en el JWT al hacer login desde la BD) y matchea con el id
+    // que esta intentando borrar, no lo dejamos. Asi nadie se borra a si mismo
+    // por accidente y se queda bloqueado afuera.
+    const targetId = parseInt(req.params.id, 10);
+    if (req.user.userId && req.user.userId === targetId) {
+      return res.status(400).json({ error: "No puedes eliminar tu propio usuario" });
+    }
+
+    try {
+      await deleteUsuario(req.params.id);
+      return res.json({ message: "Usuario eliminado" });
+    } catch (error) {
+      return handleSupabaseRouteError(res, error);
+    }
+  },
+);
 
 // Cambio de contraseña. Pide la actual para confirmar, valida minimo 6
 // caracteres y reescribe admin.json con el nuevo hash.
+// OJO: este endpoint solo aplica al super_admin (admin.json). Los usuarios de
+// la BD cambian su pass via /api/admin/usuarios/:id (lo hace el super_admin).
 app.put("/api/admin/password", authMiddleware, loginLimiter, (req, res) => {
   const { currentPassword, newPassword } = req.body;
   if (!currentPassword || !newPassword) {
@@ -760,6 +1034,14 @@ app.put("/api/admin/password", authMiddleware, loginLimiter, (req, res) => {
   }
   if (newPassword.length < 6) {
     return res.status(400).json({ error: "La nueva contraseña debe tener al menos 6 caracteres" });
+  }
+
+  // Solo super_admin puede usar este endpoint. Para los demas, el cambio lo
+  // hace el super via la gestion de usuarios.
+  if (!req.user.isSuperAdmin) {
+    return res
+      .status(403)
+      .json({ error: "Solo el super admin puede cambiar su pass por este endpoint" });
   }
 
   const admin = JSON.parse(fs.readFileSync(ADMIN_FILE, "utf-8"));

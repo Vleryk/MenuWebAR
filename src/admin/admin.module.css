@@ -1,17 +1,52 @@
-/* ===========================
-   ADMIN MODULE CSS - COMPLETO
-   =========================== */
+/* =============================================================================
+   admin.module.css
+   =============================================================================
+   Estilos del panel de admin. Va por modulos CSS asi que los nombres de
+   clase se pueden importar como `styles.algo` desde el JSX sin chocar con
+   otros componentes.
 
+   Paleta: azul oscuro (#0f1724) con dorado (#d4aa63) como acento de marca.
+   Toda la UI es dark mode, no hay variante clara.
+
+   Secciones del archivo (en orden):
+     - Login (loginPage, loginForm, etc)
+     - Shell del admin (adminShell, adminHeader, adminNav)
+     - Onboarding modal (NUEVO 02-05-2026)
+     - Labels e inputs (label, input, textarea, helpers)
+     - WarningBox (NUEVO 02-05-2026: aviso contextual amarillo)
+     - Editor + preview layout (editorLayout, livePreview)
+     - Sections colapsables (section, sectionHeader, sectionBody)
+     - Tooltips
+     - Field status (iconos ✓/✗ inline)
+     - Color picker + presets + historial
+     - Sticky actions bar (barra fija inferior)
+     - Botones (primary, secondary, danger, small)
+     - Modales (success, image, model, users)
+     - Tablas
+     - Ingredientes
+     - Preview de imagen y modelo 3D
+     - Upload container
+     - Users modal y permisos
+     - Disabled-by-permission (botones grises por falta de permiso)
+     - Descuento (campos y badge tachado)
+     - Menu preview (vista tipo cliente)
+     - Responsive (breakpoints 1100px, 768px, 480px)
+   ========================================================================== */
+
+/* ============= LOGIN ============= */
 .loginPage {
   min-height: 100vh;
   display: flex;
   align-items: center;
   justify-content: center;
+  /* Fondo con gradiente diagonal para que tenga mas profundidad que un
+     color plano */
   background: linear-gradient(145deg, #0a101c 0%, #152238 50%, #0f1724 100%);
 }
 
 .loginForm {
   background: rgba(255, 255, 255, 0.06);
+  /* glassmorphism: blur + translucidez para que se vea moderno */
   backdrop-filter: blur(12px);
   border: 1px solid rgba(212, 170, 99, 0.2);
   border-radius: 16px;
@@ -40,11 +75,14 @@
   margin: 0;
 }
 
+/* ============= SHELL DEL ADMIN ============= */
 .adminShell {
   min-height: 100vh;
   background: linear-gradient(145deg, #0a101c 0%, #152238 50%, #0f1724 100%);
   color: #f7f1e8;
-  padding-bottom: 100px; /* espacio para sticky bar */
+  /* padding inferior para que el contenido no quede tapado por la sticky
+     actions bar que esta fija abajo */
+  padding-bottom: 100px;
 }
 
 .adminHeader {
@@ -85,6 +123,26 @@
   color: #d4aa63;
 }
 
+/* helpBtn (NUEVO 02-05-2026): boton de ayuda del header. Estilo dorado
+   sutil para que se note pero sin gritar. Es la entrada al onboarding
+   cuando ya lo cerraron */
+.helpBtn {
+  background: rgba(212, 170, 99, 0.1);
+  border: 1px solid rgba(212, 170, 99, 0.2);
+  color: #d4aa63;
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  transition: all 0.2s;
+  font-weight: 600;
+}
+.helpBtn:hover {
+  background: rgba(212, 170, 99, 0.2);
+  border-color: #d4aa63;
+}
+
+/* Nav de pestañas. Sticky para que siempre se vea al hacer scroll. */
 .adminNav {
   display: flex;
   gap: 0;
@@ -95,6 +153,9 @@
   top: 0;
   z-index: 50;
   backdrop-filter: blur(8px);
+  /* overflow-x auto para que en mobile se pueda hacer scroll horizontal
+     en vez de romper el layout */
+  overflow-x: auto;
 }
 
 .navBtn {
@@ -106,6 +167,10 @@
   font-size: 0.9rem;
   border-bottom: 2px solid transparent;
   transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  white-space: nowrap;
 }
 .navBtn:hover {
   color: #f7f1e8;
@@ -113,6 +178,20 @@
 .navActive {
   color: #d4aa63;
   border-bottom-color: #d4aa63;
+}
+
+/* navBadge (NUEVO 02-05-2026): pill con el contador de elementos al lado
+   del nombre de cada pestaña. Asi el admin ve de un vistazo cuantos
+   platos/categorias tiene */
+.navBadge {
+  background: #d4aa63;
+  color: #0f1724;
+  font-size: 0.65rem;
+  padding: 0.15rem 0.4rem;
+  border-radius: 999px;
+  font-weight: 700;
+  min-width: 20px;
+  text-align: center;
 }
 
 .adminMain {
@@ -131,6 +210,94 @@
   font-size: 1rem;
 }
 
+/* ============= ONBOARDING MODAL (NUEVO 02-05-2026) =============
+   Tutorial que aparece la primera vez que entran al admin. Tiene 5 pasos
+   con dots de progreso. El estilo es similar a los otros modales pero
+   con mas padding y texto centrado para que se sienta mas como un
+   "onboarding" que como una alerta */
+.onboardingModal {
+  background: linear-gradient(135deg, rgba(20, 25, 40, 0.98) 0%, rgba(15, 23, 36, 0.98) 100%);
+  border: 1px solid rgba(212, 170, 99, 0.2);
+  border-radius: 16px;
+  padding: 3rem 2.5rem;
+  max-width: 500px;
+  text-align: center;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(10px);
+  position: relative;
+}
+
+/* Boton X de cerrar arriba a la derecha por si quieren saltarse el tutorial */
+.onboardingClose {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 1.5rem;
+  cursor: pointer;
+  padding: 0;
+  transition: color 0.2s;
+}
+.onboardingClose:hover {
+  color: #d4aa63;
+}
+
+.onboardingIcon {
+  font-size: 4rem;
+  margin-bottom: 1rem;
+}
+
+.onboardingTitle {
+  color: #d4aa63;
+  font-size: 1.4rem;
+  margin: 0 0 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.onboardingText {
+  color: rgba(255, 255, 255, 0.75);
+  font-size: 0.95rem;
+  line-height: 1.6;
+  margin: 0 0 1.5rem;
+  /* white-space pre-line para respetar los \n del texto del paso "Consejos"
+     que tiene varias lineas con tildes ✓ */
+  white-space: pre-line;
+}
+
+.onboardingDots {
+  display: flex;
+  justify-content: center;
+  gap: 0.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: rgba(212, 170, 99, 0.3);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+/* El dot del paso actual se hace mas ancho (24px en vez de 8px) y cambia
+   de circulo a pill para guiar la mirada */
+.dotActive {
+  background: #d4aa63;
+  width: 24px;
+  border-radius: 4px;
+}
+
+.onboardingButtons {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+}
+
+/* ============= LABELS E INPUTS ============= */
 .label {
   display: flex;
   flex-direction: column;
@@ -151,7 +318,7 @@
   color: #d4aa63;
   font-size: 0.95rem;
   font-family: inherit;
-  transition: border-color 0.2s;
+  transition: all 0.2s;
   width: 100%;
   box-sizing: border-box;
 }
@@ -159,9 +326,12 @@
 .textarea:focus {
   outline: none;
   border-color: #d4aa63;
+  background: rgba(212, 170, 99, 0.08);
+  box-shadow: 0 0 10px rgba(212, 170, 99, 0.2);
 }
 .input:disabled {
   opacity: 0.5;
+  cursor: not-allowed;
 }
 .textarea {
   resize: vertical;
@@ -169,7 +339,7 @@
 
 .inputError {
   border-color: #ff4444 !important;
-  background-color: rgba(255, 68, 68, 0.05);
+  background-color: rgba(255, 68, 68, 0.05) !important;
 }
 
 .helperError {
@@ -177,10 +347,11 @@
   color: #ff4444;
   font-size: 12px;
   margin-top: 4px;
+  font-weight: 500;
 }
 .helperText {
   display: block;
-  color: #999;
+  color: rgba(212, 170, 99, 0.7);
   font-size: 12px;
   margin-top: 4px;
 }
@@ -191,8 +362,23 @@
   margin-top: 4px;
 }
 
-/* ============ NUEVO: LAYOUT EDITOR + PREVIEW ============ */
+/* warningBox (NUEVO 02-05-2026): aviso amarillo contextual. Lo usamos
+   cuando hay algo importante que mirar antes de seguir, por ejemplo si
+   no hay imagenes subidas y esta queriendo crear un plato. */
+.warningBox {
+  background: rgba(255, 193, 7, 0.1);
+  border: 1px solid rgba(255, 193, 7, 0.3);
+  color: #ffc107;
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+
+/* ============= EDITOR + PREVIEW LAYOUT ============= */
 .editorLayout {
+  /* Form a la izquierda (1fr) y preview a la derecha (360px fijo).
+     En mobile se apilan, esto se maneja en el responsive abajo */
   display: grid;
   grid-template-columns: 1fr 360px;
   gap: 1.5rem;
@@ -206,6 +392,8 @@
   gap: 1rem;
 }
 
+/* La preview es sticky asi se queda visible mientras el admin hace scroll
+   del form. Top 70px para no quedar pegada a la nav */
 .previewColumn {
   position: sticky;
   top: 70px;
@@ -252,6 +440,8 @@
   border-radius: 14px;
   padding: 0.9rem;
   min-height: 280px;
+  /* transicion lenta del bg para que cuando cambien el cardColor en el
+     picker se vea fluido el cambio de color */
   transition: background-color 0.3s;
 }
 
@@ -278,6 +468,8 @@
   border: 2px solid rgba(212, 170, 99, 0.4);
 }
 
+/* Placeholder cuando todavia no hay imagen. Se ve dashed para que sea
+   obvio que falta algo */
 .previewThumbPlaceholder {
   width: 100%;
   height: 140px;
@@ -335,13 +527,16 @@
   font-weight: 600;
 }
 
-/* ============ NUEVO: SECCIONES COLAPSABLES ============ */
+/* ============= SECTIONS COLAPSABLES =============
+   Cada seccion del form (Info Basica, Multimedia, etc) se puede plegar/
+   desplegar. Esto baja la carga visual del form que es bastante largo. */
 .section {
   background: rgba(255, 255, 255, 0.04);
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 12px;
   overflow: hidden;
-  transition: border-color 0.2s;
+  transition: all 0.2s;
+  margin-bottom: 0.5rem;
 }
 .section:hover {
   border-color: rgba(212, 170, 99, 0.2);
@@ -359,7 +554,8 @@
   cursor: pointer;
   text-align: left;
   font-family: inherit;
-  transition: background 0.2s;
+  transition: all 0.2s;
+  font-size: 0.95rem;
 }
 .sectionHeader:hover {
   background: rgba(212, 170, 99, 0.08);
@@ -367,17 +563,20 @@
 
 .sectionIcon {
   font-size: 1.2rem;
+  flex-shrink: 0;
 }
 
 .sectionTitle {
   flex: 1;
-  font-size: 0.95rem;
+  font-size: 0.9rem;
   font-weight: 600;
   color: #d4aa63;
   text-transform: uppercase;
   letter-spacing: 0.05em;
 }
 
+/* Badge a la derecha del titulo (ej: "✓" cuando hay imagen, "-25%"
+   cuando hay descuento, cantidad de ingredientes, etc) */
 .sectionBadge {
   background: #d4aa63;
   color: #0f1724;
@@ -393,7 +592,9 @@
   color: rgba(255, 255, 255, 0.4);
   font-size: 0.7rem;
   transition: transform 0.2s;
+  flex-shrink: 0;
 }
+/* Cuando la seccion esta abierta, la flecha ▼ se voltea a ▲ con rotate */
 .sectionChevronOpen {
   transform: rotate(180deg);
 }
@@ -408,7 +609,10 @@
   gap: 1rem;
 }
 
-/* ============ NUEVO: TOOLTIP ============ */
+/* ============= TOOLTIP =============
+   Pequeño "?" al lado de los labels que muestra texto al hacer hover.
+   Sirve para explicar campos que pueden ser confusos sin tener que poner
+   un parrafo de texto debajo */
 .tooltip {
   position: relative;
   display: inline-flex;
@@ -457,6 +661,7 @@
   line-height: 1.4;
 }
 
+/* Flechita debajo del tooltip que apunta al icono */
 .tooltipText::after {
   content: "";
   position: absolute;
@@ -474,7 +679,7 @@
   transform: translateX(-50%) translateY(-2px);
 }
 
-/* ============ NUEVO: FIELD STATUS ICONS ============ */
+/* ============= FIELD STATUS (icono ✓/✗ inline) ============= */
 .inputWithIcon {
   position: relative;
 }
@@ -506,11 +711,13 @@
   border: 1px solid rgba(255, 68, 68, 0.4);
 }
 
+/* padding-right extra para que el texto del input no quede atras del
+   icono de status */
 .inputWithIcon .input {
   padding-right: 40px;
 }
 
-/* ============ NUEVO: COLOR PRESETS ============ */
+/* ============= COLOR PICKER + PRESETS + HISTORIAL ============= */
 .colorPresets {
   display: flex;
   gap: 0.4rem;
@@ -533,7 +740,79 @@
   box-shadow: 0 0 8px rgba(212, 170, 99, 0.4);
 }
 
-/* ============ NUEVO: STICKY ACTIONS BAR ============ */
+.colorPickerRow {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.colorSwatch {
+  width: 50px;
+  height: 42px;
+  padding: 2px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.07);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+/* Hacks para que el color picker nativo del navegador se vea coherente
+   con el resto del diseño (sin estos selectores se ve feo el cuadrado
+   del color por defecto) */
+.colorSwatch::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+.colorSwatch::-webkit-color-swatch {
+  border: none;
+  border-radius: 6px;
+}
+.colorPickerRow .input {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Historial de colores: fila de los ultimos 8 colores usados en otros
+   platos. Util para mantener coherencia visual entre cards. */
+.colorHistoryWrap {
+  margin-top: 0.75rem;
+}
+.colorHistoryLabel {
+  display: block;
+  font-size: 0.7rem;
+  color: rgba(212, 170, 99, 0.7);
+  margin-bottom: 0.4rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.colorHistoryRow {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+.colorHistoryBtn {
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  cursor: pointer;
+  transition: all 0.2s;
+  padding: 0;
+}
+.colorHistoryBtn:hover {
+  border-color: #d4aa63;
+  transform: scale(1.15);
+}
+.colorHistoryEmpty {
+  display: block;
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.35);
+  font-style: italic;
+}
+
+/* ============= STICKY ACTIONS BAR =============
+   Barra fija abajo del viewport con el boton de Guardar y el indicador
+   de estado del form. Asi el admin no tiene que hacer scroll hasta el
+   final para guardar */
 .stickyActions {
   position: fixed;
   bottom: 0;
@@ -558,14 +837,13 @@
 
 .stickyStatus {
   font-size: 0.9rem;
+  font-weight: 600;
 }
 .statusOk {
   color: #28a745;
-  font-weight: 600;
 }
 .statusError {
   color: #ff6b6b;
-  font-weight: 600;
 }
 .statusNeutral {
   color: rgba(255, 255, 255, 0.5);
@@ -582,14 +860,14 @@
   box-shadow: 0 4px 16px rgba(212, 170, 99, 0.3);
 }
 
-/* ============ NUEVO: SHORTCUT HINT ============ */
+/* ============= PANEL HEADER ============= */
 .panelHeader {
   margin-bottom: 1rem;
   display: flex;
   justify-content: space-between;
   align-items: center;
   flex-wrap: wrap;
-  gap: 0.5rem;
+  gap: 1rem;
 }
 .panelHeader h2 {
   color: #d4aa63;
@@ -601,28 +879,117 @@
   font-size: 0.75rem;
   color: rgba(255, 255, 255, 0.4);
 }
-
 .shortcutHint kbd {
   background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  border-radius: 4px;
-  padding: 0.1rem 0.4rem;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 3px;
+  padding: 0.1rem 0.35rem;
   font-size: 0.7rem;
-  font-family: "Courier New", monospace;
+  font-family: monospace;
   color: #d4aa63;
-  margin: 0 0.1rem;
 }
 
-/* ============ MANTIENE: FORM GRID (legacy) ============ */
-.formGrid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 1rem;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 12px;
-  padding: 1.5rem;
-  margin-bottom: 2rem;
+/* ============= BOTONES ============= */
+.btnPrimary {
+  /* gradiente dorado para que se vea como el call-to-action principal */
+  background: linear-gradient(135deg, #d4aa63, #c49a52);
+  color: #0f1724;
+  border: none;
+  border-radius: 8px;
+  padding: 0.65rem 1.5rem;
+  font-weight: 700;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.btnPrimary:hover:not(:disabled) {
+  opacity: 0.9;
+  /* lift effect en hover para feedback tactil */
+  transform: translateY(-1px);
+  box-shadow: 0 6px 20px rgba(212, 170, 99, 0.3);
+}
+.btnPrimary:active:not(:disabled) {
+  transform: translateY(0px);
+}
+.btnPrimary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btnSecondary {
+  background: rgba(255, 255, 255, 0.08);
+  color: #f7f1e8;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 8px;
+  padding: 0.65rem 1.5rem;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-weight: 500;
+}
+.btnSecondary:hover {
+  background: rgba(255, 255, 255, 0.15);
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+.btnDanger {
+  background: rgba(220, 53, 69, 0.15);
+  color: #ff6b6b;
+  border: 1px solid rgba(220, 53, 69, 0.3);
+  border-radius: 8px;
+  padding: 0.5rem 1.2rem;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.btnDanger:hover {
+  background: rgba(220, 53, 69, 0.3);
+}
+
+.btnSmall {
+  background: rgba(212, 170, 99, 0.12);
+  color: #d4aa63;
+  border: 1px solid rgba(212, 170, 99, 0.2);
+  border-radius: 6px;
+  padding: 0.3rem 0.7rem;
+  font-size: 0.78rem;
+  cursor: pointer;
+  margin-right: 0.4rem;
+  transition: all 0.2s;
+  font-weight: 500;
+}
+.btnSmall:hover {
+  background: rgba(212, 170, 99, 0.25);
+}
+
+.btnSmallDanger {
+  background: rgba(220, 53, 69, 0.1);
+  color: #ff6b6b;
+  border-color: rgba(220, 53, 69, 0.2);
+}
+.btnSmallDanger:hover {
+  background: rgba(220, 53, 69, 0.25);
+}
+
+.btnImageSelector {
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(212, 170, 99, 0.3);
+  border-radius: 8px;
+  padding: 0.65rem 0.85rem;
+  color: #d4aa63;
+  font-size: 0.95rem;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-family: inherit;
+  width: 100%;
+}
+.btnImageSelector:hover {
+  background: rgba(212, 170, 99, 0.15);
+  border-color: #d4aa63;
+}
+.btnImageSelector:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .formRow {
@@ -646,373 +1013,12 @@
 }
 
 .formActions {
-  grid-column: 1 / -1;
   display: flex;
   gap: 0.75rem;
-}
-
-/* COLOR PICKER */
-.colorPickerRow {
-  display: flex;
-  gap: 0.5rem;
-  align-items: center;
-}
-
-.colorSwatch {
-  width: 50px;
-  height: 42px;
-  padding: 2px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.07);
-  cursor: pointer;
-  flex-shrink: 0;
-}
-.colorSwatch::-webkit-color-swatch-wrapper {
-  padding: 0;
-}
-.colorSwatch::-webkit-color-swatch {
-  border: none;
-  border-radius: 6px;
-}
-.colorPickerRow .input {
-  flex: 1;
-  min-width: 0;
-}
-
-.colorDot {
-  display: inline-block;
-  width: 22px;
-  height: 22px;
-  border-radius: 50%;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  vertical-align: middle;
-}
-
-/* Botones */
-.btnPrimary {
-  background: linear-gradient(135deg, #d4aa63, #c49a52);
-  color: #0f1724;
-  border: none;
-  border-radius: 8px;
-  padding: 0.65rem 1.5rem;
-  font-weight: 700;
-  font-size: 0.9rem;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-.btnPrimary:hover:not(:disabled) {
-  opacity: 0.9;
-  transform: translateY(-1px);
-}
-.btnPrimary:disabled {
-  opacity: 0.5;
-  cursor: default;
-}
-
-.btnSecondary {
-  background: rgba(255, 255, 255, 0.08);
-  color: #f7f1e8;
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  border-radius: 8px;
-  padding: 0.65rem 1.5rem;
-  font-size: 0.9rem;
-  cursor: pointer;
-  transition: background 0.2s;
-}
-.btnSecondary:hover {
-  background: rgba(255, 255, 255, 0.15);
-}
-
-.btnDanger {
-  background: rgba(220, 53, 69, 0.15);
-  color: #ff6b6b;
-  border: 1px solid rgba(220, 53, 69, 0.3);
-  border-radius: 8px;
-  padding: 0.5rem 1.2rem;
-  font-size: 0.85rem;
-  cursor: pointer;
-  transition: background 0.2s;
-}
-.btnDanger:hover {
-  background: rgba(220, 53, 69, 0.3);
-}
-
-/* Tabla */
-.tableHeader {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 1rem;
-}
-.tableHeader h2 {
-  color: #f7f1e8;
-  font-size: 1rem;
-  margin: 0;
-}
-
-.filterSelect {
-  background: rgba(255, 255, 255, 0.07);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 8px;
-  padding: 0.45rem 0.75rem;
-  color: #d4aa63;
-  font-size: 0.85rem;
-}
-
-.tableWrap {
-  overflow-x: auto;
-}
-
-.table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 0.9rem;
-}
-
-.table th {
-  text-align: left;
-  padding: 0.65rem 0.85rem;
-  color: rgba(255, 255, 255, 0.5);
-  font-size: 0.75rem;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-.table td {
-  padding: 0.65rem 0.85rem;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-}
-.table tr:hover td {
-  background: rgba(255, 255, 255, 0.03);
-}
-
-.mono {
-  font-family: "Courier New", monospace;
-  font-size: 0.8rem;
-  opacity: 0.7;
-}
-
-.btnSmall {
-  background: rgba(212, 170, 99, 0.12);
-  color: #d4aa63;
-  border: 1px solid rgba(212, 170, 99, 0.2);
-  border-radius: 6px;
-  padding: 0.3rem 0.7rem;
-  font-size: 0.78rem;
-  cursor: pointer;
-  margin-right: 0.4rem;
-  transition: background 0.2s;
-}
-.btnSmall:hover {
-  background: rgba(212, 170, 99, 0.25);
-}
-
-.btnSmallDanger {
-  background: rgba(220, 53, 69, 0.1);
-  color: #ff6b6b;
-  border-color: rgba(220, 53, 69, 0.2);
-}
-.btnSmallDanger:hover {
-  background: rgba(220, 53, 69, 0.25);
-}
-
-.errorMsg {
-  background: rgba(220, 53, 69, 0.12);
-  color: #ff6b6b;
-  border: 1px solid rgba(220, 53, 69, 0.25);
-  border-radius: 8px;
-  padding: 0.6rem 1rem;
-  font-size: 0.85rem;
-}
-
-/* INGREDIENTES */
-.ingredientsList {
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 12px;
-  padding: 1rem;
-  margin-top: 1rem;
-}
-
-.ingredientItem {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  background: rgba(255, 255, 255, 0.03);
-  padding: 0.65rem;
-  border-radius: 8px;
-  margin-bottom: 0.5rem;
-  border: 1px solid rgba(255, 255, 255, 0.05);
-}
-
-.ingredientBadge {
-  background: rgba(212, 170, 99, 0.2);
-  color: #d4aa63;
-  padding: 0.3rem 0.75rem;
-  border-radius: 6px;
-  font-size: 0.8rem;
-  display: inline-block;
-  word-break: break-word;
-}
-
-/* INPUT FILE */
-input[type="file"] {
-  display: none;
-}
-
-.fileInputWrapper {
-  position: relative;
-  display: inline-block;
-  width: 100%;
-  max-width: 500px;
-}
-
-.fileInputLabel {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.6rem;
-  background: linear-gradient(135deg, rgba(212, 170, 99, 0.15), rgba(212, 170, 99, 0.08));
-  border: 2px dashed rgba(212, 170, 99, 0.4);
-  border-radius: 8px;
-  padding: 1.2rem;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  font-size: 0.95rem;
-  color: #d4aa63;
-  font-weight: 500;
-  user-select: none;
-  min-height: 50px;
   flex-wrap: wrap;
-  text-align: center;
-}
-.fileInputLabel:hover {
-  background: linear-gradient(135deg, rgba(212, 170, 99, 0.25), rgba(212, 170, 99, 0.15));
-  border-color: #d4aa63;
-  box-shadow: 0 0 15px rgba(212, 170, 99, 0.2);
-}
-.fileInputLabel:active {
-  transform: scale(0.98);
-}
-.fileInputLabel.fileInputDisabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-.fileInputLabel.fileInputDisabled:hover {
-  background: linear-gradient(135deg, rgba(212, 170, 99, 0.15), rgba(212, 170, 99, 0.08));
-  border-color: rgba(212, 170, 99, 0.4);
-  box-shadow: none;
 }
 
-.fileInputIcon {
-  font-size: 1.2rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 24px;
-  height: 24px;
-}
-.fileInputText {
-  display: flex;
-  flex-direction: column;
-  gap: 0.2rem;
-}
-.fileInputMain {
-  font-weight: 600;
-  color: #d4aa63;
-}
-.fileInputSub {
-  font-size: 0.75rem;
-  color: rgba(212, 170, 99, 0.7);
-  font-weight: 400;
-}
-
-.fileInputSelected {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  background: rgba(40, 167, 69, 0.12);
-  border: 1px solid rgba(40, 167, 69, 0.3);
-  border-radius: 8px;
-  padding: 0.8rem;
-  margin-top: 0.75rem;
-  font-size: 0.9rem;
-  color: #28a745;
-}
-.fileInputSelectedIcon {
-  font-size: 1.1rem;
-  flex-shrink: 0;
-}
-.fileInputSelectedName {
-  flex: 1;
-  word-break: break-word;
-}
-.fileInputSelectedRemove {
-  background: none;
-  border: none;
-  color: #28a745;
-  cursor: pointer;
-  font-size: 1.1rem;
-  padding: 0;
-  flex-shrink: 0;
-  transition: color 0.2s;
-}
-.fileInputSelectedRemove:hover {
-  color: #20c997;
-}
-
-.fileInputUploading {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  background: rgba(212, 170, 99, 0.12);
-  border: 1px solid rgba(212, 170, 99, 0.3);
-  border-radius: 8px;
-  padding: 0.8rem;
-  margin-top: 0.75rem;
-  font-size: 0.9rem;
-  color: #d4aa63;
-}
-
-.fileInputSpinner {
-  display: inline-block;
-  width: 16px;
-  height: 16px;
-  border: 2px solid rgba(212, 170, 99, 0.3);
-  border-top-color: #d4aa63;
-  border-radius: 50%;
-  animation: spin 0.8s linear infinite;
-}
-
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-.fileInputError {
-  display: flex;
-  align-items: flex-start;
-  gap: 0.75rem;
-  background: rgba(255, 68, 68, 0.12);
-  border: 1px solid rgba(255, 68, 68, 0.3);
-  border-radius: 8px;
-  padding: 0.8rem;
-  margin-top: 0.75rem;
-  font-size: 0.9rem;
-  color: #ff4444;
-}
-.fileInputErrorIcon {
-  font-size: 1.1rem;
-  flex-shrink: 0;
-}
-.fileInputErrorText {
-  flex: 1;
-}
-
-/* MODAL */
+/* ============= MODAL DE EXITO (auto-close) ============= */
 .modalOverlay {
   position: fixed;
   top: 0;
@@ -1033,6 +1039,7 @@ input[type="file"] {
   padding: 2.5rem 3rem;
   border-radius: 16px;
   text-align: center;
+  /* doble box-shadow: una para profundidad, otra verde para "exito" */
   box-shadow:
     0 20px 60px rgba(0, 0, 0, 0.5),
     0 0 30px rgba(40, 167, 69, 0.2);
@@ -1097,175 +1104,7 @@ input[type="file"] {
   }
 }
 
-/* PREVIEW IMAGE */
-.imagePreviewContainer {
-  margin-top: 1rem;
-  display: flex;
-  justify-content: center;
-}
-.imagePreview {
-  max-width: 200px;
-  max-height: 200px;
-  border-radius: 8px;
-  border: 1px solid rgba(212, 170, 99, 0.3);
-  padding: 0.5rem;
-  background: rgba(255, 255, 255, 0.03);
-  box-shadow: 0 4px 12px rgba(212, 170, 99, 0.1);
-}
-
-/* MODEL PREVIEW */
-.modelPreviewContainer {
-  margin-top: 1rem;
-}
-.modelPreviewCard {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  background: rgba(212, 170, 99, 0.08);
-  border: 1px solid rgba(212, 170, 99, 0.2);
-  border-radius: 8px;
-  padding: 0.75rem;
-}
-.modelIconBox {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  background: rgba(212, 170, 99, 0.15);
-  border-radius: 8px;
-  padding: 0.5rem 0.75rem;
-  gap: 0.2rem;
-}
-.modelIconEmoji {
-  font-size: 1.5rem;
-}
-.modelIconText {
-  font-size: 0.65rem;
-  color: #d4aa63;
-  font-weight: 700;
-  letter-spacing: 0.05em;
-}
-.modelPreviewInfo {
-  flex: 1;
-}
-.modelPreviewLabel {
-  margin: 0;
-  color: #f7f1e8;
-  font-weight: 600;
-  font-size: 0.9rem;
-}
-.modelPreviewId {
-  margin: 0.2rem 0 0;
-  color: rgba(255, 255, 255, 0.4);
-  font-size: 0.75rem;
-  font-family: monospace;
-}
-
-/* UPLOAD PANEL */
-.uploadContainer {
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 12px;
-  padding: 2rem;
-  margin-bottom: 2rem;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-}
-
-.uploaderWrapper {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  width: 100%;
-  gap: 1rem;
-}
-.uploaderContent {
-  display: grid;
-  gap: 2rem;
-  width: 100%;
-  max-width: 600px;
-  padding: 0 1rem;
-}
-.uploaderSection {
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-}
-.uploaderTitle {
-  margin: 0;
-  color: #f7f1e8;
-  font-size: 1rem;
-  text-align: center;
-}
-.uploaderButtonGroup {
-  display: flex;
-  gap: 0.5rem;
-  justify-content: center;
-  flex-wrap: wrap;
-}
-.uploaderButtonGroup .btnSecondary,
-.uploaderButtonGroup .btnPrimary {
-  flex: 1;
-  min-width: 140px;
-  max-width: 200px;
-}
-.uploaderButtonGroup .btnPrimary:disabled {
-  cursor: not-allowed;
-}
-.fileInfo {
-  margin: 0;
-  color: rgba(255, 255, 255, 0.8);
-  font-size: 0.9rem;
-  text-align: center;
-}
-.modelNote {
-  margin: 0;
-  color: rgba(212, 170, 99, 0.8);
-  font-size: 0.85rem;
-  text-align: center;
-}
-.uploadSuccess {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-  align-items: center;
-}
-.successText {
-  margin: 0;
-  color: #6ee7a7;
-  font-size: 0.9rem;
-  text-align: center;
-}
-.urlLink {
-  color: #7cc7ff;
-  word-break: break-all;
-  text-align: center;
-  font-size: 0.85rem;
-}
-.previewImage {
-  max-width: 320px;
-  width: 100%;
-  border-radius: 8px;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  margin-top: 0.5rem;
-}
-.uploaderDivider {
-  height: 1px;
-  background: rgba(255, 255, 255, 0.15);
-  width: 100%;
-  max-width: 600px;
-}
-.uploaderError {
-  margin: 0;
-  color: #ff6b6b;
-  text-align: center;
-  width: 100%;
-  max-width: 600px;
-  padding: 0 1rem;
-}
-
-/* IMAGE MODAL */
+/* ============= IMAGE/MODEL MODAL ============= */
 .imageModalContent {
   background: linear-gradient(135deg, rgba(20, 25, 40, 0.98) 0%, rgba(15, 23, 36, 0.98) 100%);
   border: 1px solid rgba(212, 170, 99, 0.2);
@@ -1319,6 +1158,7 @@ input[type="file"] {
 .imageSearchInput:focus {
   outline: none;
   border-color: #d4aa63;
+  background: rgba(212, 170, 99, 0.08);
 }
 .imageSearchInput::placeholder {
   color: rgba(212, 170, 99, 0.5);
@@ -1332,6 +1172,7 @@ input[type="file"] {
   max-height: 55vh;
   padding-right: 0.5rem;
 }
+/* Scrollbar custom para que combine con la paleta dark + dorada */
 .imageGrid::-webkit-scrollbar {
   width: 6px;
 }
@@ -1357,6 +1198,7 @@ input[type="file"] {
   border: 1px solid rgba(212, 170, 99, 0.2);
   border-radius: 8px;
   transition: all 0.2s;
+  cursor: pointer;
 }
 .imageGridItem:hover {
   background: rgba(212, 170, 99, 0.15);
@@ -1372,6 +1214,8 @@ input[type="file"] {
   height: 100%;
 }
 
+/* Boton X de eliminar imagen. Por defecto invisible (opacity 0), aparece
+   en hover. Asi no satura la grilla pero esta a un movimiento del mouse */
 .imageDeleteBtn {
   position: absolute;
   top: 6px;
@@ -1408,23 +1252,6 @@ input[type="file"] {
     0 4px 12px rgba(220, 53, 69, 0.4),
     0 0 15px rgba(220, 53, 69, 0.3);
 }
-.imageDeleteBtn:active:not(:disabled) {
-  transform: scale(0.95);
-}
-.imageDeleteBtn:disabled {
-  opacity: 1;
-  cursor: wait;
-  background: rgba(212, 170, 99, 0.2);
-  border-color: rgba(212, 170, 99, 0.3);
-  color: #d4aa63;
-}
-
-@media (hover: none) {
-  .imageDeleteBtn {
-    opacity: 1;
-    transform: scale(1);
-  }
-}
 
 .gridImage {
   width: 100%;
@@ -1446,30 +1273,378 @@ input[type="file"] {
   color: rgba(255, 255, 255, 0.5);
   padding: 2rem;
   margin: 0;
+  font-size: 0.9rem;
 }
 
-.btnImageSelector {
+/* ============= TABLE ============= */
+.tableHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1.5rem;
+  margin-top: 2rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid rgba(212, 170, 99, 0.2);
+}
+.tableHeader h2 {
+  color: #f7f1e8;
+  font-size: 1rem;
+  margin: 0;
+}
+
+.filterSelect {
   background: rgba(255, 255, 255, 0.07);
-  border: 1px solid rgba(212, 170, 99, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 8px;
-  padding: 0.65rem 0.85rem;
+  padding: 0.45rem 0.75rem;
   color: #d4aa63;
-  font-size: 0.95rem;
-  cursor: pointer;
-  transition: all 0.2s;
-  font-family: inherit;
-  width: 100%;
-}
-.btnImageSelector:hover {
-  background: rgba(212, 170, 99, 0.15);
-  border-color: #d4aa63;
-}
-.btnImageSelector:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
+  font-size: 0.85rem;
 }
 
-/* MENU PREVIEW */
+.tableWrap {
+  overflow-x: auto;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  margin-bottom: 2rem;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.table th {
+  text-align: left;
+  padding: 0.65rem 0.85rem;
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.table td {
+  padding: 0.65rem 0.85rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+.table tr:hover td {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.mono {
+  font-family: "Courier New", monospace;
+  font-size: 0.8rem;
+  opacity: 0.7;
+}
+
+/* ============= ERROR MESSAGE ============= */
+.errorMsg {
+  background: rgba(220, 53, 69, 0.12);
+  color: #ff6b6b;
+  border: 1px solid rgba(220, 53, 69, 0.25);
+  border-radius: 8px;
+  padding: 0.8rem 1rem;
+  font-size: 0.85rem;
+  margin-bottom: 1rem;
+  font-weight: 500;
+}
+
+/* ============= INGREDIENTES ============= */
+.ingredientsList {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  padding: 1rem;
+  margin-top: 1rem;
+}
+
+.ingredientItem {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  background: rgba(255, 255, 255, 0.03);
+  padding: 0.65rem;
+  border-radius: 8px;
+  margin-bottom: 0.5rem;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.ingredientBadge {
+  background: rgba(212, 170, 99, 0.2);
+  color: #d4aa63;
+  padding: 0.3rem 0.75rem;
+  border-radius: 6px;
+  font-size: 0.8rem;
+  display: inline-block;
+  word-break: break-word;
+}
+
+/* ============= IMAGE PREVIEW ============= */
+.imagePreviewContainer {
+  margin-top: 1rem;
+  display: flex;
+  justify-content: center;
+}
+.imagePreview {
+  max-width: 200px;
+  max-height: 200px;
+  border-radius: 8px;
+  border: 1px solid rgba(212, 170, 99, 0.3);
+  padding: 0.5rem;
+  background: rgba(255, 255, 255, 0.03);
+  box-shadow: 0 4px 12px rgba(212, 170, 99, 0.1);
+}
+
+/* ============= MODEL PREVIEW ============= */
+.modelPreviewContainer {
+  margin-top: 1rem;
+}
+.modelPreviewCard {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  background: rgba(212, 170, 99, 0.08);
+  border: 1px solid rgba(212, 170, 99, 0.2);
+  border-radius: 8px;
+  padding: 0.75rem;
+}
+.modelIconBox {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background: rgba(212, 170, 99, 0.15);
+  border-radius: 8px;
+  padding: 0.5rem 0.75rem;
+  gap: 0.2rem;
+}
+.modelIconEmoji {
+  font-size: 1.5rem;
+}
+.modelIconText {
+  font-size: 0.65rem;
+  color: #d4aa63;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+}
+.modelPreviewInfo {
+  flex: 1;
+}
+.modelPreviewLabel {
+  margin: 0;
+  color: #f7f1e8;
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+.modelPreviewId {
+  margin: 0.2rem 0 0;
+  color: rgba(255, 255, 255, 0.4);
+  font-size: 0.75rem;
+  font-family: monospace;
+}
+
+/* ============= UPLOAD CONTAINER ============= */
+.uploadContainer {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  padding: 2rem;
+  margin-bottom: 2rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ============= USERS MODAL ============= */
+.usersModalContent {
+  background: linear-gradient(135deg, rgba(20, 25, 40, 0.98) 0%, rgba(15, 23, 36, 0.98) 100%);
+  border: 1px solid rgba(212, 170, 99, 0.2);
+  border-radius: 16px;
+  padding: 2rem;
+  max-width: 900px;
+  width: 95%;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(10px);
+  overflow-y: auto;
+}
+
+.usersListWrap {
+  margin-bottom: 1.5rem;
+}
+
+.usersListEmpty {
+  color: rgba(255, 255, 255, 0.5);
+  font-style: italic;
+  padding: 1rem;
+  text-align: center;
+}
+
+.usersTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+.usersTable th {
+  text-align: left;
+  padding: 0.5rem 0.7rem;
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+.usersTable td {
+  padding: 0.55rem 0.7rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  color: rgba(255, 255, 255, 0.85);
+}
+
+/* Pills de los permisos activos del usuario en la tabla */
+.permPill {
+  display: inline-block;
+  background: rgba(212, 170, 99, 0.18);
+  color: #d4aa63;
+  font-size: 0.65rem;
+  padding: 0.12rem 0.45rem;
+  border-radius: 999px;
+  margin-right: 0.25rem;
+  margin-bottom: 0.2rem;
+  white-space: nowrap;
+}
+
+.userForm {
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid rgba(212, 170, 99, 0.15);
+  border-radius: 10px;
+  padding: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.userFormTitle {
+  margin: 0;
+  color: #d4aa63;
+  font-size: 1rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.userFormGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+.permGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  padding: 0.75rem;
+}
+
+.permItem {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.82rem;
+  color: rgba(247, 241, 232, 0.85);
+  cursor: pointer;
+  user-select: none;
+}
+
+.permItem input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  /* accent-color es el truco para tunear el color del checkbox sin
+     hacer un componente custom */
+  accent-color: #d4aa63;
+  cursor: pointer;
+}
+
+/* ============= DISABLED BY PERMISSION =============
+   Botones de acciones que el usuario no puede hacer (ej: editar sin
+   permiso). Los dejamos visibles pero apagados con tooltip explicativo,
+   asi entiende por que no puede en vez de no encontrar el boton */
+.btnDisabledByPerm {
+  opacity: 0.4;
+  cursor: not-allowed !important;
+}
+.btnDisabledByPerm:hover {
+  background: inherit !important;
+  transform: none !important;
+}
+
+/* ============= DESCUENTO ============= */
+.discountRow {
+  /* 110px para % (chico) + 1fr 1fr para las dos fechas */
+  display: grid;
+  grid-template-columns: 110px 1fr 1fr;
+  gap: 0.75rem;
+  align-items: end;
+}
+
+.discountStatus {
+  margin-top: 0.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: 8px;
+  font-size: 0.82rem;
+  font-weight: 500;
+}
+.discountStatusOk {
+  background: rgba(40, 167, 69, 0.12);
+  color: #6ee7a7;
+  border: 1px solid rgba(40, 167, 69, 0.3);
+}
+.discountStatusOff {
+  background: rgba(255, 255, 255, 0.04);
+  color: rgba(255, 255, 255, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+/* Wrapper del precio en la preview cuando hay descuento: muestra el viejo
+   tachado, el nuevo grande y el badge -X% */
+.previewPriceWrap {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+}
+.previewOldPrice {
+  text-decoration: line-through;
+  color: rgba(255, 255, 255, 0.45);
+  font-size: 0.82rem;
+  font-weight: 500;
+}
+.previewNewPrice {
+  color: #d4aa63;
+  font-weight: 700;
+}
+.previewDiscountBadge {
+  display: inline-block;
+  background: #ff4444;
+  color: #fff;
+  font-size: 0.65rem;
+  padding: 0.1rem 0.4rem;
+  border-radius: 4px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  margin-left: 0.3rem;
+}
+
+/* ============= MENU PREVIEW (vista tipo cliente) =============
+   Lista de todos los platos agrupados por categoria, igual que se ve en
+   el menu publico. Sirve para que el admin vea como se ve realmente */
 .menuPreview {
   display: flex;
   flex-direction: column;
@@ -1505,9 +1680,7 @@ input[type="file"] {
   display: flex;
   flex-direction: column;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
-  transition:
-    transform 0.2s,
-    box-shadow 0.2s;
+  transition: all 0.2s;
 }
 .menuCard:hover {
   transform: translateY(-3px);
@@ -1577,9 +1750,7 @@ input[type="file"] {
   font-size: 0.82rem;
   color: rgba(255, 255, 255, 0.7);
   line-height: 1.4;
-
-  overflow-wrap: break-word;
-  word-break: work-break;
+  word-break: break-word;
 }
 .menuIngredients {
   display: flex;
@@ -1607,9 +1778,14 @@ input[type="file"] {
   border-top: 1px solid rgba(255, 255, 255, 0.08);
 }
 
+/* ============= RESPONSIVE =============
+   Tres breakpoints:
+     - 1100px: tablet, donde el preview deja de caber al lado del form
+     - 768px: mobile grande, donde se acomodan headers y modales
+     - 480px: mobile chico, donde apretamos todo lo posible */
 
-/* RESPONSIVE */
 @media (max-width: 1100px) {
+  /* En tablet ya no entra el preview al costado, lo apilamos abajo */
   .editorLayout {
     grid-template-columns: 1fr;
   }
@@ -1627,8 +1803,10 @@ input[type="file"] {
   .adminMain {
     padding: 1rem;
   }
-  .formGrid,
   .sectionGrid {
+    grid-template-columns: 1fr;
+  }
+  .userFormGrid {
     grid-template-columns: 1fr;
   }
   .adminNav {
@@ -1639,38 +1817,16 @@ input[type="file"] {
     font-size: 0.82rem;
   }
   .modalContent {
-    padding: 2rem 2rem;
+    padding: 2rem;
     max-width: 90%;
-  }
-  .modalIcon {
-    font-size: 3rem;
-  }
-  .modalText {
-    font-size: 1.2rem;
   }
   .imagePreview {
     max-width: 150px;
     max-height: 150px;
   }
-  .fileInputLabel {
-    padding: 1rem;
-    font-size: 0.9rem;
-  }
-  .fileInputIcon {
-    width: 20px;
-    height: 20px;
-    font-size: 1rem;
-  }
-  .uploadContainer {
-    padding: 1.5rem;
-  }
-  .fileInputWrapper {
-    max-width: 100%;
-  }
   .imageModalContent {
     width: 95%;
     padding: 1.5rem;
-    max-height: 90vh;
   }
   .imageGrid {
     grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
@@ -1679,6 +1835,8 @@ input[type="file"] {
   .gridImage {
     height: 120px;
   }
+  /* En mobile el boton de eliminar siempre visible (sin hover) porque no
+     hay hover real con dedo */
   .imageDeleteBtn {
     width: 24px;
     height: 24px;
@@ -1701,24 +1859,15 @@ input[type="file"] {
     width: 100%;
     justify-content: flex-end;
   }
-  .shortcutHint {
-    display: none;
+  /* En mobile las 3 columnas del descuento se apilan */
+  .discountRow {
+    grid-template-columns: 1fr;
   }
 }
 
 @media (max-width: 480px) {
-  .uploaderContent {
-    max-width: 100%;
-  }
-  .uploaderButtonGroup {
-    flex-direction: column;
-  }
-  .uploaderButtonGroup .btnSecondary,
-  .uploaderButtonGroup .btnPrimary {
-    max-width: 100%;
-  }
-  .previewImage {
-    max-width: 100%;
+  .uploadContainer {
+    padding: 1.5rem;
   }
   .imageModalContent {
     width: 100%;
@@ -1731,10 +1880,18 @@ input[type="file"] {
   .gridImage {
     height: 100px;
   }
-  .imageModalHeader h3 {
-    font-size: 1.1rem;
-  }
   .menuGrid {
     grid-template-columns: 1fr;
+  }
+  /* Onboarding mas compacto en pantallas chicas para que entre todo */
+  .onboardingModal {
+    max-width: 85%;
+    padding: 2rem 1.5rem;
+  }
+  .onboardingTitle {
+    font-size: 1.2rem;
+  }
+  .onboardingText {
+    font-size: 0.9rem;
   }
 }

@@ -7,43 +7,45 @@
 //
 // Estructura del archivo (de arriba a abajo):
 //   - AdminDashboard      -> componente raiz: maneja auth, tabs y carga de datos
+//   - OnboardingModal     -> modal de tutorial al primer acceso (NUEVO)
 //   - SuccessModal        -> modal verde de confirmacion (auto-cierra en 3s)
 //   - ImageModal          -> modal para elegir/borrar imagenes guardadas
 //   - ModelModal          -> modal para elegir/borrar modelos 3D guardados
-//   - Section             -> [NUEVO] wrapper de seccion colapsable con header
-//   - Tooltip             -> [NUEVO] icono "?" con texto al hacer hover/focus
-//   - FieldStatus         -> [NUEVO] icono ✓/✗ inline para mostrar validacion
-//   - LivePreview         -> [NUEVO] vista previa en vivo de la card del plato
+//   - UsersModal          -> modal de gestion de usuarios secundarios
+//   - Section             -> wrapper de seccion colapsable con header
+//   - Tooltip             -> icono "?" con texto al hacer hover/focus
+//   - FieldStatus         -> icono ✓/✗ inline para mostrar validacion
+//   - LivePreview         -> vista previa en vivo de la card del plato
 //   - generateItemId      -> helper: ids de plato tipo "item-N"
 //   - generateCategoryId  -> helper: ids slug de categoria
-//   - formatPriceCLP      -> [NUEVO] helper: formatea numero a "$12.990"
-//   - unformatPrice       -> [NUEVO] helper: extrae digitos de un precio
+//   - formatPriceCLP      -> helper: formatea numero a "$12.990"
+//   - unformatPrice       -> helper: extrae digitos de un precio
 //   - ItemsPanel          -> formulario y vista tipo menu de platos
 //   - CategoriesPanel     -> formulario y tabla de categorias
 //   - UploadPanel         -> wrapper del uploader a Cloudinary
 //
-// Flujo de autenticacion:
-//   1. Al montar, llamamos verifyToken() para chequear si el JWT sigue valido.
-//   2. Mientras chequea, mostramos "Verificando sesion...".
-//   3. Si es valido -> renderiza el dashboard.
-//   4. Si no -> renderiza <AdminLogin/> que setea authenticated=true al loguear.
+// PERMISOS:
+//   - El super_admin (admin.json) tiene todo y bypasea checks.
+//   - Los usuarios de la tabla `usuarios` en Supabase tienen permisos
+//     granulares. Cada accion sensible (crear plato, eliminar imagen, etc.)
+//     se controla en backend con middlewares y en frontend ocultando o
+//     deshabilitando los botones.
 //
-// Flujo de datos:
-//   - Todos los datos (categorias, items, modelos, imagenes) viven en este
-//     componente raiz y se pasan por props a los paneles hijos.
-//   - Cada vez que se crea/edita/elimina algo, los hijos llaman a onReload()
-//     que vuelve a pedir todo a la API y refresca el state.
+// DESCUENTO POR PLATO:
+//   - Cada plato tiene un porcentaje (0-100) y opcionalmente fechas de
+//     inicio y fin. El backend calcula si esta activo en el momento del
+//     fetch y manda banderas listas para usar.
+//   - El admin lo edita en una seccion nueva del form. La live preview
+//     muestra el resultado con tachado en tiempo real.
 //
-// MEJORAS UX (sin tocar BD):
-//   - Secciones colapsables agrupadas por proposito
-//   - Vista previa en vivo (replica la card publica)
-//   - Color picker visual con presets de marca
-//   - Precio con formato CLP automatico al escribir
-//   - Validacion inline con iconos ✓/✗
-//   - Botón sticky de guardar (siempre visible)
-//   - Tooltips en campos tecnicos
-//   - Atajos: Ctrl+S para guardar, Esc para cancelar edicion, Enter en
-//     ingredientes para agregarlos sin enviar el form
+// MEJORAS DE UX (02-05-2026):
+//   - Se agrego el tutorial onboarding para los que entran por primera vez,
+//     asi no necesitan capacitacion. Se guarda en localStorage para no
+//     molestar despues.
+//   - Boton de ayuda en el header por si quieren ver el tutorial de nuevo.
+//   - Emojis en las pestañas + contadores para que se vea de un vistazo
+//     cuanto hay en cada seccion.
+//   - Lenguaje del formulario mas amigable, menos tecnico.
 // =============================================================================
 
 import { useEffect, useRef, useState, useCallback } from "react";
@@ -54,6 +56,8 @@ import {
   getItems,
   getModelos,
   getImagenes,
+  // historial de colores: lo cargamos al montar el dashboard
+  getColorHistorial,
   // Escrituras de items
   createItem,
   updateItem,
@@ -65,20 +69,24 @@ import {
   // Eliminar archivos subidos
   deleteImagen,
   deleteModelo,
-  // Auth
+  // Auth + helpers de permisos
   logout,
   verifyToken,
+  isSuperAdmin,
+  hasPermission,
+  // Usuarios
+  getUsuarios,
+  createUsuario,
+  updateUsuario,
+  deleteUsuario,
 } from "./api";
 import AdminLogin from "./AdminLogin";
 import AdminUploader from "./AdminUploader";
 import StatsPanel from "./StatsPanel";
 import LogsPanel from "./LogsPanel";
 import styles from "./admin.module.css";
-import { currencyFormatter } from "../config/currencyFormatter";
 
-// [NUEVO] Presets de colores de la marca para el color picker.
-// Permite al admin elegir colores consistentes con un solo click en lugar
-// de tipear codigos hex. Si quieres agregar mas, simplemente extiende el array.
+// Presets de colores de la marca para el color picker.
 const COLOR_PRESETS = [
   { name: "Azul oscuro", value: "#152238" },
   { name: "Dorado", value: "#d4aa63" },
@@ -88,12 +96,21 @@ const COLOR_PRESETS = [
   { name: "Café", value: "#3e2723" },
 ];
 
-// Color por defecto de la card de un plato (azul oscuro).
 const DEFAULT_CARD_COLOR = "#152238";
 
-// [NUEVO] Formatea cualquier valor a precio chileno: "12990" -> "$12.990".
-// Acepta strings con caracteres no numericos y los limpia. Si no hay digitos
-// devuelve "" (mejor que "$0" para inputs vacios).
+// Lista canonica de permisos que se muestran como checkboxes en el modal de
+// gestion de usuarios.
+const PERMISSION_OPTIONS = [
+  { key: "puede_crear_platos", label: "Crear platos" },
+  { key: "puede_editar_platos", label: "Editar platos" },
+  { key: "puede_eliminar_platos", label: "Eliminar platos" },
+  { key: "puede_gestionar_categorias", label: "Gestionar categorías" },
+  { key: "puede_subir_archivos", label: "Subir archivos" },
+  { key: "puede_eliminar_archivos", label: "Eliminar archivos" },
+  { key: "puede_gestionar_usuarios", label: "Gestionar usuarios" },
+];
+
+// Formatea cualquier valor a precio chileno: "12990" -> "$12.990".
 function formatPriceCLP(value) {
   const digits = String(value).replace(/\D/g, "");
   if (!digits) return "";
@@ -101,165 +118,306 @@ function formatPriceCLP(value) {
   return "$" + num.toLocaleString("es-CL");
 }
 
-// [NUEVO] Extrae solo los digitos de un precio formateado.
-// Ej: "$12.990" -> "12990". Util para validar que el numero sea > 0
-// independientemente del formato visual.
+// Extrae solo los digitos de un precio formateado.
 function unformatPrice(value) {
   return String(value).replace(/\D/g, "");
+}
+
+// Convierte un ISO timestamp ("2026-05-10T12:00:00Z") al formato que necesita
+// el input type="datetime-local" ("2026-05-10T12:00"). Si recibe null/undefined
+// devuelve "" (input vacio).
+//
+// OJO: el input datetime-local trabaja en hora LOCAL del navegador, no en UTC.
+// Para que coincida lo que el admin ve con lo que se guardo, ajustamos el
+// offset de zona horaria al armar el string.
+function isoToDatetimeLocal(iso) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  // restamos el offset para que toISOString() devuelva la hora local
+  const tzOffset = d.getTimezoneOffset() * 60000;
+  return new Date(d.getTime() - tzOffset).toISOString().slice(0, 16);
+}
+
+// Inversa: del formato del input ("2026-05-10T12:00") a un ISO completo.
+// Si el string esta vacio devuelve null para que el backend guarde NULL.
+function datetimeLocalToIso(local) {
+  if (!local) return null;
+  const d = new Date(local);
+  if (Number.isNaN(d.getTime())) return null;
+  return d.toISOString();
+}
+
+// Helper para calcular el precio con descuento aplicado en el frontend (lo
+// usamos solo para la live preview, mientras el admin todavia no guardo).
+// Cuando ya esta guardado, el server manda discountedPrice listo.
+function calcDiscountedPrice(priceStr, percent) {
+  const base = parseInt(unformatPrice(priceStr), 10);
+  if (Number.isNaN(base)) return 0;
+  if (!percent || percent <= 0) return base;
+  return Math.round(base * (1 - percent / 100));
+}
+
+// =============================================================================
+// OnboardingModal (NUEVO 02-05-2026)
+// -----------------------------------------------------------------------------
+// Tutorial de bienvenida que se muestra solo la primera vez que un usuario
+// entra al admin. La idea es que no necesiten capacitacion para usar el panel.
+// Tiene 5 pasos navegables con anterior/siguiente y dots de progreso.
+//
+// El estado de "ya lo vi" se guarda en localStorage del navegador, asi no
+// molesta cada vez que recargan. Si quieren verlo de nuevo, pueden tocar el
+// boton "Ayuda" del header.
+// =============================================================================
+function OnboardingModal({ isOpen, onClose }) {
+  const [step, setStep] = useState(0);
+
+  // Los 5 pasos del tutorial. Si en el futuro queremos agregar/sacar pasos,
+  // este es el unico lugar a tocar.
+  const steps = [
+    {
+      icon: "📋",
+      title: "Bienvenido al Admin",
+      text: "Este panel te permite gestionar el menú, categorías e imágenes de Route 66.",
+    },
+    {
+      icon: "🍽️",
+      title: "Pestaña: Platos del Menú",
+      text: "Aquí creas, editas y eliminas los platos. Completa el formulario a la izquierda y verás la vista previa en tiempo real a la derecha.",
+    },
+    {
+      icon: "📂",
+      title: "Pestaña: Categorías",
+      text: "Organiza los platos en categorías (Bebidas, Platos Principales, etc.). Las categorías aparecen como títulos en el menú del cliente.",
+    },
+    {
+      icon: "🖼️",
+      title: "Pestaña: Subir Archivos",
+      text: "Sube imágenes de platos y modelos 3D (.glb). Estas imágenes luego las usas en los platos.",
+    },
+    {
+      icon: "💡",
+      title: "Consejos",
+      text: "✓ Siempre agrega una imagen al plato\n✓ Usa nombres claros (ej: 'Hamburguesa Clásica')\n✓ Los descuentos se muestran automáticamente\n✓ Presiona Ctrl+S para guardar rápido",
+    },
+  ];
+
+  if (!isOpen) return null;
+
+  const current = steps[step];
+
+  return (
+    <div className={styles.modalOverlay}>
+      <div className={styles.onboardingModal}>
+        {/* Boton X para cerrar el tutorial cuando quieran sin terminarlo */}
+        <button className={styles.onboardingClose} onClick={onClose}>
+          ✕
+        </button>
+        <div className={styles.onboardingIcon}>{current.icon}</div>
+        <h2 className={styles.onboardingTitle}>{current.title}</h2>
+        <p className={styles.onboardingText}>{current.text}</p>
+
+        {/* Dots de progreso, el activo se ve mas grande para guiar la mirada */}
+        <div className={styles.onboardingDots}>
+          {steps.map((_, i) => (
+            <div key={i} className={`${styles.dot} ${i === step ? styles.dotActive : ""}`} />
+          ))}
+        </div>
+
+        <div className={styles.onboardingButtons}>
+          {/* Solo mostramos "Anterior" si no estamos en el primer paso */}
+          {step > 0 && (
+            <button className={styles.btnSecondary} onClick={() => setStep(step - 1)}>
+              ← Anterior
+            </button>
+          )}
+          {/* En el ultimo paso cambiamos el texto del boton para que el user
+              sepa que esta cerrando el tutorial, no avanzando a otro paso */}
+          {step < steps.length - 1 ? (
+            <button className={styles.btnPrimary} onClick={() => setStep(step + 1)}>
+              Siguiente →
+            </button>
+          ) : (
+            <button className={styles.btnPrimary} onClick={onClose}>
+              ¡Entendido! Empezar
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
 }
 
 // =============================================================================
 // COMPONENTE RAIZ: AdminDashboard
 // =============================================================================
 export default function AdminDashboard() {
-  const navigate = useNavigate(); // hook de react-router para volver al menu publico
+  const navigate = useNavigate();
 
-  // --- Estado de autenticacion ---
-  // authenticated: si el usuario tiene sesion valida
-  // checking: si todavia estamos verificando el token al cargar la pagina
   const [authenticated, setAuthenticated] = useState(false);
   const [checking, setChecking] = useState(true);
 
-  // --- Datos del backend ---
-  // Todos los datos que consume el admin viven aca. Se pasan por props a los
-  // paneles hijos. No usamos context porque el arbol es chico.
-  const [categories, setCategories] = useState([]); // [{id, label}]
-  const [items, setItems] = useState([]); // [{id, name, category, price, ...}]
-  const [modelos, setModelos] = useState([]); // [{id, label, src}] modelos .glb
-  const [imagenes, setImagenes] = useState([]); // [{id, label, src}] imagenes
+  const [categories, setCategories] = useState([]);
+  const [items, setItems] = useState([]);
+  const [modelos, setModelos] = useState([]);
+  const [imagenes, setImagenes] = useState([]);
+  const [colorHistory, setColorHistory] = useState([]);
 
-  // Tab activa: "items" | "categories" | "upload" | "stats" | "logs"
   const [activeTab, setActiveTab] = useState("items");
-
-  // Filtro por categoria (se aplica antes de pasar items al ItemsPanel).
   const [filterCategory, setFilterCategory] = useState("");
 
-  // ---------------------------------------------------------------------------
-  // loadData: recarga todos los datos del backend.
-  // Se llama despues de cada create/update/delete para mantener la UI
-  // sincronizada con la BD. Promise.all paraleliza las 4 llamadas.
-  // ---------------------------------------------------------------------------
+  const [showUsersModal, setShowUsersModal] = useState(false);
+
+  // Estado para el modal de onboarding. Se activa solo la primera vez que el
+  // usuario entra (lo controlamos con localStorage abajo) o cuando tocan el
+  // boton de ayuda del header.
+  const [showOnboarding, setShowOnboarding] = useState(false);
+
   const loadData = async () => {
     try {
-      const [cats, itms, mods, imgs] = await Promise.all([
+      const [cats, itms, mods, imgs, hist] = await Promise.all([
         getCategories(),
         getItems(),
         getModelos(),
         getImagenes(),
+        getColorHistorial().catch(() => []),
       ]);
       setCategories(cats);
       setItems(itms);
       setModelos(mods);
       setImagenes(imgs);
+      setColorHistory(hist);
     } catch {
-      // Si las llamadas autenticadas fallan, probablemente expiro el token.
-      // Forzamos logout para volver a la pantalla de login.
       setAuthenticated(false);
     }
   };
 
-  // ---------------------------------------------------------------------------
-  // Effect 1: chequeo inicial de token al montar.
-  // Solo corre una vez (deps = []). verifyToken() devuelve boolean.
-  // ---------------------------------------------------------------------------
+  // Verificacion de token al montar el componente. Si el token es valido y es
+  // la primera vez que el usuario entra al admin (no tiene la flag en
+  // localStorage), le mostramos el tutorial automaticamente.
   useEffect(() => {
     verifyToken().then((valid) => {
       setAuthenticated(valid);
       setChecking(false);
+      // Solo mostrar onboarding si esta autenticado Y no lo vio antes en este
+      // navegador. La flag "admin_onboarding_done" se setea apenas se muestra
+      // para que no aparezca dos veces aunque cierre y vuelva.
+      if (valid && !localStorage.getItem("admin_onboarding_done")) {
+        setShowOnboarding(true);
+        localStorage.setItem("admin_onboarding_done", "true");
+      }
     });
   }, []);
 
-  // ---------------------------------------------------------------------------
-  // Effect 2: cuando el user se autentica, cargar todos los datos.
-  // La bandera `cancelled` evita setear state si el componente se desmonto
-  // antes de que resuelvan las promesas (ej: logout rapido).
-  // ---------------------------------------------------------------------------
   useEffect(() => {
     if (!authenticated) return;
     let cancelled = false;
     (async () => {
       try {
-        const [cats, itms, mods, imgs] = await Promise.all([
+        const [cats, itms, mods, imgs, hist] = await Promise.all([
           getCategories(),
           getItems(),
           getModelos(),
           getImagenes(),
+          getColorHistorial().catch(() => []),
         ]);
         if (!cancelled) {
           setCategories(cats);
           setItems(itms);
           setModelos(mods);
           setImagenes(imgs);
+          setColorHistory(hist);
         }
       } catch {
         if (!cancelled) setAuthenticated(false);
       }
     })();
-    // Cleanup: se ejecuta cuando el componente se desmonta o cambia `authenticated`.
     return () => {
       cancelled = true;
     };
   }, [authenticated]);
 
-  // Cierra sesion: limpia el token y vuelve a mostrar el login.
   function handleLogout() {
     logout();
     setAuthenticated(false);
   }
 
-  // --- Renders condicionales segun estado de auth ---
   if (checking) {
     return <div className={styles.loading}>Verificando sesion...</div>;
   }
 
   if (!authenticated) {
-    // El callback onLogin lo dispara <AdminLogin/> cuando el login es exitoso.
     return <AdminLogin onLogin={() => setAuthenticated(true)} />;
   }
 
-  // Aplicamos el filtro de categoria antes de pasar al ItemsPanel.
-  // allItems se pasa tambien para que el panel pueda generar ids unicos
-  // aunque este viendo una vista filtrada.
   const filteredItems = filterCategory ? items.filter((i) => i.category === filterCategory) : items;
 
-  // --- Render principal ---
+  const canManageUsers = hasPermission("puede_gestionar_usuarios");
+  const isSuper = isSuperAdmin();
+
   return (
     <div className={styles.adminShell}>
-      {/* Header con branding y botones de navegacion */}
+      {/* Modal del tutorial. Se controla con showOnboarding desde aca o
+          desde el boton "Ayuda" del header */}
+      <OnboardingModal isOpen={showOnboarding} onClose={() => setShowOnboarding(false)} />
+
+      <UsersModal isOpen={showUsersModal} onClose={() => setShowUsersModal(false)} />
 
       <header className={styles.adminHeader}>
         <div className={styles.adminHeaderLeft}>
           <h1 className={styles.adminBrand}>Route 66 — Admin</h1>
           <button className={styles.linkBtn} onClick={() => navigate("/")}>
-            ← Ver Menu
+            ← Ver Menú Público
           </button>
         </div>
         <div className={styles.adminHeaderRight}>
+          {/* Boton de ayuda. Es el escape para cuando el usuario quiere volver
+              a ver el tutorial. La flag de localStorage ya esta seteada,
+              pero forzamos showOnboarding=true igual */}
+          <button
+            className={styles.helpBtn}
+            onClick={() => setShowOnboarding(true)}
+            title="Mostrar guía de uso"
+          >
+            ❓ Ayuda
+          </button>
+          <button
+            className={`${styles.btnSecondary} ${!canManageUsers ? styles.btnDisabledByPerm : ""}`}
+            onClick={() => canManageUsers && setShowUsersModal(true)}
+            disabled={!canManageUsers}
+            title={canManageUsers ? "Gestionar usuarios" : "Sin permiso para gestionar usuarios"}
+          >
+            👥 Usuarios
+          </button>
           <button className={styles.btnDanger} onClick={handleLogout}>
-            Cerrar Sesion
+            Cerrar Sesion {isSuper ? "(super)" : ""}
           </button>
         </div>
       </header>
 
-      {/* Tabs de navegacion entre paneles */}
+      {/* Las pestañas ahora muestran el conteo de elementos en cada una. Esto
+          le da al admin info inmediata de cuanto tiene en cada seccion sin
+          tener que entrar a verificar */}
       <nav className={styles.adminNav}>
         <button
           className={`${styles.navBtn} ${activeTab === "items" ? styles.navActive : ""}`}
           onClick={() => setActiveTab("items")}
         >
-          Platos del Menu
+          🍽️ Platos del Menú{" "}
+          {items.length > 0 && <span className={styles.navBadge}>{items.length}</span>}
         </button>
         <button
           className={`${styles.navBtn} ${activeTab === "categories" ? styles.navActive : ""}`}
           onClick={() => setActiveTab("categories")}
         >
-          Categorias
+          📂 Categorías{" "}
+          {categories.length > 0 && <span className={styles.navBadge}>{categories.length}</span>}
         </button>
         <button
           className={`${styles.navBtn} ${activeTab === "upload" ? styles.navActive : ""}`}
           onClick={() => setActiveTab("upload")}
         >
-          Subir Archivos
+          🖼️ Subir Archivos
         </button>
         <button
           className={`${styles.navBtn} ${activeTab === "stats" ? styles.navActive : ""}`}
@@ -275,7 +433,6 @@ export default function AdminDashboard() {
         </button>
       </nav>
 
-      {/* Contenido del panel activo (renderizado condicional segun activeTab) */}
       <main className={styles.adminMain}>
         {activeTab === "items" && (
           <ItemsPanel
@@ -284,6 +441,7 @@ export default function AdminDashboard() {
             categories={categories}
             modelos={modelos}
             imagenes={imagenes}
+            colorHistory={colorHistory}
             filterCategory={filterCategory}
             setFilterCategory={setFilterCategory}
             onReload={loadData}
@@ -302,21 +460,15 @@ export default function AdminDashboard() {
 
 // =============================================================================
 // SuccessModal
-// -----------------------------------------------------------------------------
-// Modal verde que aparece despues de guardar algo con exito. Se cierra solo
-// despues de 3s o cuando se llama a onClose(). El timer se limpia en el
-// cleanup del useEffect para evitar memory leaks si el componente se desmonta
-// antes de que terminen los 3s.
 // =============================================================================
 function SuccessModal({ isOpen, message, onClose }) {
   useEffect(() => {
     if (isOpen) {
       const timer = setTimeout(onClose, 3000);
-      return () => clearTimeout(timer); // cleanup
+      return () => clearTimeout(timer);
     }
   }, [isOpen, onClose]);
 
-  // Patron comun: si no esta abierto, no renderizamos nada.
   if (!isOpen) return null;
 
   return (
@@ -331,34 +483,19 @@ function SuccessModal({ isOpen, message, onClose }) {
 
 // =============================================================================
 // ImageModal
-// -----------------------------------------------------------------------------
-// Modal para elegir una imagen ya subida. Muestra un grid con thumbnails,
-// permite buscar por nombre y borrar imagenes (borra tambien de Cloudinary).
-//
-// Props:
-//   - isOpen: si el modal esta visible
-//   - imagenes: lista completa [{id, label, src}]
-//   - onSelectImage(url): callback al seleccionar
-//   - onDeleteImage(id): callback al eliminar
-//   - onClose: callback al cerrar el modal
 // =============================================================================
 function ImageModal({ isOpen, imagenes, onSelectImage, onDeleteImage, onClose }) {
-  // Estado local: termino de busqueda y id de la imagen que se esta borrando
-  // (para mostrar spinner solo en ese item).
   const [searchTerm, setSearchTerm] = useState("");
   const [deletingId, setDeletingId] = useState(null);
+  const canDelete = hasPermission("puede_eliminar_archivos");
 
-  // Filtro case-insensitive por label.
   const filteredImages = imagenes.filter((img) =>
     img.label.toLowerCase().includes(searchTerm.toLowerCase()),
   );
 
   if (!isOpen) return null;
 
-  // Maneja el click en la X de borrar. Pide confirmacion antes.
   const handleDeleteClick = async (e, img) => {
-    // stopPropagation: evita que el click en la X dispare el onClick del
-    // contenedor padre, que seleccionaria la imagen en lugar de borrarla.
     e.stopPropagation();
     if (
       !window.confirm(
@@ -373,15 +510,12 @@ function ImageModal({ isOpen, imagenes, onSelectImage, onDeleteImage, onClose })
     } catch (err) {
       alert(err.message || "Error al eliminar imagen");
     } finally {
-      // Reseteamos siempre, falle o no, para no dejar el spinner pegado.
       setDeletingId(null);
     }
   };
 
   return (
-    // Click en el overlay (fondo oscuro) cierra el modal.
     <div className={styles.modalOverlay} onClick={onClose}>
-      {/* stopPropagation para que click DENTRO del modal no cierre el modal */}
       <div className={styles.imageModalContent} onClick={(e) => e.stopPropagation()}>
         <div className={styles.imageModalHeader}>
           <h3>Seleccionar Imagen</h3>
@@ -390,25 +524,27 @@ function ImageModal({ isOpen, imagenes, onSelectImage, onDeleteImage, onClose })
           </button>
         </div>
 
+        {/* autoFocus para que el cursor se posicione apenas abre el modal,
+            es mas comodo cuando hay muchas imagenes en la lista */}
         <input
           type="text"
-          placeholder="Buscar imagen..."
+          placeholder="🔍 Buscar imagen..."
           className={styles.imageSearchInput}
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
+          autoFocus
         />
 
-        {/* Grid: cada item tiene boton de borrar y click para seleccionar */}
         <div className={styles.imageGrid}>
           {filteredImages.length > 0 ? (
             filteredImages.map((img) => (
               <div key={img.id} className={styles.imageGridItem}>
                 <button
                   type="button"
-                  className={styles.imageDeleteBtn}
-                  onClick={(e) => handleDeleteClick(e, img)}
-                  disabled={deletingId === img.id}
-                  title="Eliminar imagen"
+                  className={`${styles.imageDeleteBtn} ${!canDelete ? styles.btnDisabledByPerm : ""}`}
+                  onClick={(e) => canDelete && handleDeleteClick(e, img)}
+                  disabled={deletingId === img.id || !canDelete}
+                  title={canDelete ? "Eliminar imagen" : "Sin permiso para eliminar"}
                 >
                   {deletingId === img.id ? "..." : "✕"}
                 </button>
@@ -419,7 +555,13 @@ function ImageModal({ isOpen, imagenes, onSelectImage, onDeleteImage, onClose })
               </div>
             ))
           ) : (
-            <p className={styles.noImagesText}>No hay imágenes que coincidan</p>
+            // Mensaje contextual: si no hay imagenes le decimos donde subirlas
+            // (en vez de un texto vago como "no hay resultados")
+            <p className={styles.noImagesText}>
+              {imagenes.length === 0
+                ? "No hay imágenes. Ve a 'Subir Archivos' para crear una."
+                : "No hay imágenes que coincidan"}
+            </p>
           )}
         </div>
       </div>
@@ -429,14 +571,11 @@ function ImageModal({ isOpen, imagenes, onSelectImage, onDeleteImage, onClose })
 
 // =============================================================================
 // ModelModal
-// -----------------------------------------------------------------------------
-// Modal analogo al de imagenes pero para modelos 3D (.glb). Los .glb no se
-// pueden previsualizar facilmente asi que en lugar de thumbnail mostramos un
-// icono generico de cubo con el label del modelo.
 // =============================================================================
 function ModelModal({ isOpen, modelos, onSelectModel, onDeleteModel, onClose }) {
   const [searchTerm, setSearchTerm] = useState("");
   const [deletingId, setDeletingId] = useState(null);
+  const canDelete = hasPermission("puede_eliminar_archivos");
 
   const filteredModels = modelos.filter((m) =>
     m.label.toLowerCase().includes(searchTerm.toLowerCase()),
@@ -444,7 +583,6 @@ function ModelModal({ isOpen, modelos, onSelectModel, onDeleteModel, onClose }) 
 
   if (!isOpen) return null;
 
-  // Mismo patron que en ImageModal: stopPropagation + confirm + spinner.
   const handleDeleteClick = async (e, model) => {
     e.stopPropagation();
     if (
@@ -476,10 +614,11 @@ function ModelModal({ isOpen, modelos, onSelectModel, onDeleteModel, onClose }) 
 
         <input
           type="text"
-          placeholder="Buscar modelo..."
+          placeholder="🔍 Buscar modelo..."
           className={styles.imageSearchInput}
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
+          autoFocus
         />
 
         <div className={styles.imageGrid}>
@@ -488,15 +627,14 @@ function ModelModal({ isOpen, modelos, onSelectModel, onDeleteModel, onClose }) 
               <div key={model.id} className={styles.imageGridItem}>
                 <button
                   type="button"
-                  className={styles.imageDeleteBtn}
-                  onClick={(e) => handleDeleteClick(e, model)}
-                  disabled={deletingId === model.id}
-                  title="Eliminar modelo"
+                  className={`${styles.imageDeleteBtn} ${!canDelete ? styles.btnDisabledByPerm : ""}`}
+                  onClick={(e) => canDelete && handleDeleteClick(e, model)}
+                  disabled={deletingId === model.id || !canDelete}
+                  title={canDelete ? "Eliminar modelo" : "Sin permiso para eliminar"}
                 >
                   {deletingId === model.id ? "..." : "✕"}
                 </button>
                 <div className={styles.imageGridItemInner} onClick={() => onSelectModel(model.id)}>
-                  {/* Icono generico de cubo (no podemos renderizar .glb facilmente) */}
                   <div className={styles.modelIconBox}>
                     <span className={styles.modelIconEmoji}>📦</span>
                     <span className={styles.modelIconText}>.glb</span>
@@ -506,7 +644,13 @@ function ModelModal({ isOpen, modelos, onSelectModel, onDeleteModel, onClose }) 
               </div>
             ))
           ) : (
-            <p className={styles.noImagesText}>No hay modelos que coincidan</p>
+            // Mismo patron que en ImageModal: mensaje contextual si la
+            // biblioteca esta vacia
+            <p className={styles.noImagesText}>
+              {modelos.length === 0
+                ? "No hay modelos. Ve a 'Subir Archivos' para crear uno."
+                : "No hay modelos que coincidan"}
+            </p>
           )}
         </div>
       </div>
@@ -515,19 +659,256 @@ function ModelModal({ isOpen, modelos, onSelectModel, onDeleteModel, onClose }) 
 }
 
 // =============================================================================
-// [NUEVO] Section
-// -----------------------------------------------------------------------------
-// Wrapper de seccion colapsable. Reemplaza el formulario "todo en un bloque"
-// por bloques agrupados por proposito (Info basica, Multimedia, etc).
-// El admin puede expandir/colapsar cada uno con click en el header.
-//
-// Props:
-//   - title: titulo visible (ej: "Información básica")
-//   - icon: emoji o icono que aparece a la izquierda del titulo
-//   - children: contenido del cuerpo de la seccion
-//   - defaultOpen: si arranca expandida (default true)
-//   - badge: contenido opcional a la derecha del titulo (ej: numero de items
-//     o un check ✓ si la seccion esta completa)
+// UsersModal
+// =============================================================================
+function UsersModal({ isOpen, onClose }) {
+  const [users, setUsers] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  const [editingUser, setEditingUser] = useState(null);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [perms, setPerms] = useState(() =>
+    Object.fromEntries(PERMISSION_OPTIONS.map((p) => [p.key, false])),
+  );
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    setError("");
+    resetForm();
+    refresh();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen]);
+
+  async function refresh() {
+    setLoading(true);
+    setError("");
+    try {
+      const data = await getUsuarios();
+      setUsers(data);
+    } catch (e) {
+      setError(e.message || "Error al cargar usuarios");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function resetForm() {
+    setEditingUser(null);
+    setEmail("");
+    setPassword("");
+    setPerms(Object.fromEntries(PERMISSION_OPTIONS.map((p) => [p.key, false])));
+  }
+
+  function startEdit(user) {
+    setEditingUser(user);
+    setEmail(user.email);
+    setPassword("");
+    const merged = Object.fromEntries(PERMISSION_OPTIONS.map((p) => [p.key, false]));
+    for (const k of Object.keys(user.permissions || {})) {
+      if (k in merged) merged[k] = Boolean(user.permissions[k]);
+    }
+    setPerms(merged);
+  }
+
+  function togglePerm(key) {
+    setPerms((p) => ({ ...p, [key]: !p[key] }));
+  }
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    setError("");
+
+    if (!email.trim()) {
+      setError("Email es requerido");
+      return;
+    }
+    if (!editingUser && password.length < 6) {
+      setError("Password es requerido (minimo 6 caracteres)");
+      return;
+    }
+    if (editingUser && password.length > 0 && password.length < 6) {
+      setError("Si vas a cambiar la password debe tener minimo 6 caracteres");
+      return;
+    }
+
+    setSaving(true);
+    try {
+      if (editingUser) {
+        const payload = { email: email.trim(), permissions: perms };
+        if (password.length > 0) payload.password = password;
+        await updateUsuario(editingUser.id, payload);
+      } else {
+        await createUsuario({ email: email.trim(), password, permissions: perms });
+      }
+      resetForm();
+      await refresh();
+    } catch (e) {
+      setError(e.message || "Error al guardar usuario");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleDelete(user) {
+    if (!window.confirm(`¿Eliminar al usuario "${user.email}"?\nEsta acción no se puede deshacer.`))
+      return;
+    try {
+      await deleteUsuario(user.id);
+      if (editingUser && editingUser.id === user.id) resetForm();
+      await refresh();
+    } catch (e) {
+      setError(e.message || "Error al eliminar usuario");
+    }
+  }
+
+  if (!isOpen) return null;
+
+  return (
+    <div className={styles.modalOverlay} onClick={onClose}>
+      <div className={styles.usersModalContent} onClick={(e) => e.stopPropagation()}>
+        <div className={styles.imageModalHeader}>
+          <h3>Gestión de usuarios</h3>
+          <button className={styles.imageModalClose} onClick={onClose} type="button">
+            ✕
+          </button>
+        </div>
+
+        {error && <div className={styles.errorMsg}>{error}</div>}
+
+        <div className={styles.usersListWrap}>
+          {loading ? (
+            <p className={styles.usersListEmpty}>Cargando...</p>
+          ) : users.length === 0 ? (
+            <p className={styles.usersListEmpty}>
+              No hay usuarios secundarios registrados. El super admin sigue funcionando aparte.
+            </p>
+          ) : (
+            <div className={styles.tableWrap}>
+              <table className={styles.usersTable}>
+                <thead>
+                  <tr>
+                    <th>Email</th>
+                    <th>Permisos</th>
+                    <th>Acciones</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {users.map((u) => {
+                    const activePerms = PERMISSION_OPTIONS.filter((p) => u.permissions?.[p.key]);
+                    return (
+                      <tr key={u.id}>
+                        <td>{u.email}</td>
+                        <td>
+                          {activePerms.length === 0 ? (
+                            <span style={{ opacity: 0.5 }}>(sin permisos)</span>
+                          ) : (
+                            activePerms.map((p) => (
+                              <span key={p.key} className={styles.permPill}>
+                                {p.label}
+                              </span>
+                            ))
+                          )}
+                        </td>
+                        <td>
+                          <button
+                            type="button"
+                            className={styles.btnSmall}
+                            onClick={() => startEdit(u)}
+                          >
+                            Editar
+                          </button>
+                          <button
+                            type="button"
+                            className={`${styles.btnSmall} ${styles.btnSmallDanger}`}
+                            onClick={() => handleDelete(u)}
+                          >
+                            Eliminar
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+
+        <form className={styles.userForm} onSubmit={handleSubmit}>
+          <h4 className={styles.userFormTitle}>
+            {editingUser ? `Editar usuario: ${editingUser.email}` : "Nuevo usuario"}
+          </h4>
+
+          <div className={styles.userFormGrid}>
+            <label className={styles.label}>
+              Email
+              <input
+                className={styles.input}
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                placeholder="usuario@dominio.com"
+              />
+            </label>
+
+            <label className={styles.label}>
+              {editingUser ? "Nueva contraseña (opcional)" : "Contraseña"}
+              <input
+                className={styles.input}
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder={editingUser ? "Dejar vacío para no cambiarla" : "Mínimo 6 caracteres"}
+                minLength={editingUser ? 0 : 6}
+              />
+              <span className={styles.helperText}>
+                {editingUser
+                  ? "Vacío = mantiene la actual. Si la completas, la reseteas."
+                  : "Mínimo 6 caracteres."}
+              </span>
+            </label>
+          </div>
+
+          <div>
+            <span className={styles.label} style={{ marginBottom: "0.5rem" }}>
+              Permisos
+            </span>
+            <div className={styles.permGrid}>
+              {PERMISSION_OPTIONS.map((p) => (
+                <label key={p.key} className={styles.permItem}>
+                  <input
+                    type="checkbox"
+                    checked={Boolean(perms[p.key])}
+                    onChange={() => togglePerm(p.key)}
+                  />
+                  {p.label}
+                </label>
+              ))}
+            </div>
+          </div>
+
+          <div className={styles.formActions}>
+            <button type="submit" className={styles.btnPrimary} disabled={saving}>
+              {saving ? "Guardando..." : editingUser ? "Actualizar" : "Crear usuario"}
+            </button>
+            {editingUser && (
+              <button type="button" className={styles.btnSecondary} onClick={resetForm}>
+                Cancelar edición
+              </button>
+            )}
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+// =============================================================================
+// Section
 // =============================================================================
 function Section({ title, icon, children, defaultOpen = true, badge }) {
   const [open, setOpen] = useState(defaultOpen);
@@ -537,25 +918,17 @@ function Section({ title, icon, children, defaultOpen = true, badge }) {
         <span className={styles.sectionIcon}>{icon}</span>
         <span className={styles.sectionTitle}>{title}</span>
         {badge && <span className={styles.sectionBadge}>{badge}</span>}
-        {/* Chevron rota 180deg cuando esta abierto via clase CSS */}
         <span className={`${styles.sectionChevron} ${open ? styles.sectionChevronOpen : ""}`}>
           ▼
         </span>
       </button>
-      {/* Solo renderizamos el body si esta abierto. Asi tambien se mejora
-          un poco el render en formularios grandes. */}
       {open && <div className={styles.sectionBody}>{children}</div>}
     </div>
   );
 }
 
 // =============================================================================
-// [NUEVO] Tooltip
-// -----------------------------------------------------------------------------
-// Icono "?" pequeño que muestra un texto explicativo al hacer hover o al
-// recibir focus (accesibilidad por teclado). Util para campos tecnicos
-// como "Modelo AR" o "Color hex" donde el admin no tecnico puede no saber
-// que es. El texto aparece arriba del icono con flecha apuntando hacia abajo.
+// Tooltip
 // =============================================================================
 function Tooltip({ text }) {
   return (
@@ -567,12 +940,7 @@ function Tooltip({ text }) {
 }
 
 // =============================================================================
-// [NUEVO] FieldStatus
-// -----------------------------------------------------------------------------
-// Icono inline ✓ (verde) o ✗ (rojo) que aparece DENTRO del input para dar
-// feedback visual inmediato sobre la validez. Solo se muestra si:
-//   - el campo fue tocado (touched=true) Y tiene valor
-// Asi evitamos mostrar ✗ en un input vacio que el user todavia no abrio.
+// FieldStatus
 // =============================================================================
 function FieldStatus({ error, value, touched }) {
   if (!touched || !value) return null;
@@ -581,50 +949,59 @@ function FieldStatus({ error, value, touched }) {
 }
 
 // =============================================================================
-// [NUEVO] LivePreview
+// LivePreview
 // -----------------------------------------------------------------------------
-// Vista previa en vivo de la card del plato tal como la verá el cliente.
-// Se renderiza en una columna sticky a la derecha del formulario y se
-// actualiza en tiempo real con cada cambio del form.
+// Vista previa en vivo de la card. Replica el aspecto publico incluyendo
+// el TACHADO de descuento cuando el form tiene un porcentaje > 0.
 //
-// Replica los estilos de MenuCard publica pero simplificado: no muestra
-// modales de AR ni de ingredientes, solo la apariencia visual.
-//
-// Si algun campo aun no tiene valor, muestra placeholders sensatos
-// ("Nombre del plato", "Sin imagen", etc) para que el admin vea el layout
-// completo desde el primer momento.
+// La preview NO valida fechas en este lado (mostrar siempre el efecto
+// visual mientras el admin completa). El check real de "esta activo o no"
+// lo hace el server al servir el menu publico.
 // =============================================================================
 function LivePreview({ form, categories }) {
-  // El color de fondo se aplica inline porque depende del estado del form.
   const cardStyle = form.cardColor ? { backgroundColor: form.cardColor } : undefined;
-  // Mostramos el label de la categoria (no el id) para que sea legible.
   const categoryLabel = categories.find((c) => c.id === form.category)?.label;
+
+  // Si hay descuento > 0 mostramos el viejo precio tachado y el nuevo grande.
+  // Aca no chequeamos fechas: el preview muestra el efecto incluso si todavia
+  // no llego la fecha de inicio, asi el admin ve como va a quedar.
+  const percent = parseInt(form.descuento, 10) || 0;
+  const hasPreview = percent > 0 && form.price;
+  const newPrice = hasPreview
+    ? "$" + calcDiscountedPrice(form.price, percent).toLocaleString("es-CL")
+    : null;
 
   return (
     <div className={styles.livePreviewWrap}>
       <div className={styles.livePreviewHeader}>
-        <span className={styles.livePreviewLabel}>Vista previa en vivo</span>
+        <span className={styles.livePreviewLabel}>✨ Vista previa en vivo</span>
         {categoryLabel && <span className={styles.livePreviewCat}>{categoryLabel}</span>}
       </div>
       <article className={styles.previewCard} style={cardStyle}>
-        {/* Badge de mensaje (ej: "¡Nuevo!"). Solo si hay valor */}
         {form.cardMessage && <span className={styles.previewBadge}>{form.cardMessage}</span>}
-        {/* Imagen o placeholder visual si todavia no se eligio */}
         {form.image ? (
           <img className={styles.previewThumb} src={form.image} alt={form.name || "Preview"} />
         ) : (
           <div className={styles.previewThumbPlaceholder}>
-            <span>Sin imagen</span>
+            <span>🖼️ Sin imagen</span>
           </div>
         )}
         <div className={styles.previewContent}>
           <h3>{form.name || "Nombre del plato"}</h3>
           <p>{form.description || "Descripción del plato..."}</p>
           <div className={styles.previewFooter}>
-            <strong>{form.price || "$0"}</strong>
+            {/* Si hay descuento mostramos el nuevo precio + el viejo tachado
+                + el badge -X%. Si no, solo el precio normal. */}
+            {hasPreview ? (
+              <div className={styles.previewPriceWrap}>
+                <span className={styles.previewOldPrice}>{form.price}</span>
+                <strong className={styles.previewNewPrice}>{newPrice}</strong>
+                <span className={styles.previewDiscountBadge}>-{percent}%</span>
+              </div>
+            ) : (
+              <strong>{form.price || "$0"}</strong>
+            )}
             <div className={styles.previewActions}>
-              {/* Indicadores visuales: si hay ingredientes muestra el icono,
-                  si hay modelo AR muestra el badge correspondiente */}
               {form.ingredients?.length > 0 && <span className={styles.previewMiniBtn}>🍽️</span>}
               {form.modelAR && <span className={styles.previewMiniBtn}>📷 AR</span>}
             </div>
@@ -638,37 +1015,25 @@ function LivePreview({ form, categories }) {
 // =============================================================================
 // HELPERS DE GENERACION DE IDS
 // =============================================================================
-
-// Genera el proximo id de item mirando los existentes y sumando 1 al mayor.
-// Ej: si existen ["item-1", "item-3", "item-7"] -> devuelve "item-8".
-//
-// Nota: la BD tiene identity autoincrement asi que el server ignora este id.
-// Lo dejamos para mantener compatibilidad con el codigo viejo del frontend.
 function generateItemId(itemsList) {
-  // 1) Extraer los numeros de cada id que matchee "item-N".
   const nums = itemsList
     .map((i) => {
       const m = String(i.id).match(/^item-(\d+)$/);
       return m ? parseInt(m[1], 10) : 0;
     })
     .filter((n) => n > 0);
-  // 2) Tomar el mayor + 1, o 1 si la lista esta vacia.
   const next = nums.length > 0 ? Math.max(...nums) + 1 : 1;
   return `item-${next}`;
 }
 
-// Genera un id slug-like a partir del label de la categoria.
-// Ej: "Bebidas y Jugos" -> "bebidas-y-jugos".
-// Si ese id ya existe, agrega un numero incremental al final ("-2", "-3"...).
 function generateCategoryId(categoriesList, label) {
   const base =
     label
       .toLowerCase()
-      .normalize("NFD") // descomposicion unicode (separa tildes)
-      .replace(/[\u0300-\u036f]/g, "") // quita tildes (combining marks)
-      .replace(/[^a-z0-9]+/g, "-") // todo lo no-alfanumerico -> guion
-      .replace(/^-+|-+$/g, "") || "cat"; // quita guiones del inicio/final
-  // Si el slug ya existe, agregamos sufijo numerico hasta que sea unico.
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "") || "cat";
   let id = base;
   let i = 2;
   while (categoriesList.some((c) => c.id === id)) {
@@ -680,20 +1045,17 @@ function generateCategoryId(categoriesList, label) {
 // =============================================================================
 // ItemsPanel
 // -----------------------------------------------------------------------------
-// Panel principal: formulario de plato arriba y vista tipo "menu cliente"
-// abajo (cards agrupadas por categoria). El form sirve para crear o editar
-// segun si editingItem es null.
+// El form ahora incluye una nueva seccion "Descuento" con:
+//   - input numerico de porcentaje (0-100)
+//   - inicio (datetime-local, opcional)
+//   - fin (datetime-local, opcional)
+//   - estado en vivo: "Activo ahora" / "Programado" / "Expirado" / "Sin
+//     descuento" segun el calculo en frontend
 //
-// Es el componente mas complejo del dashboard. Maneja:
-//   - Form con muchos campos y validacion en vivo
-//   - Selector de imagen (modal)
-//   - Selector de modelo 3D (modal)
-//   - Lista de ingredientes dinamica
-//   - Color picker para la card
-//   - Vista de menu agrupada por categoria con filtro
-//
-// [NUEVO] Reorganizado en secciones colapsables + columna de vista previa
-//         en vivo + barra sticky de acciones + atajos de teclado.
+// Tambien (02-05-2026) se mejoro el lenguaje de los placeholders para que
+// sea menos tecnico y mas amigable, y se agrego un warningBox cuando todavia
+// no hay imagenes subidas (asi no se confunde y va directo a la pestaña
+// correcta antes de empezar).
 // =============================================================================
 const DEFAULT_FORM_ITEMS = {
   id: "",
@@ -706,130 +1068,125 @@ const DEFAULT_FORM_ITEMS = {
   ingredients: [],
   cardColor: DEFAULT_CARD_COLOR,
   cardMessage: "",
+  // descuento por defecto: 0% = sin descuento. Las fechas en "" para que el
+  // input datetime-local arranque vacio.
+  descuento: 0,
+  descuentoInicio: "",
+  descuentoFin: "",
 };
 
 function ItemsPanel({
-  items, // items ya filtrados por categoria (para mostrar)
-  allItems, // items completos (para generar ids unicos)
+  items,
+  allItems,
   categories,
   modelos,
   imagenes,
+  colorHistory,
   filterCategory,
   setFilterCategory,
   onReload,
 }) {
   const [isEditingItem, setIsEditingItem] = useState(false);
 
-  // Ref al form para hacer scroll automatico cuando se entra a modo "editar".
+  const canCreate = hasPermission("puede_crear_platos");
+  const canEdit = hasPermission("puede_editar_platos");
+  const canDeleteItem = hasPermission("puede_eliminar_platos");
+
   const formRef = useRef(null);
 
-  // ---------------------------------------------------------------------------
-  // ESTADO DEL FORMULARIO
-  // ---------------------------------------------------------------------------
-  // form: objeto con todos los campos del plato. Se usa tanto para crear como
-  // para editar. Cuando editingItem cambia, se re-llena con esos datos.
   const [form, setForm] = useState(DEFAULT_FORM_ITEMS);
-
-  // Input temporal para agregar ingredientes (uno o varios separados por coma).
   const [newIngredient, setNewIngredient] = useState("");
 
-  // Errores y estado de submit
-  const [error, setError] = useState(""); // error general (server)
-  const [saving, setSaving] = useState(false); // mientras se guarda
-  const [fieldErrors, setFieldErrors] = useState({}); // errores por campo
-
-  // [NUEVO] touched: registra que campos ya fueron modificados por el user.
-  // Sin esto, el icono ✗ aparece en TODOS los inputs vacios al cargar el form,
-  // lo que es ruidoso. Solo mostramos validacion visual cuando el user
-  // realmente interactuo con el campo.
+  const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState({});
   const [touched, setTouched] = useState({});
 
-  // Estados de modales
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [successMessage, setSuccessMessage] = useState("");
   const [showImageModal, setShowImageModal] = useState(false);
   const [showModelModal, setShowModelModal] = useState(false);
 
-  // Lista completa de items (para generar ids). Si no se paso allItems usa items.
   const itemsList = allItems || items;
 
   // ---------------------------------------------------------------------------
   // VALIDACION
   // ---------------------------------------------------------------------------
-
-  // Devuelve un mensaje de error si el campo es invalido, "" si es valido.
-  // Se usa para validacion en vivo (al escribir) y en el submit.
   const getFieldError = (name, value) => {
     if (name === "category") {
-      if (!value) return "Categoria es requerida";
+      if (!value) return "Selecciona una categoría";
     }
     if (name === "name") {
-      if (!value.trim()) return "Nombre es requerido";
-      // Permitimos solo letras, espacios, guiones y vocales acentuadas/ñ.
+      if (!value.trim()) return "El nombre es requerido";
       if (!/^[a-zA-Z\s\-áéíóúñÁÉÍÓÚÑ]+$/.test(value)) return "Solo letras y espacios";
     }
     if (name === "price") {
-      // [NUEVO] El precio ahora es un string formateado ("$12.990") asi que
-      // validamos sobre los digitos limpios, no sobre el formato visual.
       const clean = unformatPrice(value);
-      if (!clean) return "Precio es requerido";
-      if (parseInt(clean, 10) <= 0) return "Precio debe ser mayor a 0";
+      if (!clean) return "El precio es requerido";
+      if (parseInt(clean, 10) <= 0) return "El precio debe ser mayor a 0";
     }
     if (name === "description") {
-      if (!value.trim()) return "Descripcion es requerida";
-      if (value.length > 500) return "Maximo 500 caracteres";
+      if (!value.trim()) return "La descripción es requerida";
+      if (value.length > 500) return "Máximo 500 caracteres";
     }
     if (name === "image") {
-      if (!value) return "Imagen es requerida";
+      if (!value) return "Debes agregar una imagen";
     }
     if (name === "cardColor") {
-      // Hex de 6 digitos con # al inicio.
-      if (value && !/^#[0-9A-Fa-f]{6}$/.test(value)) return "Formato hex invalido (#RRGGBB)";
+      if (value && !/^#[0-9A-Fa-f]{6}$/.test(value)) return "Formato hex inválido (#RRGGBB)";
     }
     if (name === "cardMessage") {
-      if (value.length > 40) return "Maximo 40 caracteres";
+      if (value.length > 40) return "Máximo 40 caracteres";
+    }
+    // descuento: debe ser un entero entre 0 y 100
+    if (name === "descuento") {
+      const n = parseInt(value, 10);
+      if (Number.isNaN(n) || n < 0 || n > 100) return "Debe ser entre 0 y 100";
     }
     return "";
   };
 
-  // Corre todas las validaciones y devuelve un objeto con los errores.
   const validateAll = () => {
     const errors = {};
-    ["category", "name", "price", "description", "image", "cardColor", "cardMessage"].forEach(
-      (field) => {
-        const err = getFieldError(field, form[field] || "");
-        if (err) errors[field] = err;
-      },
-    );
+    [
+      "category",
+      "name",
+      "price",
+      "description",
+      "image",
+      "cardColor",
+      "cardMessage",
+      "descuento",
+    ].forEach((field) => {
+      const err = getFieldError(field, form[field] ?? "");
+      if (err) errors[field] = err;
+    });
+    // chequeo cruzado de fechas: si las dos estan, fin >= inicio
+    if (form.descuentoInicio && form.descuentoFin) {
+      if (new Date(form.descuentoFin) < new Date(form.descuentoInicio)) {
+        errors.descuentoFin = "Fin no puede ser anterior al inicio";
+      }
+    }
     return errors;
   };
 
-  // True si no hay ningun error.
   const isFormValid = () => Object.keys(validateAll()).length === 0;
 
   // ---------------------------------------------------------------------------
-  // HANDLERS DEL FORM
+  // HANDLERS
   // ---------------------------------------------------------------------------
-
-  // Maneja cambios en los inputs. Ademas de setear el valor, aplica algunos
-  // "bloqueos de entrada": si el nuevo valor tiene caracteres invalidos, ni
-  // siquiera dejamos que se escriban (mejor UX que solo mostrar error).
   const handleChange = (e) => {
     const { name, value } = e.target;
 
-    // Bloqueos por campo:
     if (name === "name") {
       if (value !== "" && !/^[a-zA-Z\s\-áéíóúñÁÉÍÓÚÑ]*$/.test(value)) return;
     }
-    // [NUEVO] Precio con auto-formato CLP. El user escribe "12990" y se
-    // muestra "$12.990" en tiempo real. Tomamos el valor del input,
-    // lo limpiamos a digitos, y devolvemos el formateado.
     if (name === "price") {
       const formatted = formatPriceCLP(value);
       setForm((f) => ({ ...f, price: formatted }));
       setFieldErrors((errs) => ({ ...errs, price: getFieldError("price", formatted) }));
       setTouched((t) => ({ ...t, price: true }));
-      return; // salimos temprano, el flujo normal de abajo no aplica
+      return;
     }
     if (name === "description") {
       if (value.length > 500) return;
@@ -837,18 +1194,31 @@ function ItemsPanel({
     if (name === "cardMessage") {
       if (value.length > 40) return;
     }
+    // descuento: lo guardamos como numero para que la live preview pueda
+    // hacer cuentas sin parsear cada vez
+    if (name === "descuento") {
+      // permitimos vacio momentaneo (input number con backspace) pero al
+      // guardar lo sanitizamos a 0
+      const n = value === "" ? 0 : parseInt(value, 10);
+      if (!Number.isNaN(n)) {
+        // clamp a [0, 100] para que no se pueda escribir 200
+        const clamped = Math.max(0, Math.min(100, n));
+        setForm((f) => ({ ...f, descuento: clamped }));
+        setFieldErrors((errs) => ({
+          ...errs,
+          descuento: getFieldError("descuento", clamped),
+        }));
+        setTouched((t) => ({ ...t, descuento: true }));
+      }
+      return;
+    }
 
-    // Actualizar form, marcar campo como tocado y revalidar.
     setForm((f) => ({ ...f, [name]: value }));
     setFieldErrors((errs) => ({ ...errs, [name]: getFieldError(name, value) }));
-    // [NUEVO] marcamos el campo como tocado para que se muestre el icono ✓/✗
     setTouched((t) => ({ ...t, [name]: true }));
   };
 
-  // Agrega ingredientes. Acepta varios separados por coma en un solo input
-  // ("tomate, cebolla, palta") y evita duplicados ignorando mayusculas.
   const handleAddIngredient = () => {
-    // 1) Parsear: split por coma, trim, descartar vacios.
     const nextIngredients = newIngredient
       .split(",")
       .map((v) => v.trim())
@@ -856,7 +1226,6 @@ function ItemsPanel({
 
     if (nextIngredients.length === 0) return;
 
-    // 2) Mergear con los existentes evitando duplicados (case-insensitive).
     setForm((f) => {
       const existingKeys = new Set(f.ingredients.map((i) => i.toLowerCase()));
       const merged = [...f.ingredients];
@@ -868,29 +1237,20 @@ function ItemsPanel({
       }
       return { ...f, ingredients: merged };
     });
-
-    // 3) Limpiar el input.
     setNewIngredient("");
   };
 
-  // Quita un ingrediente por indice.
   const handleRemoveIngredient = (index) => {
     setForm((f) => ({ ...f, ingredients: f.ingredients.filter((_, i) => i !== index) }));
   };
 
-  // Al seleccionar una imagen del modal, la guardamos en el form y cerramos.
   const handleSelectImage = (imageUrl) => {
     setForm((f) => ({ ...f, image: imageUrl }));
-    setFieldErrors((errs) => ({ ...errs, image: "" })); // limpiar error si habia
-    // [NUEVO] marcamos imagen como tocada (importante porque la imagen no se
-    // setea via input estandar, sino via el modal).
+    setFieldErrors((errs) => ({ ...errs, image: "" }));
     setTouched((t) => ({ ...t, image: true }));
     setShowImageModal(false);
   };
 
-  // Al borrar una imagen desde el modal: la borramos del backend, y si era
-  // la que estaba seleccionada en el form, la limpiamos para no quedarnos
-  // con una URL muerta.
   const handleDeleteImage = async (imageId) => {
     await deleteImagen(imageId);
     const deletedImg = imagenes.find((i) => i.id === imageId);
@@ -900,7 +1260,6 @@ function ItemsPanel({
     await onReload();
   };
 
-  // Mismo patron para modelos 3D.
   const handleSelectModel = (modelId) => {
     setForm((f) => ({ ...f, modelAR: modelId }));
     setShowModelModal(false);
@@ -914,14 +1273,10 @@ function ItemsPanel({
     await onReload();
   };
 
-  // Quita el modelo del form sin borrarlo de Cloudinary (para cuando no lo
-  // queremos en ESTE plato pero si dejarlo disponible para otros).
   const handleClearModel = () => {
     setForm((f) => ({ ...f, modelAR: "" }));
   };
 
-  // [NUEVO] Helper para resetear el form a su estado inicial. Lo usamos en
-  // varios lugares: despues de guardar, al cancelar edicion, al presionar Esc.
   const resetForm = () => {
     setIsEditingItem(false);
     setForm(DEFAULT_FORM_ITEMS);
@@ -933,19 +1288,23 @@ function ItemsPanel({
   // ---------------------------------------------------------------------------
   // SUBMIT
   // ---------------------------------------------------------------------------
-  // [NUEVO] Envuelto en useCallback para que el atajo Ctrl+S (que lo llama
-  // desde un useEffect) tenga una referencia estable.
   const handleSubmit = useCallback(
     async (e) => {
-      if (e?.preventDefault) e.preventDefault(); // evitar reload de pagina (comportamiento default del form)
+      if (e?.preventDefault) e.preventDefault();
       setError("");
 
-      // 1) Validacion final antes de mandar al server.
+      if (isEditingItem && !canEdit) {
+        setError("No tienes permiso para editar platos");
+        return;
+      }
+      if (!isEditingItem && !canCreate) {
+        setError("No tienes permiso para crear platos");
+        return;
+      }
+
       const errors = validateAll();
       if (Object.keys(errors).length > 0) {
         setFieldErrors(errors);
-        // [NUEVO] Si hubo errores marcamos TODOS los campos como tocados
-        // para que se vean los iconos ✗ en los que faltan completar.
         setTouched({
           category: true,
           name: true,
@@ -954,41 +1313,36 @@ function ItemsPanel({
           image: true,
           cardColor: true,
           cardMessage: true,
+          descuento: true,
         });
         return;
       }
 
       setSaving(true);
       try {
-        // 2) Preparar payload: cardMessage vacio se manda como null para que la
-        //    BD no guarde "" (mas semantico).
+        // Convertimos las fechas del input local a ISO. Si estan vacias,
+        // mandamos null para que el backend guarde NULL.
         const payloadBase = {
           ...form,
           cardMessage: form.cardMessage.trim() || null,
+          descuento: parseInt(form.descuento, 10) || 0,
+          descuentoInicio: datetimeLocalToIso(form.descuentoInicio),
+          descuentoFin: datetimeLocalToIso(form.descuentoFin),
         };
 
-        // 3) Llamar al endpoint correcto segun modo (editar vs crear).
         if (isEditingItem) {
           await updateItem(form.id, payloadBase);
-          setSuccessMessage("EL PLATO SE HA ACTUALIZADO CON EXITO");
+          setSuccessMessage("🎉 ¡PLATO ACTUALIZADO!");
         } else {
-          // Al crear, generamos el id temporal. El server lo ignora pero
-          // mantiene compatibilidad con codigo viejo.
           const payload = { ...payloadBase, id: generateItemId(itemsList) };
           await createItem(payload);
-          setSuccessMessage("EL PLATO SE HA AGREGADO CON EXITO");
+          setSuccessMessage("🎉 ¡PLATO CREADO!");
         }
 
-        // 4) Mostrar modal de exito y volver a modo "crear".
         setShowSuccessModal(true);
-
-        // 5) Reset completo del form (usa el helper).
         resetForm();
         setSaving(false);
 
-        // 6) Recargar datos despues de 1.5s. Esperamos para que el user alcance
-        //    a ver el modal de exito; si recargaramos inmediato, la lista
-        //    pestañearia mientras todavia se ve el modal.
         setTimeout(async () => {
           try {
             await onReload();
@@ -1002,19 +1356,10 @@ function ItemsPanel({
       }
       // eslint-disable-next-line react-hooks/exhaustive-deps
     },
-    [form, isEditingItem, itemsList, onReload],
+    [form, isEditingItem, itemsList, onReload, canCreate, canEdit],
   );
 
-  // ---------------------------------------------------------------------------
-  // [NUEVO] ATAJOS DE TECLADO
-  // ---------------------------------------------------------------------------
-  // Listener global mientras el panel esta montado:
-  //   - Ctrl+S (o Cmd+S en Mac): dispara el submit si el form es valido
-  //   - Esc: cancela la edicion (solo si NO hay un modal abierto, para que
-  //          Esc en un modal lo cierre primero antes de cancelar el form)
-  //
-  // Re-suscribimos el handler cuando cambian las dependencias para que las
-  // closures siempre vean el estado actualizado.
+  // Atajos de teclado
   useEffect(() => {
     const handler = (e) => {
       if ((e.ctrlKey || e.metaKey) && e.key === "s") {
@@ -1030,9 +1375,9 @@ function ItemsPanel({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [saving, isEditingItem, showImageModal, showModelModal, handleSubmit]);
 
-  // Borrar plato con confirmacion.
   const handleDelete = async (id) => {
-    if (!window.confirm("Eliminar este plato?")) return;
+    if (!canDeleteItem) return;
+    if (!window.confirm("¿Estás seguro? No se puede deshacer.")) return;
     try {
       await deleteItem(id);
       await onReload();
@@ -1041,16 +1386,39 @@ function ItemsPanel({
     }
   };
 
-  // Datos derivados que necesitamos en el render.
   const formValid = isFormValid();
   const selectedModel = modelos.find((m) => m.id === form.modelAR);
+
+  const submitDisabled = saving || !formValid || (isEditingItem ? !canEdit : !canCreate);
+
+  const submitDisabledReason = isEditingItem
+    ? !canEdit
+      ? "Sin permiso para editar platos"
+      : ""
+    : !canCreate
+      ? "Sin permiso para crear platos"
+      : "";
+
+  // Estado del descuento para el panel "Descuento": calculamos en frontend
+  // si esta activo, programado o expirado segun NOW(). Es solo informativo.
+  const computeDiscountStatus = () => {
+    const pct = parseInt(form.descuento, 10) || 0;
+    if (pct <= 0) return { type: "off", text: "Sin descuento aplicado" };
+    const now = Date.now();
+    const ini = form.descuentoInicio ? new Date(form.descuentoInicio).getTime() : null;
+    const fin = form.descuentoFin ? new Date(form.descuentoFin).getTime() : null;
+    if (ini && now < ini)
+      return { type: "off", text: `Programado: arranca ${form.descuentoInicio.replace("T", " ")}` };
+    if (fin && now > fin) return { type: "off", text: "Expirado" };
+    return { type: "ok", text: `🟢 Activo: -${pct}% aplicado ahora` };
+  };
+  const discountStatus = computeDiscountStatus();
 
   // ---------------------------------------------------------------------------
   // RENDER
   // ---------------------------------------------------------------------------
   return (
     <div>
-      {/* Modales (solo se renderizan internamente si isOpen=true) */}
       <SuccessModal
         isOpen={showSuccessModal}
         message={successMessage}
@@ -1074,33 +1442,29 @@ function ItemsPanel({
       />
 
       <div className={styles.panelHeader}>
-        <h2>{isEditingItem ? "Editar Plato" : "Agregar Plato"}</h2>
-        {/* [NUEVO] Hint visual de los atajos disponibles. Se oculta en
-            mobile via media query (no hay teclado fisico). */}
+        <h2>{isEditingItem ? "✏️ Editar Plato" : "➕ Crear Plato"}</h2>
         <span className={styles.shortcutHint}>
           Atajos: <kbd>Ctrl+S</kbd> guardar · <kbd>Esc</kbd> cancelar
         </span>
+        {/* Aviso contextual: si el admin esta queriendo crear un plato pero
+            no hay imagenes subidas todavia, le mandamos derecho a la pestaña
+            de uploads en vez de dejarlo trabar con el form */}
+        {imagenes.length === 0 && (
+          <div className={styles.warningBox}>
+            ⚠️ Primero sube imágenes en la pestaña &quot;Subir Archivos&quot;
+          </div>
+        )}
       </div>
 
-      {/* [NUEVO] Layout de 2 columnas: formulario a la izquierda + vista
-          previa pegada (sticky) a la derecha. En pantallas <1100px colapsa
-          a una sola columna (la preview baja debajo del form). */}
       <div className={styles.editorLayout}>
-        {/* ============ FORMULARIO ============ */}
         <form ref={formRef} className={styles.editorForm} onSubmit={handleSubmit}>
-          {/* Error general del server (se muestra arriba del form) */}
           {error && <div className={styles.errorMsg}>{error}</div>}
 
-          {/* [NUEVO] SECCIÓN 1: INFORMACIÓN BÁSICA
-              Agrupa los datos esenciales del plato: categoria, nombre,
-              precio y descripcion. Esta abierta por defecto porque es lo
-              primero que el admin completa. */}
-          <Section title="Información básica" icon="📋" defaultOpen>
+          {/* SECCIÓN 1: INFORMACIÓN BÁSICA */}
+          <Section title="📋 Información Básica" icon="📋" defaultOpen>
             <div className={styles.sectionGrid}>
-              {/* --- Categoria --- */}
               <label className={styles.label}>
-                Categoria
-                {/* [NUEVO] Wrapper inputWithIcon para posicionar el ✓/✗ adentro */}
+                Categoría
                 <div className={styles.inputWithIcon}>
                   <select
                     className={`${styles.input} ${fieldErrors.category ? styles.inputError : ""}`}
@@ -1109,14 +1473,13 @@ function ItemsPanel({
                     onChange={handleChange}
                     required
                   >
-                    <option value="">Seleccionar...</option>
+                    <option value="">-- Selecciona --</option>
                     {categories.map((c) => (
                       <option key={c.id} value={c.id}>
                         {c.label}
                       </option>
                     ))}
                   </select>
-                  {/* [NUEVO] Icono visual ✓/✗ inline */}
                   <FieldStatus
                     error={fieldErrors.category}
                     value={form.category}
@@ -1128,9 +1491,8 @@ function ItemsPanel({
                 )}
               </label>
 
-              {/* --- Nombre --- */}
               <label className={styles.label}>
-                Nombre
+                Nombre del plato
                 <div className={styles.inputWithIcon}>
                   <input
                     className={`${styles.input} ${fieldErrors.name ? styles.inputError : ""}`}
@@ -1138,11 +1500,10 @@ function ItemsPanel({
                     value={form.name}
                     onChange={handleChange}
                     required
-                    placeholder="Nombre del plato"
+                    placeholder="Ej: Hamburguesa Clásica"
                   />
                   <FieldStatus error={fieldErrors.name} value={form.name} touched={touched.name} />
                 </div>
-                {/* Helper text dinamico: muestra error en rojo o hint en gris */}
                 {fieldErrors.name ? (
                   <span className={styles.helperError}>{fieldErrors.name}</span>
                 ) : (
@@ -1150,8 +1511,6 @@ function ItemsPanel({
                 )}
               </label>
 
-              {/* --- Precio --- */}
-              {/* [NUEVO] Tooltip explicativo del formato automatico CLP */}
               <label className={styles.label}>
                 Precio{" "}
                 <Tooltip text="Ingresa solo números. Se formatea automáticamente como pesos chilenos." />
@@ -1163,7 +1522,6 @@ function ItemsPanel({
                     onChange={handleChange}
                     required
                     placeholder="$12.990"
-                    /* [NUEVO] inputMode="numeric" -> en mobile abre el teclado numerico */
                     inputMode="numeric"
                   />
                   <FieldStatus
@@ -1179,9 +1537,8 @@ function ItemsPanel({
                 )}
               </label>
 
-              {/* --- Descripcion (full width, ocupa las 2 columnas del grid) --- */}
               <label className={`${styles.label} ${styles.fullWidth}`}>
-                Descripcion
+                Descripción
                 <textarea
                   className={`${styles.textarea} ${fieldErrors.description ? styles.inputError : ""}`}
                   name="description"
@@ -1189,13 +1546,12 @@ function ItemsPanel({
                   onChange={handleChange}
                   rows={3}
                   required
-                  placeholder="Descripcion del plato..."
+                  placeholder="Describe el plato: ingredientes principales, preparación, etc."
                 />
                 <div className={styles.helperRow}>
                   {fieldErrors.description ? (
                     <span className={styles.helperError}>{fieldErrors.description}</span>
                   ) : (
-                    // Contador de caracteres visible para el user.
                     <span className={styles.helperText}>
                       {form.description.length}/500 caracteres
                     </span>
@@ -1205,23 +1561,18 @@ function ItemsPanel({
             </div>
           </Section>
 
-          {/* [NUEVO] SECCIÓN 2: MULTIMEDIA
-              Agrupa imagen y modelo AR. Muestra un badge ✓ en el header
-              cuando hay imagen seleccionada (feedback rapido al colapsar). */}
-          <Section title="Multimedia" icon="🖼️" defaultOpen badge={form.image ? "✓" : null}>
-            {/* --- Selector de imagen: abre modal con todas las imagenes --- */}
+          {/* SECCIÓN 2: MULTIMEDIA */}
+          <Section title="🖼️ Multimedia" icon="🖼️" defaultOpen badge={form.image ? "✓" : null}>
             <div className={styles.label}>
-              <span>Imagen del plato</span>
-
+              <span>Imagen del plato *</span>
               <button
                 type="button"
                 className={styles.btnImageSelector}
                 onClick={() => setShowImageModal(true)}
                 disabled={saving}
               >
-                {form.image ? "🔄 Cambiar imagen" : "🖼️ Seleccionar imagen guardada..."}
+                {form.image ? "🔄 Cambiar imagen" : "🖼️ Elegir imagen..."}
               </button>
-
               {fieldErrors.image ? (
                 <span className={styles.helperError}>{fieldErrors.image}</span>
               ) : (
@@ -1229,16 +1580,13 @@ function ItemsPanel({
                   Selecciona una imagen ya subida en &quot;Subir Archivos&quot;.
                 </span>
               )}
-
-              {/* Hint extra si no hay nada en la BD */}
               {imagenes.length === 0 && (
                 <span className={styles.helperError}>
-                  No hay imágenes registradas. Primero sube una.
+                  📌 Primero sube imágenes en &quot;Subir Archivos&quot;
                 </span>
               )}
             </div>
 
-            {/* Preview de la imagen seleccionada (si existe y la URL es valida) */}
             {form.image &&
               (form.image.startsWith("/assets/") || form.image.startsWith("https://")) && (
                 <div className={styles.imagePreviewContainer}>
@@ -1246,14 +1594,11 @@ function ItemsPanel({
                 </div>
               )}
 
-            {/* --- Selector de modelo 3D: mismo patron que imagen --- */}
-            {/* [NUEVO] Tooltip explicando que es un modelo AR para usuarios no tecnicos */}
             <div className={styles.label} style={{ marginTop: "1rem" }}>
               <span>
-                Modelo AR (opcional){" "}
+                Modelo 3D AR (opcional){" "}
                 <Tooltip text="Modelo 3D en formato .glb que el cliente puede ver en realidad aumentada con su cámara." />
               </span>
-
               <button
                 type="button"
                 className={styles.btnImageSelector}
@@ -1262,13 +1607,11 @@ function ItemsPanel({
               >
                 {selectedModel
                   ? `🔄 Cambiar (actual: ${selectedModel.label})`
-                  : "📦 Seleccionar modelo guardado..."}
+                  : "📦 Elegir modelo .glb..."}
               </button>
-
               <span className={styles.helperText}>
                 Selecciona un .glb ya subido en &quot;Subir Archivos&quot;.
               </span>
-
               {modelos.length === 0 && (
                 <span className={styles.helperError}>
                   No hay modelos registrados. Primero sube un .glb.
@@ -1276,7 +1619,6 @@ function ItemsPanel({
               )}
             </div>
 
-            {/* Card con info del modelo seleccionado y boton para quitarlo */}
             {selectedModel && (
               <div className={styles.modelPreviewContainer}>
                 <div className={styles.modelPreviewCard}>
@@ -1301,17 +1643,83 @@ function ItemsPanel({
             )}
           </Section>
 
-          {/* [NUEVO] SECCIÓN 3: PERSONALIZACIÓN
-              Agrupa color de la card y mensaje destacado. Cerrada por
-              defecto porque son opcionales/avanzados. */}
-          <Section title="Personalización de la card" icon="🎨" defaultOpen={false}>
+          {/* SECCIÓN: DESCUENTO
+              Tiene un porcentaje y dos fechas opcionales. Si dejas todo en
+              blanco/0, no hay descuento. Si solo pones porcentaje, el descuento
+              esta activo siempre. Las fechas dan ventana de vigencia. */}
+          <Section
+            title="🏷️ Descuento"
+            icon="🏷️"
+            defaultOpen={false}
+            badge={form.descuento > 0 ? `-${form.descuento}%` : null}
+          >
+            <div className={styles.discountRow}>
+              <label className={styles.label}>
+                % Descuento{" "}
+                <Tooltip text="Porcentaje a descontar del precio base. 0 = sin descuento, 100 = gratis." />
+                <input
+                  type="number"
+                  className={`${styles.input} ${fieldErrors.descuento ? styles.inputError : ""}`}
+                  name="descuento"
+                  value={form.descuento}
+                  onChange={handleChange}
+                  min="0"
+                  max="100"
+                  step="1"
+                  inputMode="numeric"
+                />
+                {fieldErrors.descuento && (
+                  <span className={styles.helperError}>{fieldErrors.descuento}</span>
+                )}
+              </label>
+
+              <label className={styles.label}>
+                Inicio (opcional){" "}
+                <Tooltip text="Si lo dejas vacío, el descuento está activo desde ya. Si pones fecha, el descuento se activa automáticamente cuando llega ese momento." />
+                <input
+                  type="datetime-local"
+                  className={styles.input}
+                  name="descuentoInicio"
+                  value={form.descuentoInicio}
+                  onChange={handleChange}
+                />
+              </label>
+
+              <label className={styles.label}>
+                Fin (opcional){" "}
+                <Tooltip text="Cuándo termina el descuento. Si lo dejas vacío, no expira automáticamente y queda activo hasta que pongas el porcentaje en 0." />
+                <input
+                  type="datetime-local"
+                  className={`${styles.input} ${fieldErrors.descuentoFin ? styles.inputError : ""}`}
+                  name="descuentoFin"
+                  value={form.descuentoFin}
+                  onChange={handleChange}
+                />
+                {fieldErrors.descuentoFin && (
+                  <span className={styles.helperError}>{fieldErrors.descuentoFin}</span>
+                )}
+              </label>
+            </div>
+
+            {/* Estado calculado del descuento (informativo) */}
+            <div
+              className={`${styles.discountStatus} ${
+                discountStatus.type === "ok" ? styles.discountStatusOk : styles.discountStatusOff
+              }`}
+            >
+              {discountStatus.text}
+            </div>
+            <span className={styles.helperText}>
+              El cliente verá el precio anterior tachado y el nuevo precio destacado en la card.
+            </span>
+          </Section>
+
+          {/* SECCIÓN: PERSONALIZACIÓN */}
+          <Section title="🎨 Personalización" icon="🎨" defaultOpen={false}>
             <div className={styles.sectionGrid}>
-              {/* --- Color picker de la card --- */}
-              {/* [NUEVO] Tooltip + paleta de presets debajo del input */}
               <label className={styles.label}>
                 Color de fondo <Tooltip text="Color de fondo de la tarjeta del plato en el menú." />
                 <div className={styles.colorPickerRow}>
-                  {/* input type="color" da el picker nativo del navegador */}
                   <input
                     type="color"
                     name="cardColor"
@@ -1319,7 +1727,6 @@ function ItemsPanel({
                     onChange={handleChange}
                     className={styles.colorSwatch}
                   />
-                  {/* Input text para escribir el hex a mano (sincronizado con el color) */}
                   <input
                     className={`${styles.input} ${fieldErrors.cardColor ? styles.inputError : ""}`}
                     name="cardColor"
@@ -1329,7 +1736,6 @@ function ItemsPanel({
                     maxLength={7}
                   />
                 </div>
-                {/* [NUEVO] Paleta de presets de marca: click rapido a colores comunes */}
                 <div className={styles.colorPresets}>
                   {COLOR_PRESETS.map((p) => (
                     <button
@@ -1342,6 +1748,29 @@ function ItemsPanel({
                     />
                   ))}
                 </div>
+                {/* Historial de colores: muestra los ultimos 8 que se usaron en
+                    otros platos para mantener coherencia visual entre cards */}
+                <div className={styles.colorHistoryWrap}>
+                  <span className={styles.colorHistoryLabel}>Usados recientemente</span>
+                  {colorHistory && colorHistory.length > 0 ? (
+                    <div className={styles.colorHistoryRow}>
+                      {colorHistory.map((c) => (
+                        <button
+                          key={c}
+                          type="button"
+                          className={styles.colorHistoryBtn}
+                          style={{ background: c }}
+                          title={c}
+                          onClick={() => setForm((f) => ({ ...f, cardColor: c }))}
+                        />
+                      ))}
+                    </div>
+                  ) : (
+                    <span className={styles.colorHistoryEmpty}>
+                      Aún no hay colores guardados. Se irán agregando al guardar platos.
+                    </span>
+                  )}
+                </div>
                 {fieldErrors.cardColor ? (
                   <span className={styles.helperError}>{fieldErrors.cardColor}</span>
                 ) : (
@@ -1349,17 +1778,15 @@ function ItemsPanel({
                 )}
               </label>
 
-              {/* --- Mensaje de la card (badge tipo "Nuevo!", "Recomendado") --- */}
-              {/* [NUEVO] Tooltip con ejemplos de uso */}
               <label className={styles.label}>
-                Mensaje destacado (opcional){" "}
+                Etiqueta destacada (opcional){" "}
                 <Tooltip text="Etiqueta corta que aparece sobre la card. Ej: ¡Nuevo!, Recomendado, 2x1." />
                 <input
                   className={`${styles.input} ${fieldErrors.cardMessage ? styles.inputError : ""}`}
                   name="cardMessage"
                   value={form.cardMessage}
                   onChange={handleChange}
-                  placeholder="Ej: ¡Nuevo!, Recomendado..."
+                  placeholder="Ej: ¡Nuevo!, Recomendado, Oferta"
                   maxLength={40}
                 />
                 {fieldErrors.cardMessage ? (
@@ -1371,16 +1798,13 @@ function ItemsPanel({
             </div>
           </Section>
 
-          {/* [NUEVO] SECCIÓN 4: INGREDIENTES
-              Cerrada por defecto. El badge muestra la cantidad agregada
-              para que se vea aun colapsada. */}
+          {/* SECCIÓN: INGREDIENTES */}
           <Section
-            title="Ingredientes"
+            title="🥗 Ingredientes"
             icon="🥗"
             defaultOpen={false}
             badge={form.ingredients.length > 0 ? form.ingredients.length : null}
           >
-            {/* --- Input para agregar ingredientes --- */}
             <label className={styles.label}>
               Agregar ingredientes{" "}
               <Tooltip text="Puedes agregar varios separados por coma. Presiona Enter o el botón + para añadir." />
@@ -1390,8 +1814,6 @@ function ItemsPanel({
                   className={styles.input}
                   value={newIngredient}
                   onChange={(e) => setNewIngredient(e.target.value)}
-                  /* [NUEVO] onKeyDown en lugar de onKeyPress (deprecado).
-                     Enter agrega el ingrediente sin enviar el form entero. */
                   onKeyDown={(e) => {
                     if (e.key === "Enter") {
                       e.preventDefault();
@@ -1415,7 +1837,6 @@ function ItemsPanel({
               </span>
             </label>
 
-            {/* Lista de ingredientes ya agregados, cada uno con boton para quitarlo */}
             {form.ingredients.length > 0 && (
               <div className={styles.ingredientsList}>
                 {form.ingredients.map((ing, idx) => (
@@ -1436,21 +1857,11 @@ function ItemsPanel({
           </Section>
         </form>
 
-        {/* [NUEVO] COLUMNA DE VISTA PREVIA
-            Sticky a la derecha. Se actualiza en vivo con cada cambio del form. */}
         <aside className={styles.previewColumn}>
           <LivePreview form={form} categories={categories} />
         </aside>
       </div>
 
-      {/* [NUEVO] BARRA STICKY DE ACCIONES
-          Fija en la parte inferior de la pantalla. Siempre visible aunque el
-          admin scrollee. Muestra:
-            - Estado del form (incompleto / listo / en error)
-            - Boton de cancelar (solo en modo editar)
-            - Boton primario de guardar
-          Reemplaza el viejo formActions que estaba al final del form (que
-          podia quedar lejos del scroll cuando el form era largo). */}
       <div className={styles.stickyActions}>
         <div className={styles.stickyActionsInner}>
           <span className={styles.stickyStatus}>
@@ -1463,17 +1874,17 @@ function ItemsPanel({
             )}
           </span>
           <div className={styles.stickyButtons}>
-            {/* Cancelar solo aparece en modo editar (vuelve a modo crear). */}
             {isEditingItem && (
               <button type="button" className={styles.btnSecondary} onClick={resetForm}>
                 Cancelar
               </button>
             )}
             <button
-              className={styles.btnPrimary}
+              className={`${styles.btnPrimary} ${submitDisabledReason ? styles.btnDisabledByPerm : ""}`}
               type="button"
-              disabled={saving || !formValid}
+              disabled={submitDisabled}
               onClick={handleSubmit}
+              title={submitDisabledReason}
             >
               {saving ? "Guardando..." : isEditingItem ? "💾 Actualizar Plato" : "✓ Crear Plato"}
             </button>
@@ -1482,15 +1893,14 @@ function ItemsPanel({
       </div>
 
       {/* ============ VISTA TIPO MENU CLIENTE ============ */}
-      {/* Header con contador y filtro por categoria */}
       <div className={styles.tableHeader}>
-        <h2>Platos ({items.length})</h2>
+        <h2>Todos los platos ({items.length})</h2>
         <select
           className={styles.filterSelect}
           value={filterCategory}
           onChange={(e) => setFilterCategory(e.target.value)}
         >
-          <option value="">Todas las categorias</option>
+          <option value="">Todas las categorías</option>
           {categories.map((c) => (
             <option key={c.id} value={c.id}>
               {c.label}
@@ -1499,9 +1909,6 @@ function ItemsPanel({
         </select>
       </div>
 
-      {/* Iteramos por categorias (no por items) para agruparlas visualmente.
-          Si hay filtro activo, solo mostramos esa categoria.
-          Categorias sin items se omiten (return null). */}
       <div className={styles.menuPreview}>
         {categories
           .filter((cat) => !filterCategory || cat.id === filterCategory)
@@ -1513,39 +1920,51 @@ function ItemsPanel({
                 <h3 className={styles.menuCategoryTitle}>{cat.label}</h3>
                 <div className={styles.menuGrid}>
                   {catItems.map((item) => (
-                    // Cada plato es una card con color de fondo personalizado.
                     <article
                       key={item.id}
                       className={styles.menuCard}
                       style={{ backgroundColor: item.cardColor || DEFAULT_CARD_COLOR }}
                     >
-                      {/* Badge superior izquierdo (ej: "¡Nuevo!") */}
                       {item.cardMessage && (
                         <span className={styles.menuBadge}>{item.cardMessage}</span>
                       )}
 
-                      {/* Imagen de cabecera */}
                       {item.image && (
                         <div className={styles.menuImageWrap}>
                           <img src={item.image} alt={item.name} className={styles.menuImage} />
                         </div>
                       )}
 
-                      {/* Cuerpo de la card */}
                       <div className={styles.menuBody}>
                         <div className={styles.menuTopRow}>
                           <h4 className={styles.menuName}>{item.name}</h4>
-                          <span className={styles.menuPrice}>
-                            {currencyFormatter.format(item.price)}
-                          </span>
+                          {/* Si el descuento esta activo mostramos el precio
+                              tachado + el nuevo. Si no, solo el normal. */}
+                          {item.discountActive ? (
+                            <span className={styles.menuPrice}>
+                              <span
+                                style={{
+                                  textDecoration: "line-through",
+                                  opacity: 0.5,
+                                  fontSize: "0.75rem",
+                                  marginRight: "0.3rem",
+                                }}
+                              >
+                                ${parseInt(item.price, 10).toLocaleString("es-CL")}
+                              </span>
+                              ${parseInt(item.discountedPrice, 10).toLocaleString("es-CL")}
+                            </span>
+                          ) : (
+                            <span className={styles.menuPrice}>
+                              ${parseInt(item.price, 10).toLocaleString("es-CL")}
+                            </span>
+                          )}
                         </div>
 
-                        {/* Id en mono (util para debug/identificacion) */}
                         <p className={styles.menuId}>{item.id}</p>
 
                         {item.description && <p className={styles.menuDesc}>{item.description}</p>}
 
-                        {/* Lista de ingredientes como badges */}
                         {item.ingredients?.length > 0 && (
                           <div className={styles.menuIngredients}>
                             {item.ingredients.map((ing, i) => (
@@ -1556,26 +1975,33 @@ function ItemsPanel({
                           </div>
                         )}
 
-                        {/* Indicador de modelo AR disponible */}
                         {item.modelAR && <span className={styles.menuAr}>AR ✓</span>}
 
-                        {/* Acciones de admin: editar y eliminar */}
                         <div className={styles.menuActions}>
                           <button
-                            className={styles.btnSmall}
+                            className={`${styles.btnSmall} ${!canEdit ? styles.btnDisabledByPerm : ""}`}
+                            disabled={!canEdit}
+                            title={canEdit ? "" : "Sin permiso para editar"}
                             onClick={() => {
+                              if (!canEdit) return;
                               setIsEditingItem(true);
                               setForm({
                                 ...DEFAULT_FORM_ITEMS,
                                 ...item,
                                 cardMessage: item.cardMessage ?? "",
+                                // Convertimos los ISO de la BD al formato local
+                                // del input. El usuario los ve en su zona horaria.
+                                descuentoInicio: isoToDatetimeLocal(item.descuentoInicio),
+                                descuentoFin: isoToDatetimeLocal(item.descuentoFin),
+                                // descuento como numero (la BD lo guarda asi)
+                                descuento: item.descuento || 0,
+                                // Forzamos price formateado por si viene como int
+                                price:
+                                  typeof item.price === "string" && item.price.startsWith("$")
+                                    ? item.price
+                                    : formatPriceCLP(item.price),
                               });
-                              // [NUEVO] Reseteamos touched al entrar a editar:
-                              // los campos ya tienen valor pero el user todavia
-                              // no los modifico, asi que no mostramos validacion.
                               setTouched({});
-                              // Scroll al form. setTimeout asegura que el form
-                              // ya se rellenó (effect dispara) antes de scrollear.
                               setTimeout(
                                 () =>
                                   formRef.current?.scrollIntoView({
@@ -1586,13 +2012,15 @@ function ItemsPanel({
                               );
                             }}
                           >
-                            Editar
+                            ✏️ Editar
                           </button>
                           <button
-                            className={`${styles.btnSmall} ${styles.btnSmallDanger}`}
+                            className={`${styles.btnSmall} ${styles.btnSmallDanger} ${!canDeleteItem ? styles.btnDisabledByPerm : ""}`}
+                            disabled={!canDeleteItem}
+                            title={canDeleteItem ? "" : "Sin permiso para eliminar"}
                             onClick={() => handleDelete(item.id)}
                           >
-                            Eliminar
+                            🗑️ Eliminar
                           </button>
                         </div>
                       </div>
@@ -1609,18 +2037,13 @@ function ItemsPanel({
 
 // =============================================================================
 // CategoriesPanel
-// -----------------------------------------------------------------------------
-// Panel de categorias. Mucho mas simple que el de platos: solo tiene un campo
-// (label). El id se genera automaticamente a partir del label.
-//
-// IMPORTANTE: eliminar una categoria tambien borra todos los platos de esa
-// categoria (ON DELETE CASCADE en la BD). Por eso el confirm es enfatico.
 // =============================================================================
 const DEFAULT_FORM_CATEGORY = { id: "", label: "" };
 
 function CategoriesPanel({ categories, onReload }) {
+  const canManage = hasPermission("puede_gestionar_categorias");
+
   const [isEditingCategory, setIsEditingCategory] = useState(false);
-  // Estado del form: solo necesita id y label.
   const [form, setForm] = useState(DEFAULT_FORM_CATEGORY);
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
@@ -1628,7 +2051,6 @@ function CategoriesPanel({ categories, onReload }) {
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [successMessage, setSuccessMessage] = useState("");
 
-  // Validacion: solo letras y espacios en el label.
   const getFieldError = (name, value) => {
     if (name === "label") {
       if (!value.trim()) return "Nombre visible es requerido";
@@ -1648,7 +2070,6 @@ function CategoriesPanel({ categories, onReload }) {
 
   const isFormValid = () => Object.keys(validateAll()).length === 0;
 
-  // Bloqueo de entrada: solo permitimos letras/espacios.
   const handleChange = (e) => {
     const { name, value } = e.target;
     if (value !== "" && !/^[a-zA-Z\s\-áéíóúñÁÉÍÓÚÑ]*$/.test(value)) return;
@@ -1660,6 +2081,11 @@ function CategoriesPanel({ categories, onReload }) {
     e.preventDefault();
     setError("");
 
+    if (!canManage) {
+      setError("No tienes permiso para gestionar categorías");
+      return;
+    }
+
     const errors = validateAll();
     if (Object.keys(errors).length > 0) {
       setFieldErrors(errors);
@@ -1669,14 +2095,12 @@ function CategoriesPanel({ categories, onReload }) {
     setSaving(true);
     try {
       if (isEditingCategory) {
-        // Editar: solo actualizamos el label, el id no cambia.
         await updateCategory(form.id, { label: form.label });
-        setSuccessMessage("LA CATEGORIA SE HA ACTUALIZADO CON EXITO");
+        setSuccessMessage("🎉 ¡CATEGORÍA ACTUALIZADA!");
       } else {
-        // Crear: id se deriva del label (ej: "Bebidas" -> "bebidas").
         const payload = { id: generateCategoryId(categories, form.label), label: form.label };
         await createCategory(payload);
-        setSuccessMessage("LA CATEGORIA SE HA AGREGADO CON EXITO");
+        setSuccessMessage("🎉 ¡CATEGORÍA CREADA!");
       }
       setShowSuccessModal(true);
       setIsEditingCategory(false);
@@ -1684,7 +2108,6 @@ function CategoriesPanel({ categories, onReload }) {
       setFieldErrors({});
       setSaving(false);
 
-      // Recargar despues de 1.5s (mismo motivo que en ItemsPanel).
       setTimeout(async () => {
         try {
           await onReload();
@@ -1698,10 +2121,9 @@ function CategoriesPanel({ categories, onReload }) {
     }
   };
 
-  // OJO: eliminar una categoria tambien borra todos los platos de esa
-  // categoria (ON DELETE CASCADE en la BD). El confirm avisa al user.
   const handleDelete = async (id) => {
-    if (!window.confirm("Eliminar esta categoria y todos sus platos?")) return;
+    if (!canManage) return;
+    if (!window.confirm("¿Eliminar esta categoría y todos sus platos?")) return;
     try {
       await deleteCategory(id);
       await onReload();
@@ -1721,10 +2143,9 @@ function CategoriesPanel({ categories, onReload }) {
       />
 
       <div className={styles.panelHeader}>
-        <h2>{isEditingCategory ? "Editar Categoria" : "Agregar Categoria"}</h2>
+        <h2>{isEditingCategory ? "✏️ Editar Categoría" : "➕ Nueva Categoría"}</h2>
       </div>
 
-      {/* Form simple en una sola fila */}
       <form className={styles.formRow} onSubmit={handleSubmit}>
         {error && <div className={styles.errorMsg}>{error}</div>}
 
@@ -1736,17 +2157,25 @@ function CategoriesPanel({ categories, onReload }) {
             value={form.label}
             onChange={handleChange}
             required
-            placeholder="ej: Bebidas y Jugos"
+            placeholder="Ej: Bebidas y Jugos"
+            disabled={!canManage}
           />
           {fieldErrors.label ? (
             <span className={styles.helperError}>{fieldErrors.label}</span>
           ) : (
-            <span className={styles.helperText}>Solo letras y espacios</span>
+            <span className={styles.helperText}>
+              {canManage ? "Solo letras y espacios" : "Sin permiso para gestionar categorías"}
+            </span>
           )}
         </label>
 
         <div className={styles.formActions}>
-          <button className={styles.btnPrimary} type="submit" disabled={saving || !formValid}>
+          <button
+            className={`${styles.btnPrimary} ${!canManage ? styles.btnDisabledByPerm : ""}`}
+            type="submit"
+            disabled={saving || !formValid || !canManage}
+            title={canManage ? "" : "Sin permiso para gestionar categorías"}
+          >
             {saving ? "Guardando..." : isEditingCategory ? "Actualizar" : "Crear"}
           </button>
           {isEditingCategory && (
@@ -1764,7 +2193,6 @@ function CategoriesPanel({ categories, onReload }) {
         </div>
       </form>
 
-      {/* Tabla de categorias existentes */}
       <div className={styles.tableWrap}>
         <table className={styles.table}>
           <thead>
@@ -1781,19 +2209,24 @@ function CategoriesPanel({ categories, onReload }) {
                 <td>{cat.label}</td>
                 <td>
                   <button
-                    className={styles.btnSmall}
+                    className={`${styles.btnSmall} ${!canManage ? styles.btnDisabledByPerm : ""}`}
+                    disabled={!canManage}
+                    title={canManage ? "" : "Sin permiso para gestionar categorías"}
                     onClick={() => {
+                      if (!canManage) return;
                       setIsEditingCategory(true);
                       setForm({ ...DEFAULT_FORM_CATEGORY, ...cat });
                     }}
                   >
-                    Editar
+                    ✏️ Editar
                   </button>
                   <button
-                    className={`${styles.btnSmall} ${styles.btnSmallDanger}`}
+                    className={`${styles.btnSmall} ${styles.btnSmallDanger} ${!canManage ? styles.btnDisabledByPerm : ""}`}
+                    disabled={!canManage}
+                    title={canManage ? "" : "Sin permiso para gestionar categorías"}
                     onClick={() => handleDelete(cat.id)}
                   >
-                    Eliminar
+                    🗑️ Eliminar
                   </button>
                 </td>
               </tr>
@@ -1807,27 +2240,29 @@ function CategoriesPanel({ categories, onReload }) {
 
 // =============================================================================
 // UploadPanel
-// -----------------------------------------------------------------------------
-// Wrapper simple del AdminUploader (componente externo que maneja la subida
-// a Cloudinary). Cuando se sube algo nuevo, recarga todos los datos del
-// dashboard para que aparezca en los selectores de imagen y modelo.
 // =============================================================================
 function UploadPanel({ onReload }) {
+  const canUpload = hasPermission("puede_subir_archivos");
+
   return (
     <div>
       <div className={styles.panelHeader}>
-        <h2>Subir Archivos</h2>
+        <h2>📤 Subir Archivos</h2>
       </div>
 
       <div className={styles.uploadContainer}>
-        <AdminUploader
-          // Callback que dispara AdminUploader cuando termina una subida.
-          // type es "model" o "image" (nos lo pasa el uploader).
-          onUploadComplete={async (asset, type) => {
-            console.log(`${type === "model" ? "Modelo AR" : "Imagen"} subida:`, asset);
-            await onReload();
-          }}
-        />
+        {canUpload ? (
+          <AdminUploader
+            onUploadComplete={async (asset, type) => {
+              console.log(`${type === "model" ? "Modelo AR" : "Imagen"} subida:`, asset);
+              await onReload();
+            }}
+          />
+        ) : (
+          <p className={styles.usersListEmpty}>
+            No tienes permiso para subir archivos. Contacta al super admin.
+          </p>
+        )}
       </div>
     </div>
   );
