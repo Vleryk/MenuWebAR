@@ -12,15 +12,15 @@ A React + Express digital restaurant menu for **Route 66** (Santiago, Chile) fea
 
 ## Tech Stack
 
-| Layer       | Technology                                      |
-| ----------- | ----------------------------------------------- |
-| Frontend    | React 18, React Router 7, CSS Modules           |
-| Backend     | Express 5, Node.js                              |
-| AR          | Google Model Viewer (WebXR, Scene Viewer, Quick Look) |
-| Auth        | JWT + bcrypt                                    |
-| Build       | Vite 5                                          |
-| Testing     | Vitest, Testing Library, Supertest              |
-| Linting     | ESLint 9, Prettier                              |
+| Layer    | Technology                                            |
+| -------- | ----------------------------------------------------- |
+| Frontend | React 18, React Router 7, CSS Modules                 |
+| Backend  | Express 5, Node.js                                    |
+| AR       | Google Model Viewer (WebXR, Scene Viewer, Quick Look) |
+| Auth     | JWT + bcrypt                                          |
+| Build    | Vite 5                                                |
+| Testing  | Vitest, Testing Library, Supertest                    |
+| Linting  | ESLint 9, Prettier                                    |
 
 ## Getting Started
 
@@ -44,14 +44,14 @@ cp .env.example .env
 
 Required variables:
 
-| Variable                 | Description                        | Required    |
-| ------------------------ | ---------------------------------- | ----------- |
-| `JWT_SECRET`             | Secret for signing JWT tokens      | Production  |
-| `ADMIN_DEFAULT_EMAIL`    | Initial admin email                | First run   |
-| `ADMIN_DEFAULT_PASSWORD` | Initial admin password             | First run   |
-| `PORT`                   | Server port (default: 3001)        | No          |
-| `SUPABASE_URL`           | Supabase project URL (backend API) | Yes         |
-| `SUPABASE_SERVICE_ROLE_KEY` | Supabase service role key (backend API) | Yes      |
+| Variable                    | Description                             | Required   |
+| --------------------------- | --------------------------------------- | ---------- |
+| `JWT_SECRET`                | Secret for signing JWT tokens           | Production |
+| `ADMIN_DEFAULT_EMAIL`       | Initial admin email                     | First run  |
+| `ADMIN_DEFAULT_PASSWORD`    | Initial admin password                  | First run  |
+| `PORT`                      | Server port (default: 3001)             | No         |
+| `SUPABASE_URL`              | Supabase project URL (backend API)      | Yes        |
+| `SUPABASE_SERVICE_ROLE_KEY` | Supabase service role key (backend API) | Yes        |
 
 The API reads/writes menu data only from Supabase.
 If backend Supabase variables are missing, data routes return `503` until configured.
@@ -130,33 +130,33 @@ npm run server    # Serves both API and static files from dist/
 
 ### Public
 
-| Method | Endpoint          | Description          |
-| ------ | ----------------- | -------------------- |
-| GET    | `/api/health`     | Health check         |
-| GET    | `/api/menu`       | Full menu data       |
-| GET    | `/api/categories` | Categories list      |
-| GET    | `/api/menu-items` | All menu items       |
+| Method | Endpoint          | Description     |
+| ------ | ----------------- | --------------- |
+| GET    | `/api/health`     | Health check    |
+| GET    | `/api/menu`       | Full menu data  |
+| GET    | `/api/categories` | Categories list |
+| GET    | `/api/menu-items` | All menu items  |
 
 ### Authentication
 
-| Method | Endpoint            | Description         |
-| ------ | ------------------- | ------------------- |
-| POST   | `/api/auth/login`   | Login (rate-limited) |
-| GET    | `/api/auth/verify`  | Verify JWT token    |
+| Method | Endpoint           | Description          |
+| ------ | ------------------ | -------------------- |
+| POST   | `/api/auth/login`  | Login (rate-limited) |
+| GET    | `/api/auth/verify` | Verify JWT token     |
 
 ### Admin (requires Bearer token)
 
-| Method | Endpoint                      | Description          |
-| ------ | ----------------------------- | -------------------- |
-| GET    | `/api/admin/categories`       | List categories      |
-| POST   | `/api/admin/categories`       | Create category      |
-| PUT    | `/api/admin/categories/:id`   | Update category      |
-| DELETE | `/api/admin/categories/:id`   | Delete category      |
-| GET    | `/api/admin/items`            | List items           |
-| POST   | `/api/admin/items`            | Create item          |
-| PUT    | `/api/admin/items/:id`        | Update item          |
-| DELETE | `/api/admin/items/:id`        | Delete item          |
-| PUT    | `/api/admin/password`         | Change password      |
+| Method | Endpoint                    | Description     |
+| ------ | --------------------------- | --------------- |
+| GET    | `/api/admin/categories`     | List categories |
+| POST   | `/api/admin/categories`     | Create category |
+| PUT    | `/api/admin/categories/:id` | Update category |
+| DELETE | `/api/admin/categories/:id` | Delete category |
+| GET    | `/api/admin/items`          | List items      |
+| POST   | `/api/admin/items`          | Create item     |
+| PUT    | `/api/admin/items/:id`      | Update item     |
+| DELETE | `/api/admin/items/:id`      | Delete item     |
+| PUT    | `/api/admin/password`       | Change password |
 
 ## AR Model Requirements
 
@@ -167,17 +167,17 @@ npm run server    # Serves both API and static files from dist/
 
 ## Scripts
 
-| Script           | Description                              |
-| ---------------- | ---------------------------------------- |
-| `npm run dev`    | Start Vite dev server                    |
-| `npm run server` | Start Express API server                 |
-| `npm run dev:full` | Start both concurrently                |
-| `npm run build`  | Production build                         |
-| `npm run lint`   | Run ESLint                               |
-| `npm run lint:fix` | Run ESLint with auto-fix               |
-| `npm run format` | Format code with Prettier                |
-| `npm run test`   | Run tests                                |
-| `npm run test:watch` | Run tests in watch mode              |
+| Script               | Description               |
+| -------------------- | ------------------------- |
+| `npm run dev`        | Start Vite dev server     |
+| `npm run server`     | Start Express API server  |
+| `npm run dev:full`   | Start both concurrently   |
+| `npm run build`      | Production build          |
+| `npm run lint`       | Run ESLint                |
+| `npm run lint:fix`   | Run ESLint with auto-fix  |
+| `npm run format`     | Format code with Prettier |
+| `npm run test`       | Run tests                 |
+| `npm run test:watch` | Run tests in watch mode   |
 
 ## Docker Deployment
 
