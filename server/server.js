@@ -29,6 +29,9 @@ const {
   deleteItem: deleteSupabaseItem,
 } = require("./supabaseStore");
 
+const loggingMiddleware = require("./middlewares/loggingMiddleware");
+const activityLogsRouter = require("./routes/activityLogs");
+
 const app = express();
 const PORT = process.env.PORT || 3001;
 const JWT_SECRET = process.env.JWT_SECRET;
@@ -331,6 +334,9 @@ const apiLimiter = rateLimit({
 });
 
 app.use("/api/", apiLimiter);
+
+// Middleware de logging para estadísticas
+app.use(loggingMiddleware);
 
 // Middleware que valida el token JWT. Se usa en todas las rutas /api/admin/*.
 // Si el token es valido, guarda los datos decodificados en req.user.
@@ -765,6 +771,9 @@ app.put("/api/admin/password", authMiddleware, loginLimiter, (req, res) => {
   fs.writeFileSync(ADMIN_FILE, JSON.stringify(admin, null, 2));
   res.json({ message: "Contraseña actualizada" });
 });
+
+// Rutas de logs y estadísticas
+app.use("/api/admin/logs", authMiddleware, activityLogsRouter);
 
 // Fallback para que funcione React Router en rutas tipo /admin o /ar/xxx.
 // Cualquier path que no sea /api/* devuelve el index.html y el router del
