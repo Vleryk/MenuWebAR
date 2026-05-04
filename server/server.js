@@ -9,6 +9,7 @@ const path = require("path");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const rateLimit = require("express-rate-limit");
+const multer = require("multer");
 const crypto = require("crypto");
 const cloudinary = require("cloudinary").v2;
 
@@ -102,6 +103,42 @@ function extractCloudinaryPublicId(url) {
     return null;
   }
 }
+
+// --- Multer ---
+// Multer se usa SOLO para el endpoint /api/admin/upload-image, que guarda
+// imagenes localmente en /public/assets/IMG. Para Cloudinary, el frontend sube
+// directo y este backend solo recibe la URL.
+const uploadDir = path.join(__dirname, "..", "public", "assets", "IMG");
+
+if (!fs.existsSync(uploadDir)) {
+  fs.mkdirSync(uploadDir, { recursive: true });
+}
+
+// Le damos a cada archivo un nombre unico con timestamp + bytes aleatorios,
+// asi si suben dos archivos con el mismo nombre no se pisan.
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, uploadDir),
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname).toLowerCase();
+    const name = `${Date.now()}-${crypto.randomBytes(8).toString("hex")}${ext}`;
+    cb(null, name);
+  },
+});
+
+const fileFilter = (req, file, cb) => {
+  const allowedMimes = ["image/jpeg", "image/jpg", "image/png", "image/webp", "image/gif"];
+  if (allowedMimes.includes(file.mimetype)) {
+    cb(null, true);
+  } else {
+    cb(new Error("Solo se permiten imágenes (JPEG, PNG, WebP, GIF)"));
+  }
+};
+
+const upload = multer({
+  storage,
+  fileFilter,
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5 MB tope
+});
 
 // --- Validación ---
 // Estos regex y helpers son la primera linea de defensa. Validamos en el server
@@ -515,6 +552,35 @@ app.get("/api/auth/verify", authMiddleware, (req, res) => {
 // ========================
 // Todas estas rutas requieren JWT valido (authMiddleware) y un permiso
 // especifico segun la accion.
+
+// Upload de imagenes LOCAL (no Cloudinary). Queda como legacy por si hay
+// deploys sin Cloudinary configurado, pero el flujo normal del admin usa
+// Cloudinary directo desde el frontend.
+app.post(
+  "/api/admin/upload-image",
+  authMiddleware,
+  requirePermission("puede_subir_archivos"),
+  (req, res) => {
+    upload.single("image")(req, res, (err) => {
+      if (err) {
+        if (err instanceof multer.MulterError) {
+          if (err.code === "LIMIT_FILE_SIZE") {
+            return res.status(400).json({ error: "La imagen es muy grande (máximo 5MB)" });
+          }
+          return res.status(400).json({ error: "Error al subir la imagen" });
+        }
+        return res.status(400).json({ error: err.message || "Error al subir la imagen" });
+      }
+
+      if (!req.file) {
+        return res.status(400).json({ error: "No se subió ninguna imagen" });
+      }
+
+      const imagePath = `/assets/IMG/${req.file.filename}`;
+      res.json({ image: imagePath });
+    });
+  },
+);
 
 // Guarda la metadata de un modelo AR en Supabase. OJO: el archivo .glb ya fue
 // subido a Cloudinary desde el frontend, aca solo registramos la URL en BD

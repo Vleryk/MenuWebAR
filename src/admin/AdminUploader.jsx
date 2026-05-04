@@ -43,445 +43,542 @@ function buildAssetLabel(fileName) {
   return fileName.replace(/\.[^/.]+$/, "").trim() || "Archivo";
 }
 
-// Mensaje de error mas claro para el caso mas tipico: el preset no existe.
-// Suele pasar cuando se olvidaron de crearlo en el dashboard de Cloudinary.
-function handleUploadError(message) {
-  if (message.toLowerCase().includes("upload preset not found")) {
-    return `Cloudinary no encuentra el preset "${CLOUDINARY_UPLOAD_PRESET}". Crealo como Unsigned en Settings > Upload > Upload presets.`;
-  }
-  return message;
-}
+export default function AdminUploader({ onUploadComplete }) {
+  // Refs a los inputs file para poder limpiarlos programaticamente despues
+  // del upload (sin esto, el input recordaria el ultimo archivo elegido).
+  const imageInputRef = useRef(null);
+  const modelInputRef = useRef(null);
 
-// Funcion core del upload. resourceType es "image" para imagenes o "raw"
-// para .glb (Cloudinary trata los 3D como recursos raw porque no son
-// manipulables como imagen).
-async function uploadToCloudinary(file, resourceType, folder) {
-  const formData = new FormData();
-  formData.append("file", file);
-  formData.append("upload_preset", CLOUDINARY_UPLOAD_PRESET);
-  formData.append("folder", folder);
+  // Estados separados para imagen y modelo porque el uploader maneja los dos
+  // flujos en paralelo (el user puede tener ambos selects abiertos).
+  const [imageFile, setImageFile] = useState(null);
+  const [imagePreview, setImagePreview] = useState("");
+  const [customImageName, setCustomImageName] = useState("");
 
-  const response = await fetch(
-    `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/${resourceType}/upload`,
-    { method: "POST", body: formData },
-  );
+  const [modelFile, setModelFile] = useState(null);
+  const [customModelName, setCustomModelName] = useState("");
 
-  const payload = await response.json();
-  if (!response.ok) {
-    throw new Error(payload?.error?.message || "Error al subir archivo a Cloudinary");
-  }
-  return payload.secure_url;
-}
+  const [imageUploading, setImageUploading] = useState(false);
+  const [modelUploading, setModelUploading] = useState(false);
+  const [imageURL, setImageURL] = useState("");
+  const [modelURL, setModelURL] = useState("");
+  const [error, setError] = useState("");
 
-// Hook chico para manejar el preview de imagen con URL.createObjectURL.
-// Lo dejo aca arriba porque solo se usa para imagenes (los .glb no se
-// pueden previsualizar barato). Es importante revocar la URL en el cleanup
-// para no filtrar memoria (son URLs en blob).
-function useImagePreview(file) {
-  const [preview, setPreview] = useState("");
+  // Genera el preview de la imagen con URL.createObjectURL. Es importante
+  // revocarla en el cleanup para no filtrar memoria (son URLs en blob).
   useEffect(() => {
-    if (!file) {
-      setPreview("");
+    if (!imageFile) {
+      setImagePreview("");
       return;
     }
-    const url = URL.createObjectURL(file);
-    setPreview(url);
+    const url = URL.createObjectURL(imageFile);
+    setImagePreview(url);
     return () => URL.revokeObjectURL(url);
-  }, [file]);
-  return preview;
-}
+  }, [imageFile]);
 
-// Estilos compartidos entre los dos bloques. Antes estaban inline copy-paste
-// en cada bloque, los moví aca para que cualquier cambio de paleta se haga
-// en un solo lugar.
-const styles = {
-  pickFileBtn: {
-    background: "rgba(255, 255, 255, 0.08)",
-    color: "#f7f1e8",
-    border: "1px solid rgba(255, 255, 255, 0.15)",
-    borderRadius: 8,
-    padding: "0.65rem 1rem",
-    cursor: "pointer",
-    width: "fit-content",
-  },
-  card: {
-    display: "grid",
-    gap: "0.75rem",
-    background: "rgba(255,255,255,0.04)",
-    border: "1px solid rgba(212, 170, 99, 0.2)",
-    borderRadius: 12,
-    padding: "1rem",
-  },
-  previewWrap: {
-    position: "relative",
-    display: "inline-block",
-    alignSelf: "center",
-  },
-  imagePreview: {
-    maxWidth: 320,
-    width: "100%",
-    borderRadius: 8,
-    border: "1px solid rgba(255,255,255,0.2)",
-    display: "block",
-  },
-  modelPlaceholder: {
-    width: 320,
-    maxWidth: "100%",
-    height: 160,
-    borderRadius: 8,
-    border: "1px solid rgba(255,255,255,0.2)",
-    background: "linear-gradient(135deg, rgba(212, 170, 99, 0.12), rgba(212, 170, 99, 0.04))",
-    display: "flex",
-    flexDirection: "column",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: "0.5rem",
-    color: "#d4aa63",
-  },
-  removeBtn: (disabled) => ({
-    position: "absolute",
-    top: -10,
-    right: -10,
-    width: 32,
-    height: 32,
-    borderRadius: "50%",
-    border: "2px solid #0f1724",
-    background: "#ff4444",
-    color: "#fff",
-    fontSize: "1rem",
-    fontWeight: 700,
-    cursor: disabled ? "not-allowed" : "pointer",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    boxShadow: "0 2px 8px rgba(0,0,0,0.4)",
-    opacity: disabled ? 0.5 : 1,
-  }),
-  label: {
-    display: "flex",
-    flexDirection: "column",
-    gap: "0.3rem",
-    fontSize: "0.8rem",
-    color: "rgba(255, 255, 255, 0.6)",
-    fontWeight: 600,
-    textTransform: "uppercase",
-    letterSpacing: "0.04em",
-  },
-  input: {
-    background: "rgba(255, 255, 255, 0.07)",
-    border: "1px solid rgba(255, 255, 255, 0.12)",
-    borderRadius: 8,
-    padding: "0.65rem 0.85rem",
-    color: "#d4aa63",
-    fontSize: "0.95rem",
-    fontFamily: "inherit",
-  },
-  meta: {
-    margin: 0,
-    color: "rgba(255,255,255,0.6)",
-    fontSize: "0.85rem",
-  },
-  uploadBtn: (disabled) => ({
-    background: "linear-gradient(135deg, #d4aa63, #c49a52)",
-    color: "#0f1724",
-    border: "none",
-    borderRadius: 8,
-    padding: "0.65rem 1rem",
-    fontWeight: 700,
-    cursor: disabled ? "not-allowed" : "pointer",
-    opacity: disabled ? 0.6 : 1,
-  }),
-};
+  // Mensaje de error mas claro para el caso mas tipico: el preset no existe.
+  // Suele pasar cuando se olvidaron de crearlo en el dashboard de Cloudinary.
+  const handleUploadError = (message) => {
+    if (message.toLowerCase().includes("upload preset not found")) {
+      return `Cloudinary no encuentra el preset "${CLOUDINARY_UPLOAD_PRESET}". Crealo como Unsigned en Settings > Upload > Upload presets.`;
+    }
+    return message;
+  };
 
-// Subcomponente: una "tarjeta" de upload generica. Se reutiliza para imagen
-// y para modelo, lo que cambia entre ambos es la config (que se le pasa por
-// props) y la zona de preview (slot via children render-prop).
-//
-// Props:
-//   - title, fileLabel, placeholder, pickButtonText, uploadButtonText
-//   - acceptAttr: lo que va en accept="" del input file
-//   - resourceType: "image" o "raw" para Cloudinary
-//   - folder: carpeta destino en Cloudinary
-//   - assetIdPrefix: "img" o "mdl", para construir el id del asset
-//   - createAsset: createImagenAsset o createModeloAsset
-//   - extraValidation: hook opcional para validaciones especificas (ej .glb)
-//   - successMessage: mensaje verde cuando termina ok
-//   - uploadKind: "image" | "model", se pasa al callback onUploadComplete
-//   - onUploadComplete: callback al dashboard
-//   - onError: setter del error global del componente padre
-//   - renderPreview: funcion que recibe el File y devuelve el preview JSX.
-//     Para imagen es un <img>, para modelo es un placeholder con icono.
-function AssetUploadCard({
-  title,
-  fileLabel,
-  placeholder,
-  pickButtonText,
-  uploadButtonText,
-  acceptAttr,
-  resourceType,
-  folder,
-  assetIdPrefix,
-  createAsset,
-  extraValidation,
-  successMessage,
-  uploadKind,
-  onUploadComplete,
-  onError,
-  renderPreview,
-}) {
-  // Ref al input file para poder limpiarlo programaticamente despues del
-  // upload (sin esto, el input recordaria el ultimo archivo elegido).
-  const inputRef = useRef(null);
+  // Chequea que las env vars esten definidas antes de intentar subir. Si
+  // faltan, el mensaje le dice al user que reinicie Vite (porque Vite lee las
+  // env vars solo al arrancar).
+  const ensureCloudinaryConfig = () => {
+    const missingVariables = [];
+    if (!CLOUDINARY_CLOUD_NAME) missingVariables.push("VITE_CLOUDINARY_CLOUD_NAME");
+    if (!CLOUDINARY_UPLOAD_PRESET) missingVariables.push("VITE_CLOUDINARY_UPLOAD_PRESET");
 
-  const [file, setFile] = useState(null);
-  const [customName, setCustomName] = useState("");
-  const [uploading, setUploading] = useState(false);
-  const [resultURL, setResultURL] = useState("");
+    if (missingVariables.length > 0) {
+      setError(
+        `Falta configurar: ${missingVariables.join(", ")}. Si acabas de editar .env, reinicia npm run dev.`,
+      );
+      return false;
+    }
+    return true;
+  };
 
-  const handleFileChange = (event) => {
-    const selected = event.target.files?.[0] || null;
-    setFile(selected);
+  // Funcion core del upload. resourceType es "image" para imagenes o "raw"
+  // para .glb (Cloudinary trata los 3D como recursos raw porque no son
+  // manipulables como imagen).
+  const uploadToCloudinary = async (file, resourceType, folder) => {
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("upload_preset", CLOUDINARY_UPLOAD_PRESET);
+    formData.append("folder", folder);
+
+    const response = await fetch(
+      `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/${resourceType}/upload`,
+      { method: "POST", body: formData },
+    );
+
+    const payload = await response.json();
+    if (!response.ok) {
+      throw new Error(payload?.error?.message || "Error al subir archivo a Cloudinary");
+    }
+    return payload.secure_url;
+  };
+
+  const handleImageFileChange = (event) => {
+    const file = event.target.files?.[0] || null;
+    setImageFile(file);
     // Pre-llenamos el input del nombre con el nombre del archivo, el user
     // puede editarlo despues si quiere uno mas descriptivo.
-    setCustomName(selected ? buildAssetLabel(selected.name) : "");
-    setResultURL("");
-    onError("");
+    setCustomImageName(file ? buildAssetLabel(file.name) : "");
+    setImageURL("");
+    setError("");
   };
 
-  const handleRemove = () => {
-    setFile(null);
-    setCustomName("");
-    setResultURL("");
-    onError("");
+  const handleRemoveImage = () => {
+    setImageFile(null);
+    setCustomImageName("");
+    setImageURL("");
+    setError("");
     // Reseteamos el input file para que el user pueda elegir el MISMO archivo
     // de nuevo si quiere (sin esto, onChange no se dispara).
-    if (inputRef.current) inputRef.current.value = "";
+    if (imageInputRef.current) imageInputRef.current.value = "";
   };
 
-  // Flujo completo de subir el archivo:
+  const handleModelFileChange = (event) => {
+    const file = event.target.files?.[0] || null;
+    setModelFile(file);
+    setCustomModelName(file ? buildAssetLabel(file.name) : "");
+    setModelURL("");
+    setError("");
+  };
+
+  const handleRemoveModel = () => {
+    setModelFile(null);
+    setCustomModelName("");
+    setModelURL("");
+    setError("");
+    if (modelInputRef.current) modelInputRef.current.value = "";
+  };
+
+  // Flujo completo de subir imagen:
   //   1. Sube a Cloudinary -> recibe URL
   //   2. Registra en BD via nuestro backend
   //   3. Notifica al dashboard para que recargue
   //   4. Limpia el form
-  const handleUpload = async () => {
-    if (!file) {
-      onError(`Selecciona ${fileLabel.toLowerCase()} primero.`);
+  const handleImageUpload = async () => {
+    if (!imageFile) {
+      setError("Selecciona una imagen primero.");
       return;
     }
-    if (!customName.trim()) {
-      onError("El nombre no puede estar vacío.");
+    if (!customImageName.trim()) {
+      setError("El nombre de la imagen no puede estar vacío.");
       return;
     }
-    // Validacion especifica del tipo de asset (ej: que sea .glb).
-    if (extraValidation) {
-      const errMsg = extraValidation(file);
-      if (errMsg) {
-        onError(errMsg);
-        return;
-      }
-    }
-    // Chequea que las env vars esten definidas antes de intentar subir. Si
-    // faltan, el mensaje le dice al user que reinicie Vite (porque Vite lee
-    // las env vars solo al arrancar).
-    const missingVariables = [];
-    if (!CLOUDINARY_CLOUD_NAME) missingVariables.push("VITE_CLOUDINARY_CLOUD_NAME");
-    if (!CLOUDINARY_UPLOAD_PRESET) missingVariables.push("VITE_CLOUDINARY_UPLOAD_PRESET");
-    if (missingVariables.length > 0) {
-      onError(
-        `Falta configurar: ${missingVariables.join(", ")}. Si acabas de editar .env, reinicia npm run dev.`,
-      );
-      return;
-    }
+    if (!ensureCloudinaryConfig()) return;
 
-    setUploading(true);
-    onError("");
-    setResultURL("");
+    setImageUploading(true);
+    setError("");
+    setImageURL("");
 
     try {
-      const url = await uploadToCloudinary(file, resourceType, folder);
-      const saved = await createAsset({
-        id: buildAssetId(customName, assetIdPrefix),
-        label: customName.trim(),
+      const url = await uploadToCloudinary(imageFile, "image", CLOUDINARY_UPLOAD_FOLDER);
+      const savedImage = await createImagenAsset({
+        id: buildAssetId(customImageName, "img"),
+        label: customImageName.trim(),
         url,
       });
 
-      setResultURL(saved.src || url);
-      onUploadComplete?.(saved, uploadKind);
+      setImageURL(savedImage.src || url);
+      onUploadComplete?.(savedImage, "image");
 
-      setFile(null);
-      setCustomName("");
-      if (inputRef.current) inputRef.current.value = "";
+      setImageFile(null);
+      setCustomImageName("");
+      if (imageInputRef.current) imageInputRef.current.value = "";
     } catch (uploadError) {
-      const message = uploadError?.message || `No se pudo subir ${fileLabel.toLowerCase()}`;
-      onError(handleUploadError(message));
+      const message = uploadError?.message || "No se pudo subir la imagen";
+      setError(handleUploadError(message));
     } finally {
-      setUploading(false);
+      setImageUploading(false);
     }
   };
 
-  return (
-    <div style={{ display: "grid", gap: "0.75rem" }}>
-      <h3 style={{ margin: 0, color: "#f7f1e8", fontSize: "1rem" }}>{title}</h3>
+  // Mismo flujo que la imagen pero con validacion extra de extension .glb.
+  const handleModelUpload = async () => {
+    if (!modelFile) {
+      setError("Selecciona un modelo .glb primero.");
+      return;
+    }
+    // Cloudinary acepta cualquier archivo como "raw", pero nosotros solo
+    // queremos .glb para que el model-viewer los pueda cargar.
+    if (!modelFile.name.toLowerCase().endsWith(".glb")) {
+      setError("El modelo AR debe tener extensión .glb");
+      return;
+    }
+    if (!customModelName.trim()) {
+      setError("El nombre del modelo no puede estar vacío.");
+      return;
+    }
+    if (!ensureCloudinaryConfig()) return;
 
-      {/* Input file oculto, se activa via el boton de abajo */}
-      <input
-        ref={inputRef}
-        type="file"
-        accept={acceptAttr}
-        onChange={handleFileChange}
-        style={{ display: "none" }}
-      />
+    setModelUploading(true);
+    setError("");
+    setModelURL("");
 
-      {!file && (
-        <button type="button" onClick={() => inputRef.current?.click()} style={styles.pickFileBtn}>
-          {pickButtonText}
-        </button>
-      )}
+    try {
+      const url = await uploadToCloudinary(modelFile, "raw", CLOUDINARY_MODELS_FOLDER);
+      const savedModel = await createModeloAsset({
+        id: buildAssetId(customModelName, "mdl"),
+        label: customModelName.trim(),
+        url,
+      });
 
-      {file && (
-        <div style={styles.card}>
-          {/* Zona de preview (imagen real o placeholder para modelos) con
-              boton X para descartar. La forma del preview la decide el padre
-              via renderPreview. */}
-          <div style={styles.previewWrap}>
-            {renderPreview(file)}
-            <button
-              type="button"
-              onClick={handleRemove}
-              disabled={uploading}
-              title="Quitar y elegir otro"
-              style={styles.removeBtn(uploading)}
-            >
-              ✕
-            </button>
-          </div>
+      setModelURL(savedModel.src || url);
+      onUploadComplete?.(savedModel, "model");
 
-          <label style={styles.label}>
-            {fileLabel}
-            <input
-              type="text"
-              value={customName}
-              onChange={(e) => setCustomName(e.target.value)}
-              disabled={uploading}
-              placeholder={placeholder}
-              style={styles.input}
-            />
-          </label>
+      setModelFile(null);
+      setCustomModelName("");
+      if (modelInputRef.current) modelInputRef.current.value = "";
+    } catch (uploadError) {
+      const message = uploadError?.message || "No se pudo subir el modelo .glb";
+      setError(handleUploadError(message));
+    } finally {
+      setModelUploading(false);
+    }
+  };
 
-          <p style={styles.meta}>
-            Archivo: {file.name} ({(file.size / 1024).toFixed(1)} KB)
-          </p>
-
-          <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
-            <button
-              type="button"
-              onClick={handleUpload}
-              disabled={uploading || !customName.trim()}
-              style={styles.uploadBtn(uploading || !customName.trim())}
-            >
-              {uploading ? "Subiendo..." : uploadButtonText}
-            </button>
-          </div>
-        </div>
-      )}
-
-      {resultURL && (
-        <div style={{ display: "grid", gap: "0.5rem" }}>
-          <p style={{ margin: 0, color: "#6ee7a7" }}>{successMessage}</p>
-          <a
-            href={resultURL}
-            target="_blank"
-            rel="noreferrer"
-            style={{ color: "#7cc7ff", wordBreak: "break-all" }}
-          >
-            {resultURL}
-          </a>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// Componente preview de imagen aislado: cualquier cambio de file dispara
-// useImagePreview y revoca la URL del blob anterior. Se monta y desmonta
-// junto con el File, asi React maneja el ciclo de vida solo.
-function ImagePreview({ file }) {
-  const preview = useImagePreview(file);
-  if (!preview) return null;
-  return <img src={preview} alt="Vista previa" style={styles.imagePreview} />;
-}
-
-// NOTA: todos los estilos estan inline. Fue una decision deliberada porque
-// este componente es bastante auto-contenido y no compartia estilos con
-// nada mas. Si crece mas vale la pena moverlo a un CSS module.
-export default function AdminUploader({ onUploadComplete }) {
-  // El error es global (compartido entre los dos bloques) porque hay un solo
-  // mensaje de error abajo del componente, no uno por cada bloque.
-  const [error, setError] = useState("");
-
+  // NOTA: todos los estilos estan inline. Fue una decision deliberada porque
+  // este componente es bastante auto-contenido y no compartia estilos con
+  // nada mas. Si crece mas vale la pena moverlo a un CSS module.
   return (
     <div style={{ display: "grid", gap: "1rem", maxWidth: 720, width: "100%" }}>
       <h2 style={{ margin: 0, color: "#d4aa63" }}>Subir Archivos a Cloudinary</h2>
 
       {/* ==================== Bloque de IMAGEN ==================== */}
-      <AssetUploadCard
-        title="Imagen del menú"
-        fileLabel="Nombre de la imagen"
-        placeholder="Ej: Hamburguesa Clásica"
-        pickButtonText="Elegir imagen"
-        uploadButtonText="Subir imagen"
-        acceptAttr="image/*"
-        resourceType="image"
-        folder={CLOUDINARY_UPLOAD_FOLDER}
-        assetIdPrefix="img"
-        createAsset={createImagenAsset}
-        successMessage="Imagen subida correctamente."
-        uploadKind="image"
-        onUploadComplete={onUploadComplete}
-        onError={setError}
-        renderPreview={(file) => <ImagePreview file={file} />}
-      />
+      <div style={{ display: "grid", gap: "0.75rem" }}>
+        <h3 style={{ margin: 0, color: "#f7f1e8", fontSize: "1rem" }}>Imagen del menú</h3>
+
+        {/* Input file oculto, se activa via el boton de abajo */}
+        <input
+          ref={imageInputRef}
+          type="file"
+          accept="image/*"
+          onChange={handleImageFileChange}
+          style={{ display: "none" }}
+        />
+
+        {!imageFile && (
+          <button
+            type="button"
+            onClick={() => imageInputRef.current?.click()}
+            style={{
+              background: "rgba(255, 255, 255, 0.08)",
+              color: "#f7f1e8",
+              border: "1px solid rgba(255, 255, 255, 0.15)",
+              borderRadius: 8,
+              padding: "0.65rem 1rem",
+              cursor: "pointer",
+              width: "fit-content",
+            }}
+          >
+            Elegir imagen
+          </button>
+        )}
+
+        {imageFile && imagePreview && (
+          <div
+            style={{
+              display: "grid",
+              gap: "0.75rem",
+              background: "rgba(255,255,255,0.04)",
+              border: "1px solid rgba(212, 170, 99, 0.2)",
+              borderRadius: 12,
+              padding: "1rem",
+            }}
+          >
+            {/* Preview de la imagen con boton X para descartarla */}
+            <div style={{ position: "relative", display: "inline-block", alignSelf: "center" }}>
+              <img
+                src={imagePreview}
+                alt="Vista previa"
+                style={{
+                  maxWidth: 320,
+                  width: "100%",
+                  borderRadius: 8,
+                  border: "1px solid rgba(255,255,255,0.2)",
+                  display: "block",
+                }}
+              />
+              <button
+                type="button"
+                onClick={handleRemoveImage}
+                disabled={imageUploading}
+                title="Quitar imagen y elegir otra"
+                style={{
+                  position: "absolute",
+                  top: -10,
+                  right: -10,
+                  width: 32,
+                  height: 32,
+                  borderRadius: "50%",
+                  border: "2px solid #0f1724",
+                  background: "#ff4444",
+                  color: "#fff",
+                  fontSize: "1rem",
+                  fontWeight: 700,
+                  cursor: imageUploading ? "not-allowed" : "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  boxShadow: "0 2px 8px rgba(0,0,0,0.4)",
+                  opacity: imageUploading ? 0.5 : 1,
+                }}
+              >
+                ✕
+              </button>
+            </div>
+
+            <label
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: "0.3rem",
+                fontSize: "0.8rem",
+                color: "rgba(255, 255, 255, 0.6)",
+                fontWeight: 600,
+                textTransform: "uppercase",
+                letterSpacing: "0.04em",
+              }}
+            >
+              Nombre de la imagen
+              <input
+                type="text"
+                value={customImageName}
+                onChange={(e) => setCustomImageName(e.target.value)}
+                disabled={imageUploading}
+                placeholder="Ej: Hamburguesa Clásica"
+                style={{
+                  background: "rgba(255, 255, 255, 0.07)",
+                  border: "1px solid rgba(255, 255, 255, 0.12)",
+                  borderRadius: 8,
+                  padding: "0.65rem 0.85rem",
+                  color: "#d4aa63",
+                  fontSize: "0.95rem",
+                  fontFamily: "inherit",
+                }}
+              />
+            </label>
+
+            <p style={{ margin: 0, color: "rgba(255,255,255,0.6)", fontSize: "0.85rem" }}>
+              Archivo: {imageFile.name} ({(imageFile.size / 1024).toFixed(1)} KB)
+            </p>
+
+            <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+              <button
+                type="button"
+                onClick={handleImageUpload}
+                disabled={imageUploading || !customImageName.trim()}
+                style={{
+                  background: "linear-gradient(135deg, #d4aa63, #c49a52)",
+                  color: "#0f1724",
+                  border: "none",
+                  borderRadius: 8,
+                  padding: "0.65rem 1rem",
+                  fontWeight: 700,
+                  cursor: imageUploading || !customImageName.trim() ? "not-allowed" : "pointer",
+                  opacity: imageUploading || !customImageName.trim() ? 0.6 : 1,
+                }}
+              >
+                {imageUploading ? "Subiendo..." : "Subir imagen"}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {imageURL && (
+          <div style={{ display: "grid", gap: "0.5rem" }}>
+            <p style={{ margin: 0, color: "#6ee7a7" }}>Imagen subida correctamente.</p>
+            <a
+              href={imageURL}
+              target="_blank"
+              rel="noreferrer"
+              style={{ color: "#7cc7ff", wordBreak: "break-all" }}
+            >
+              {imageURL}
+            </a>
+          </div>
+        )}
+      </div>
 
       {/* Separador visual entre los dos bloques */}
       <div style={{ height: 1, background: "rgba(255,255,255,0.15)" }} />
 
       {/* ==================== Bloque de MODELO 3D ==================== */}
-      <AssetUploadCard
-        title="Modelo AR (.glb)"
-        fileLabel="Nombre del modelo"
-        placeholder="Ej: Hamburguesa 3D"
-        pickButtonText="Elegir modelo .glb"
-        uploadButtonText="Subir modelo AR"
-        acceptAttr=".glb,model/gltf-binary"
-        resourceType="raw"
-        folder={CLOUDINARY_MODELS_FOLDER}
-        assetIdPrefix="mdl"
-        createAsset={createModeloAsset}
-        successMessage="Modelo .glb subido correctamente."
-        uploadKind="model"
-        onUploadComplete={onUploadComplete}
-        onError={setError}
-        // Cloudinary acepta cualquier archivo como "raw", pero nosotros solo
-        // queremos .glb para que el model-viewer los pueda cargar.
-        extraValidation={(file) => {
-          if (!file.name.toLowerCase().endsWith(".glb")) {
-            return "El modelo AR debe tener extensión .glb";
-          }
-          return null;
-        }}
-        renderPreview={() => (
-          // No hay preview visual del .glb porque seria demasiado caro
-          // renderizarlo aca. Mostramos un placeholder con icono.
-          <div style={styles.modelPlaceholder}>
-            <div style={{ fontSize: "2.5rem" }}>📦</div>
-            <div style={{ fontSize: "0.85rem", fontWeight: 600 }}>Modelo 3D .glb</div>
+      <div style={{ display: "grid", gap: "0.75rem" }}>
+        <h3 style={{ margin: 0, color: "#f7f1e8", fontSize: "1rem" }}>Modelo AR (.glb)</h3>
+
+        <input
+          ref={modelInputRef}
+          type="file"
+          accept=".glb,model/gltf-binary"
+          onChange={handleModelFileChange}
+          style={{ display: "none" }}
+        />
+
+        {!modelFile && (
+          <button
+            type="button"
+            onClick={() => modelInputRef.current?.click()}
+            style={{
+              background: "rgba(255, 255, 255, 0.08)",
+              color: "#f7f1e8",
+              border: "1px solid rgba(255, 255, 255, 0.15)",
+              borderRadius: 8,
+              padding: "0.65rem 1rem",
+              cursor: "pointer",
+              width: "fit-content",
+            }}
+          >
+            Elegir modelo .glb
+          </button>
+        )}
+
+        {modelFile && (
+          <div
+            style={{
+              display: "grid",
+              gap: "0.75rem",
+              background: "rgba(255,255,255,0.04)",
+              border: "1px solid rgba(212, 170, 99, 0.2)",
+              borderRadius: 12,
+              padding: "1rem",
+            }}
+          >
+            <div style={{ position: "relative", display: "inline-block", alignSelf: "center" }}>
+              {/* No hay preview visual del .glb porque seria demasiado caro
+                  renderizarlo aca. Mostramos un placeholder con icono. */}
+              <div
+                style={{
+                  width: 320,
+                  maxWidth: "100%",
+                  height: 160,
+                  borderRadius: 8,
+                  border: "1px solid rgba(255,255,255,0.2)",
+                  background:
+                    "linear-gradient(135deg, rgba(212, 170, 99, 0.12), rgba(212, 170, 99, 0.04))",
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: "0.5rem",
+                  color: "#d4aa63",
+                }}
+              >
+                <div style={{ fontSize: "2.5rem" }}>📦</div>
+                <div style={{ fontSize: "0.85rem", fontWeight: 600 }}>Modelo 3D .glb</div>
+              </div>
+              <button
+                type="button"
+                onClick={handleRemoveModel}
+                disabled={modelUploading}
+                title="Quitar modelo y elegir otro"
+                style={{
+                  position: "absolute",
+                  top: -10,
+                  right: -10,
+                  width: 32,
+                  height: 32,
+                  borderRadius: "50%",
+                  border: "2px solid #0f1724",
+                  background: "#ff4444",
+                  color: "#fff",
+                  fontSize: "1rem",
+                  fontWeight: 700,
+                  cursor: modelUploading ? "not-allowed" : "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  boxShadow: "0 2px 8px rgba(0,0,0,0.4)",
+                  opacity: modelUploading ? 0.5 : 1,
+                }}
+              >
+                ✕
+              </button>
+            </div>
+
+            <label
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: "0.3rem",
+                fontSize: "0.8rem",
+                color: "rgba(255, 255, 255, 0.6)",
+                fontWeight: 600,
+                textTransform: "uppercase",
+                letterSpacing: "0.04em",
+              }}
+            >
+              Nombre del modelo
+              <input
+                type="text"
+                value={customModelName}
+                onChange={(e) => setCustomModelName(e.target.value)}
+                disabled={modelUploading}
+                placeholder="Ej: Hamburguesa 3D"
+                style={{
+                  background: "rgba(255, 255, 255, 0.07)",
+                  border: "1px solid rgba(255, 255, 255, 0.12)",
+                  borderRadius: 8,
+                  padding: "0.65rem 0.85rem",
+                  color: "#d4aa63",
+                  fontSize: "0.95rem",
+                  fontFamily: "inherit",
+                }}
+              />
+            </label>
+
+            <p style={{ margin: 0, color: "rgba(255,255,255,0.6)", fontSize: "0.85rem" }}>
+              Archivo: {modelFile.name} ({(modelFile.size / 1024).toFixed(1)} KB)
+            </p>
+
+            <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+              <button
+                type="button"
+                onClick={handleModelUpload}
+                disabled={modelUploading || !customModelName.trim()}
+                style={{
+                  background: "linear-gradient(135deg, #d4aa63, #c49a52)",
+                  color: "#0f1724",
+                  border: "none",
+                  borderRadius: 8,
+                  padding: "0.65rem 1rem",
+                  fontWeight: 700,
+                  cursor: modelUploading || !customModelName.trim() ? "not-allowed" : "pointer",
+                  opacity: modelUploading || !customModelName.trim() ? 0.6 : 1,
+                }}
+              >
+                {modelUploading ? "Subiendo..." : "Subir modelo AR"}
+              </button>
+            </div>
           </div>
         )}
-      />
 
-      <p style={{ margin: 0, color: "rgba(212, 170, 99, 0.8)", fontSize: "0.85rem" }}>
-        Acepta solo archivos .glb
-      </p>
+        <p style={{ margin: 0, color: "rgba(212, 170, 99, 0.8)", fontSize: "0.85rem" }}>
+          Acepta solo archivos .glb
+        </p>
+
+        {modelURL && (
+          <div style={{ display: "grid", gap: "0.5rem" }}>
+            <p style={{ margin: 0, color: "#6ee7a7" }}>Modelo .glb subido correctamente.</p>
+            <a
+              href={modelURL}
+              target="_blank"
+              rel="noreferrer"
+              style={{ color: "#7cc7ff", wordBreak: "break-all" }}
+            >
+              {modelURL}
+            </a>
+          </div>
+        )}
+      </div>
 
       {error && <p style={{ margin: 0, color: "#ff6b6b" }}>{error}</p>}
     </div>
