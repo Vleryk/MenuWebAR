@@ -1,4 +1,3 @@
-import { Modal } from "../components/Modal";
 import { ACTION_STYLES, ENTITY_ICONS } from "../utils/constants";
 import { formatDate } from "../utils/dateUtils";
 import styles from "./LogsPanel.module.css";
@@ -71,7 +70,9 @@ export function LogDetailsContent({ log }) {
           </div>
           <div className={styles.logDetailsRow}>
             <span className={styles.logDetailsLabel}>Duración</span>
-            <span className={styles.logDetailsValue}>{log.duration ? `${log.duration}ms` : "-"}</span>
+            <span className={styles.logDetailsValue}>
+              {log.duration ? `${log.duration}ms` : "-"}
+            </span>
           </div>
         </div>
       </div>
