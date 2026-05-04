@@ -423,13 +423,13 @@ export default function AdminDashboard() {
           className={`${styles.navBtn} ${activeTab === "stats" ? styles.navActive : ""}`}
           onClick={() => setActiveTab("stats")}
         >
-          Estadisticas
+          📊 Estadísticas
         </button>
         <button
           className={`${styles.navBtn} ${activeTab === "logs" ? styles.navActive : ""}`}
           onClick={() => setActiveTab("logs")}
         >
-          Logs
+          📒 Logs
         </button>
       </nav>
 
