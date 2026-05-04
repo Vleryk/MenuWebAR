@@ -71,6 +71,8 @@ import {
 } from "./api";
 import AdminLogin from "./AdminLogin";
 import AdminUploader from "./AdminUploader";
+import StatsPanel from "./StatsPanel";
+import LogsPanel from "./LogsPanel";
 import styles from "./admin.module.css";
 import { currencyFormatter } from "../config/currencyFormatter";
 
@@ -126,7 +128,7 @@ export default function AdminDashboard() {
   const [modelos, setModelos] = useState([]); // [{id, label, src}] modelos .glb
   const [imagenes, setImagenes] = useState([]); // [{id, label, src}] imagenes
 
-  // Tab activa: "items" | "categories" | "upload"
+  // Tab activa: "items" | "categories" | "upload" | "stats" | "logs"
   const [activeTab, setActiveTab] = useState("items");
 
   // Filtro por categoria (se aplica antes de pasar items al ItemsPanel).
@@ -259,6 +261,18 @@ export default function AdminDashboard() {
         >
           Subir Archivos
         </button>
+        <button
+          className={`${styles.navBtn} ${activeTab === "stats" ? styles.navActive : ""}`}
+          onClick={() => setActiveTab("stats")}
+        >
+          Estadisticas
+        </button>
+        <button
+          className={`${styles.navBtn} ${activeTab === "logs" ? styles.navActive : ""}`}
+          onClick={() => setActiveTab("logs")}
+        >
+          Logs
+        </button>
       </nav>
 
       {/* Contenido del panel activo (renderizado condicional segun activeTab) */}
@@ -279,6 +293,8 @@ export default function AdminDashboard() {
           <CategoriesPanel categories={categories} onReload={loadData} />
         )}
         {activeTab === "upload" && <UploadPanel onReload={loadData} />}
+        {activeTab === "stats" && <StatsPanel />}
+        {activeTab === "logs" && <LogsPanel />}
       </main>
     </div>
   );

@@ -1,0 +1,246 @@
+.logsFilters {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.panelHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1.5rem;
+}
+
+.panelHeader h2 {
+  color: #d4aa63;
+  margin: 0;
+  font-size: 1.25rem;
+}
+
+.input {
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  padding: 0.6rem 0.75rem;
+  color: #f7f1e8;
+  font-size: 0.85rem;
+  width: 100%;
+}
+
+.input:focus {
+  outline: none;
+  border-color: rgba(212, 170, 99, 0.5);
+}
+
+.logsTableWrap {
+  overflow-x: auto;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  margin-bottom: 1rem;
+}
+
+.logsTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8rem;
+}
+
+.logsTable th {
+  background: rgba(0, 0, 0, 0.3);
+  color: #d4aa63;
+  padding: 0.75rem 1rem;
+  text-align: left;
+  text-transform: uppercase;
+  font-size: 0.7rem;
+  letter-spacing: 0.05em;
+  white-space: nowrap;
+}
+
+.logsTable td {
+  padding: 0.65rem 1rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.logsTable tr:hover td {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.logsDate {
+  white-space: nowrap;
+  font-size: 0.75rem;
+}
+
+.logsUser {
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 0.75rem;
+}
+
+.logsBadge {
+  display: inline-block;
+  padding: 0.2rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.7rem;
+  font-weight: 600;
+}
+
+.logsMono {
+  font-family: monospace;
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.logsEmpty {
+  text-align: center;
+  color: rgba(255, 255, 255, 0.3);
+  padding: 2rem;
+}
+
+.logsPagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+}
+
+.logsPaginationInfo {
+  font-size: 0.8rem;
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.navBtn {
+  background: rgba(212, 170, 99, 0.2);
+  border: 1px solid rgba(212, 170, 99, 0.3);
+  color: #d4aa63;
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  transition: all 0.2s;
+}
+
+.navBtn:hover:not(:disabled) {
+  background: rgba(212, 170, 99, 0.3);
+  border-color: #d4aa63;
+}
+
+.navBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btnSmall {
+  background: rgba(212, 170, 99, 0.2);
+  border: 1px solid rgba(212, 170, 99, 0.3);
+  color: #d4aa63;
+  padding: 0.3rem 0.75rem;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.75rem;
+  transition: all 0.2s;
+}
+
+.btnSmall:hover {
+  background: rgba(212, 170, 99, 0.3);
+  border-color: #d4aa63;
+}
+
+.btnDanger {
+  background: rgba(220, 53, 69, 0.2);
+  border: 1px solid rgba(220, 53, 69, 0.3);
+  color: #ff6b6b;
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  transition: all 0.2s;
+}
+
+.btnDanger:hover {
+  background: rgba(220, 53, 69, 0.3);
+  border-color: #ff6b6b;
+}
+
+.logDetailsContent {
+  padding: 1.25rem;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.logDetailsSection {
+  margin-bottom: 1.25rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.logDetailsSection:last-child {
+  border-bottom: none;
+  margin-bottom: 0;
+}
+
+.logDetailsSection h4 {
+  color: #d4aa63;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin: 0 0 0.75rem;
+}
+
+.logDetailsGrid {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.logDetailsRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.85rem;
+}
+
+.logDetailsLabel {
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.logDetailsValue {
+  color: rgba(255, 255, 255, 0.9);
+  font-family: monospace;
+  font-size: 0.8rem;
+}
+
+.logDetailsBadge {
+  display: inline-block;
+  padding: 0.2rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.logDetailsPre {
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 6px;
+  padding: 0.75rem;
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.75);
+  font-family: monospace;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-break: break-all;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.logDetailsUserAgent {
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 6px;
+  padding: 0.75rem;
+  font-size: 0.7rem;
+  color: rgba(255, 255, 255, 0.6);
+  word-break: break-all;
+  max-height: 80px;
+  overflow-y: auto;
+}

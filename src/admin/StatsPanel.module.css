@@ -1,0 +1,202 @@
+.panelHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1.5rem;
+}
+
+.panelHeader h2 {
+  color: #d4aa63;
+  margin: 0;
+  font-size: 1.25rem;
+}
+
+.input {
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  padding: 0.6rem 0.75rem;
+  color: #f7f1e8;
+  font-size: 0.85rem;
+  width: 100%;
+}
+
+.input:focus {
+  outline: none;
+  border-color: rgba(212, 170, 99, 0.5);
+}
+
+.statsSection {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 12px;
+  padding: 1.25rem 1.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.statsSection:last-child {
+  margin-bottom: 0;
+}
+
+.statsRow {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.5rem;
+  margin-bottom: 1.5rem;
+}
+
+@media (max-width: 768px) {
+  .statsRow {
+    grid-template-columns: 1fr;
+  }
+}
+
+.statsRow .statsSection {
+  margin-bottom: 0;
+}
+
+.sectionTitle {
+  display: flex;
+  align-items: baseline;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.sectionTitle h3 {
+  font-size: 0.85rem;
+  color: #d4aa63;
+  margin: 0;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.sectionSubtitle {
+  font-size: 0.72rem;
+  color: rgba(255, 255, 255, 0.35);
+  font-weight: normal;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.kpiRow {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+@media (max-width: 900px) {
+  .kpiRow {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 500px) {
+  .kpiRow {
+    grid-template-columns: 1fr;
+  }
+}
+
+.chartWrapSm { height: 180px; }
+.chartWrapMd { height: 240px; }
+.chartWrapLg { height: 300px; }
+
+.helperText {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: rgba(255, 255, 255, 0.3);
+  font-size: 0.85rem;
+}
+
+.priceRangeWrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2rem;
+  padding: 1rem 0;
+}
+
+.priceRangeItem {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.priceRangeLabel {
+  font-size: 0.7rem;
+  color: rgba(255, 255, 255, 0.4);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.priceRangeValue {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #d4aa63;
+}
+
+.priceRangeDivider {
+  width: 1px;
+  height: 40px;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.priceAvgRow {
+  display: flex;
+  justify-content: center;
+  gap: 0.5rem;
+  font-size: 0.8rem;
+  color: rgba(255, 255, 255, 0.5);
+  margin-top: 0.5rem;
+}
+
+.priceAvgRow strong {
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.modelosStatsWrap {
+  padding: 0.5rem 0;
+}
+
+.modelosProgress {
+  height: 8px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 4px;
+  overflow: hidden;
+  margin-bottom: 1rem;
+}
+
+.modelosProgressBar {
+  height: 100%;
+  background: linear-gradient(90deg, #4ade80, #34d399);
+  border-radius: 4px;
+  transition: width 0.5s ease;
+}
+
+.modelosStatsRow {
+  display: flex;
+  justify-content: space-around;
+}
+
+.modelosStatItem {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.2rem;
+}
+
+.modelosStatValue {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #f7f1e8;
+}
+
+.modelosStatLabel {
+  font-size: 0.65rem;
+  color: rgba(255, 255, 255, 0.4);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}

@@ -1,0 +1,8 @@
+.errorMsg {
+  background: rgba(220, 53, 69, 0.12);
+  color: #ff6b6b;
+  border: 1px solid rgba(220, 53, 69, 0.25);
+  border-radius: 8px;
+  padding: 0.6rem 1rem;
+  font-size: 0.85rem;
+}

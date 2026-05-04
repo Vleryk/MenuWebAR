@@ -1,0 +1,37 @@
+.kpiCard {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(212, 170, 99, 0.2);
+  border-radius: 12px;
+  padding: 1.25rem 1.5rem;
+  position: relative;
+  overflow: hidden;
+}
+
+.kpiValue {
+  font-size: 2.2rem;
+  font-weight: 700;
+  color: #d4aa63;
+  line-height: 1;
+  margin-bottom: 0.25rem;
+}
+
+.kpiLabel {
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.45);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.kpiSublabel {
+  font-size: 0.65rem;
+  color: rgba(255, 255, 255, 0.35);
+  margin-top: 0.15rem;
+}
+
+.kpiCardAlert {
+  border-color: rgba(248, 113, 113, 0.4);
+}
+
+.kpiCardAlert .kpiValue {
+  color: #f87171;
+}
