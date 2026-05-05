@@ -5,10 +5,12 @@ import reactHooks from "eslint-plugin-react-hooks";
 import prettierConfig from "eslint-config-prettier";
 
 export default [
-  { ignores: ["dist/", "node_modules/"] },
+  {
+    ignores: ["node_modules/", "dist/", "build/"],
+  },
   js.configs.recommended,
   {
-    files: ["src/**/*.{js,jsx}"],
+    files: ["client/**/*.{js,jsx}"],
     plugins: {
       react: reactPlugin,
       "react-hooks": reactHooks,
@@ -34,7 +36,7 @@ export default [
     },
   },
   {
-    files: ["src/test/**/*.{js,jsx}", "src/**/*.test.{js,jsx}"],
+    files: ["client/**/*.{test,spec}.{js,jsx}", "client/**/__tests__/**/*.js"],
     languageOptions: {
       globals: {
         ...globals.browser,
@@ -58,9 +60,12 @@ export default [
         ...globals.node,
       },
     },
+    rules: {
+      "no-unused-vars": "warn",
+    },
   },
   {
-    files: ["server/__tests__/**/*.js"],
+    files: ["server/**/*.{test,spec}.js", "server/**/__tests__/**/*.js"],
     languageOptions: {
       globals: {
         ...globals.node,

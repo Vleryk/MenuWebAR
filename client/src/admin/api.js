@@ -5,7 +5,9 @@
 // En dev, Vite hace proxy de /api al backend en localhost:3001 (ver
 // vite.config.js). En produccion el frontend y el backend estan en el mismo
 // host, asi que /api apunta al mismo servidor.
-const API_URL = "/api"; // "http://localhost:3001/api" en local, /api en hosting
+import { ENV } from "../config/env";
+
+const { API_URL } = ENV; // Busca la variable de entorno VITE_API_URL y si no, por defecto deja /api
 
 // Arma los headers de cada request. Si hay token guardado en localStorage,
 // lo agrega como Bearer para que el backend valide la sesion.

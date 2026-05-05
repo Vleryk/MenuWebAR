@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo } from "react";
 import Header from "./components/Header";
 import CategoryTabs from "./components/CategoryTabs";
 import MenuSection from "./components/MenuSection";
@@ -7,41 +7,19 @@ import ReservationSection from "./components/ReservationSection";
 import Footer from "./components/Footer";
 import styles from "./App.module.css";
 
+import { useCategories } from "./hooks/useCategories";
+import { useMenu } from "./hooks/useMenu";
+
 function App() {
-  const [categories, setCategories] = useState([]);
-  const [menuItems, setMenuItems] = useState([]);
-  const [activeCategory, setActiveCategory] = useState("");
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    fetch("/api/menu")
-      .then((res) => {
-        if (!res.ok) throw new Error("Error al conectar con el servidor");
-        return res.json();
-      })
-      .then((data) => {
-        setCategories(data.categories || []);
-        setMenuItems(data.menuItems || []);
-
-        if (data.categories && data.categories.length > 0) {
-          setActiveCategory(data.categories[0].id);
-        }
-      })
-      .catch((err) => {
-        console.error("Error cargando el menú principal:", err);
-      })
-      .finally(() => {
-        setLoading(false);
-      });
-  }, []);
+  const { categories, activeCategory, setActiveCategory } = useCategories();
+  const { menu: menuItems, loading } = useMenu();
 
   const filteredItems = useMemo(
     () => menuItems.filter((item) => item.category === activeCategory),
     [activeCategory, menuItems],
   );
 
-  const activeLabel =
-    categories.find((category) => category.id === activeCategory)?.label || "Menu";
+  const activeLabel = categories.find((category) => category.id === activeCategory)?.label;
 
   return (
     <div className={styles.appShell}>

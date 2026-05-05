@@ -1,0 +1,37 @@
+FROM node:20-alpine AS builder
+
+WORKDIR /app
+
+COPY package*.json ./
+
+RUN npm install
+
+COPY . .
+
+# Configurar variables de entorno al momento de build
+
+ARG VITE_API_URL
+ENV VITE_API_URL=${VITE_API_URL}
+
+ARG VITE_CLOUDINARY_CLOUD_NAME
+ENV VITE_CLOUDINARY_CLOUD_NAME=${VITE_CLOUDINARY_CLOUD_NAME}
+
+ARG VITE_CLOUDINARY_UPLOAD_PRESET
+ENV VITE_CLOUDINARY_UPLOAD_PRESET=${VITE_CLOUDINARY_UPLOAD_PRESET}
+
+ARG VITE_CLOUDINARY_UPLOAD_FOLDER
+ENV VITE_CLOUDINARY_UPLOAD_FOLDER=${VITE_CLOUDINARY_UPLOAD_FOLDER}
+
+RUN npm run build
+
+FROM node:20-alpine
+
+WORKDIR /app
+
+RUN npm install -g serve
+
+COPY --from=builder /app/dist ./dist
+
+EXPOSE 3000
+
+CMD [ "serve", "-s", "dist", "-l", "3000" ]

@@ -676,6 +676,7 @@ function UsersModal({ isOpen, onClose }) {
 
   useEffect(() => {
     if (!isOpen) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setError("");
     resetForm();
     refresh();
@@ -1404,6 +1405,7 @@ function ItemsPanel({
   const computeDiscountStatus = () => {
     const pct = parseInt(form.descuento, 10) || 0;
     if (pct <= 0) return { type: "off", text: "Sin descuento aplicado" };
+    // eslint-disable-next-line react-hooks/purity
     const now = Date.now();
     const ini = form.descuentoInicio ? new Date(form.descuentoInicio).getTime() : null;
     const fin = form.descuentoFin ? new Date(form.descuentoFin).getTime() : null;

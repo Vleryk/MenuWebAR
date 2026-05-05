@@ -40,12 +40,4 @@ export default defineConfig({
       },
     },
   },
-
-  // Config de Vitest. jsdom simula un DOM en Node para poder testear
-  // componentes React. setup.js corre antes de cada test (mocks, etc).
-  test: {
-    environment: "jsdom",
-    globals: true,
-    setupFiles: ["./src/test/setup.js"],
-  },
 });

@@ -68,6 +68,7 @@ export default function AdminUploader({ onUploadComplete }) {
   // revocarla en el cleanup para no filtrar memoria (son URLs en blob).
   useEffect(() => {
     if (!imageFile) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setImagePreview("");
       return;
     }

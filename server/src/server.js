@@ -250,12 +250,6 @@ function resolveMenuItems(items, modelos) {
   }));
 }
 
-// Servimos el bundle del frontend (salida de `npm run build`) desde /dist,
-// y los assets estaticos (imagenes subidas localmente) desde /public/assets.
-const frontendPath = path.join(__dirname, "../dist");
-app.use(express.static(frontendPath));
-app.use("/assets", express.static(path.join(__dirname, "..", "public", "assets")));
-
 // Crea el usuario admin la primera vez que corre el servidor. Si ya existe,
 // no hace nada. La pass por defecto viene del .env y se hashea con bcrypt.
 function initAdmin() {
@@ -1056,13 +1050,6 @@ app.put("/api/admin/password", authMiddleware, loginLimiter, (req, res) => {
 
 // Rutas de logs y estadísticas
 app.use("/api/admin/logs", authMiddleware, activityLogsRouter);
-
-// Fallback para que funcione React Router en rutas tipo /admin o /ar/xxx.
-// Cualquier path que no sea /api/* devuelve el index.html y el router del
-// frontend se encarga de renderizar la vista correspondiente.
-app.get("/{*splat}", (_req, res) => {
-  res.sendFile(path.join(frontendPath, "index.html"));
-});
 
 app.use(errorHandler);
 
